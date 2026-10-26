@@ -4,8 +4,8 @@ import {machineState,sanitizeMachines,updateHistory,parseMap} from '../scripts/c
 import {midnight,binsForDay,aggregate,periodDays,currentStatus} from '../public/model.js';
 test('exports only names and counts, even when response contains secrets',()=>{
   const result=sanitizeMachines({machines:[{id:123,name:'private',hostname:'private-host',api_key:'secret',public_ipaddr:'192.0.2.1',timeout:0,machine_maintenance:null,current_rentals_running:1,current_rentals_resident:2}]},{123:'Alpha'});
-  assert.deepEqual(result,[{name:'Alpha',running:true,storedInstances:2,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
-  assert.deepEqual(sanitizeMachines({machines:[]},{123:'Alpha'})[0],{name:'Alpha',running:null,storedInstances:null,connection:'unknown',maintenanceWindows:null,listed:null,listingEndsAt:null});
+  assert.deepEqual(result,[{name:'Alpha',running:true,runningInstances:1,storedInstances:2,allocatedStorageGb:null,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
+  assert.deepEqual(sanitizeMachines({machines:[]},{123:'Alpha'})[0],{name:'Alpha',running:null,runningInstances:null,storedInstances:null,allocatedStorageGb:null,connection:'unknown',maintenanceWindows:null,listed:null,listingEndsAt:null});
   assert.throws(()=>parseMap('{"123":"Alpha","456":"Alpha"}'));
 });
 test('listing expires independently of running rentals and splits history between checks',()=>{
@@ -33,7 +33,16 @@ test('uses Vast heartbeat threshold; offline never inherits stale running counts
   assert.equal(machineState({timeout:10,machine_maintenance:null}).connection,'offline');
   assert.equal(machineState({timeout:null}).connection,'unknown');
   const sample=sanitizeMachines([{id:123,timeout:600,current_rentals_running:1,current_rentals_resident:2}],{123:'Alpha'})[0];
-  assert.equal(sample.running,false);assert.equal(sample.storedInstances,2);
+  assert.equal(sample.running,false);assert.equal(sample.runningInstances,1);assert.equal(sample.storedInstances,2);
+});
+
+test('preserves allocated GB and instance counts without treating missing or invalid storage as zero',()=>{
+  const start=Date.parse('2026-10-26T10:00Z');
+  for(const [raw,expected] of [[125.5,125.5],[0,0],[undefined,null],[null,null],[-1,null],['125',null]]){
+    const sample=sanitizeMachines([{id:123,timeout:0,current_rentals_running:3,current_rentals_resident:4,alloc_disk_space:raw}],{123:'Alpha'})[0];
+    const snapshot=updateHistory({boxes:[]},[sample],start).boxes[0].lastSample;
+    assert.equal(snapshot.allocatedStorageGb,expected);assert.equal(snapshot.runningInstances,3);assert.equal(snapshot.storedInstances,4);
+  }
 });
 test('scheduled maintenance respects starts, ends and cancellation, without exporting reasons',()=>{
   const now=Date.parse('2026-10-26T10:00Z');

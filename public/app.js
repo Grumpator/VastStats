@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.1.0';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.2.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
-const percent=n=>n==null?'—':n.toFixed(1)+'%',money=n=>n==null?'Unavailable':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+const percent=n=>n==null?'—':n.toFixed(1)+'%';
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
 let recordsByBox=new Map(),activeCell=null;
 $('#date').value=selected;
@@ -10,7 +10,7 @@ function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
   const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(view==='week'?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):'');
   tip.append(element('h4','',box.name+' · '+title));const dl=element('dl');
-  const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Retained instances',value.stored??'—'],['Income (USD)',money(value.income)],['Data coverage',percent(value.coverage*100)]];
+  const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Stored instances',value.stored??'—'],['Data coverage',percent(value.coverage*100)]];
   lines.push(['Offline time',value.connectionObserved?(value.offline/3600).toFixed(2)+' h':'Unknown'],['Maintenance time',value.maintenanceObserved?(value.maintenance/3600).toFixed(2)+' h':'Unknown']);
   lines.push(['Listed time',value.listingObserved?(value.listed/3600).toFixed(2)+' h':'Unknown'],['Unlisted time',value.listingObserved?(value.unlisted/3600).toFixed(2)+' h':'Unknown']);
   for(const [name,value] of lines)dl.append(element('dt','',name),element('dd','',String(value)));tip.append(dl);
@@ -22,7 +22,7 @@ function showTip(button,box,bin,value){
 function cell(box,bin,calendar=false){
   const value=aggregate(recordsByBox.get(box.name),bin.start,bin.end);
   const b=element('button','cell '+value.state+' border-'+value.borderState+(value.observed&&value.coverage<.95?' incomplete':''),value.stored??'');
-  b.type='button';b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium',timeStyle:'short'})+', '+(value.percent==null?'no data':percent(value.percent)+' occupancy')+', '+(value.stored??'unknown')+' parked instances'+(value.borderState!=='unknown'?', '+value.borderState+' border':'')+(value.maintenance?', includes maintenance':''));
+  b.type='button';b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium',timeStyle:'short'})+', '+(value.percent==null?'no data':percent(value.percent)+' occupancy')+', '+(value.stored??'unknown')+' stored instances'+(value.borderState!=='unknown'?', '+value.borderState+' border':'')+(value.maintenance?', includes maintenance':''));
   if(calendar)b.append(element('span','day-number',String(Number(bin.key.slice(-2)))));
   b.addEventListener('mouseenter',()=>showTip(b,box,bin,value));b.addEventListener('mouseleave',hideTip);b.addEventListener('focus',()=>showTip(b,box,bin,value));b.addEventListener('blur',hideTip);b.addEventListener('click',e=>{e.stopPropagation();showTip(b,box,bin,value);});return b;
 }
@@ -30,10 +30,14 @@ function render(){
   hideTip();const days=periodDays(selected,view),start=midnight(days[0]),end=midnight(addDays(days.at(-1),1));
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
   const title=view==='year'?selected.slice(0,4):view==='month'?fmt(start,{month:'long',year:'numeric'}):fmt(start,{day:'numeric',month:'short'})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric'});
-  $('#period').textContent=title;$('#resolution').textContent=(view==='week'?'One square = one hour':'One square = one day')+' · Numbers = retained instances';
+  $('#period').textContent=title;$('#resolution').textContent=(view==='week'?'One square = one hour':'One square = one day')+' · Numbers = stored instances';
   const stats=data.boxes.map(b=>aggregate(b.hours,start,end));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
-  $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#hours').textContent=obs?(occ/3600).toFixed(1):'—';$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';
+  $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';
+  const totalLatest=field=>{const values=data.boxes.map(b=>b.lastSample?.[field]);return values.length&&values.every(n=>Number.isFinite(n)&&n>=0)?values.reduce((a,b)=>a+b,0):null;};
+  const running=totalLatest('runningInstances'),storage=totalLatest('allocatedStorageGb');
+  $('#running').textContent=running??'—';$('#running-note').textContent=obs?(occ/3600).toFixed(1)+' box-hours in selected period':'latest Vast instance count';
+  $('#stored-note').textContent=storage==null?'latest Vast instance count':storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated · latest';
   const latest=data.boxes.map(b=>b.lastSample?b.lastSample.storedInstances:b.hours.at(-1)?.storedInstances);$('#stored').textContent=latest.length&&latest.every(n=>n!=null)?latest.reduce((a,b)=>a+b,0):'—';
   const boxes=$('#boxes');boxes.replaceChildren();boxes.className=view==='month'?'month-boxes':'';
   data.boxes.forEach((box,index)=>{
@@ -83,5 +87,18 @@ $('#date').addEventListener('change',()=>{if($('#date').value){selected=$('#date
 function move(direction){if(view==='week')selected=addDays(selected,direction*7);else{const d=new Date(selected.slice(0,7)+'-01T12:00Z');if(view==='month')d.setUTCMonth(d.getUTCMonth()+direction);else d.setUTCFullYear(d.getUTCFullYear()+direction);selected=d.toISOString().slice(0,10);}$('#date').value=selected;render();}
 $('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());$('#date').value=selected;render();};
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
+const metricHelp={
+  occupancy:['Fleet occupancy','The percentage of observed box-time with at least one running rental in the selected period. Running box-hours ÷ observed box-hours × 100. For example, three boxes observed for 24 hours provide 72 box-hours; 36 running box-hours means 50% occupancy. Missing observations are excluded; confirmed offline time counts as not running.'],
+  running:['Running','The latest total number of running customer instances reported by Vast across all boxes. This current snapshot does not change when you select a historical period. The smaller box-hours figure sums time with a running rental in that period: two boxes running for three hours each give six box-hours. Offline status is separate; Vast’s instance counters can lag a disconnection.'],
+  stored:['Stored','The latest total number of stored customer instances reported by Vast, including both running and stopped instances. This current snapshot does not change with the selected period. GB allocated is Vast’s allocated disk-space total across the boxes, not a measurement of the actual files in those instances; it can include other Vast storage allocations. It is shown only when every box reports a size.'],
+  coverage:['Data coverage','The proportion of elapsed box-time in the selected period for which occupancy observations are available. It excludes future time. Gaps between collections are unknown, not idle. Fleet occupancy is calculated from the known portion, so read occupancy together with coverage.']
+};
+function closeMetricHelp(){ $('#metric-details').hidden=true;document.querySelectorAll('[data-info]').forEach(b=>b.setAttribute('aria-expanded','false')); }
+document.querySelectorAll('[data-info]').forEach(button=>button.addEventListener('click',()=>{
+  const wasOpen=button.getAttribute('aria-expanded')==='true';closeMetricHelp();if(wasOpen)return;
+  const [title,copy]=metricHelp[button.dataset.info];$('#metric-details-title').textContent=title;$('#metric-details-copy').textContent=copy;$('#metric-details').hidden=false;button.setAttribute('aria-expanded','true');
+}));
+$('#close-metric-details').onclick=closeMetricHelp;
+document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMetricHelp();});
 document.addEventListener('click',hideTip);document.addEventListener('keydown',e=>{if(e.key==='Escape')hideTip();});window.addEventListener('resize',hideTip);window.addEventListener('scroll',hideTip,true);
 load();setInterval(load,60000);

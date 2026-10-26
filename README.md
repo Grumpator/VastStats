@@ -28,34 +28,36 @@ GitHub Actions checks roughly every five minutes. Scheduled runs can be delayed 
 - **Year:** one square per day, in a contribution-style grid.
 - **Green:** running throughout observed time. **Amber:** running for some observed time. **White:** idle throughout observed time. **Grey:** no observations. Stripes indicate incomplete coverage; future periods have a dashed border.
 - Occupancy means **at least one running rental on a box**, rather than GPU utilisation or fraction of GPUs allocated.
-- Numbers are the **retained customer instance count**, including stopped rentals, at the last observation in that square. They are not Docker cache counts or sums across hours.
-- Hover, keyboard focus, or tap shows occupancy percentage, running hours, retained count, income availability, and data coverage.
+- Numbers are the **stored customer instance count**, including stopped rentals, at the last observation in that square. They are not Docker cache counts or sums across hours.
+- Hover, keyboard focus, or tap shows occupancy percentage, running hours, stored count, state durations, and data coverage.
 - Summary occupancy uses observed time only. Coverage reports how much elapsed time is known. Running box-hours add time across boxes.
-- The retained-instance summary is the latest recorded fleet count, independent of the selected historical period.
+- **Running** and **Stored** show the latest fleet instance counts reported by Vast, independent of the historical period. Stored includes running and stopped instances. Running counts can lag when a box disconnects; confirmed offline time still counts as zero historical occupancy.
+- Under Stored, **GB allocated** totals Vast's allocated disk space across all boxes when every value is available. This is not actual instance file usage and may include other Vast allocations. Missing values are not treated as zero.
+- Each summary card has a small **i** button with a metric explanation; click or tap to expand it, or use the keyboard. Running box-hours remain below the Running count for the selected period.
 - London calendar boundaries account for 23/25-hour daylight-saving days. Repeated hours on clock-change days follow actual time; tooltips identify GMT/BST.
 - **Border = box state:** thick green for listed, thick grey for unlisted, thick amber for maintenance, thick red for offline. Each square has one 3px border, with priority **offline → maintenance → unlisted → listed**. A border means that state was observed during the hour/day; it does not imply that the entire period was spent in that state. A mixed listed/unlisted period uses grey. If there is no listing or availability evidence, the square keeps a thin neutral outline.
 - **Fill = occupancy:** green for running throughout observed time, amber for part of observed time, white for none, grey for unknown/missing data. The border and fill are independent: a listed box can be idle, and an unlisted box can still have an existing running rental.
-- **Number = parked images:** the retained customer instance count (including stopped rentals) at the last observation in the square. It is not the Docker image cache count or an accumulated total.
+- **Number = stored instances:** the stored customer instance count (including stopped rentals) at the last observation in the square. It is not the Docker image cache count or an accumulated total.
 - Current badges beside each box name show online/offline, listed/unlisted, and active/planned maintenance separately from the historical square borders. Hover, tap or keyboard focus shows exact occupancy and the observed listed, unlisted, offline and maintenance durations. Raw error messages and maintenance reasons are not published.
-- Offline status follows Vast's Machines console: `timeout >= 10` seconds. The collector requests `include_offline=1` so disconnected machines are included. A confirmed offline sample counts as zero running time even if Vast retains a stale nonzero rental counter. Retained instances are still shown when available.
+- Offline status follows Vast's Machines console: `timeout >= 10` seconds. The collector requests `include_offline=1` so disconnected machines are included. A confirmed offline sample counts as zero running time even if Vast retains a stale nonzero rental counter. Stored instances are still shown when available.
 - Active maintenance uses uncancelled `machine_maintenance` windows (`start_time` plus `duration_hours`). Maintenance does not automatically imply offline or prevent an existing rental from running. Future windows get a separate planned badge.
 - Listing status follows Vast's `listed` flag and `end_date`: an expired listing is treated as unlisted. A known expiration splits listed/unlisted history at the actual expiration time, even between polls. Listing status is separate from whether an existing rental is running.
 - Missing machines/fields are unknown, not offline or idle. API errors preserve previous data, and badges become out of date after 20 minutes without a successful update. Occupancy and status coverage are independent: older records without status fields have unknown availability, not invented uptime.
-- Income is currently unavailable. The public schema supports `incomeUsd`, but the collector does not invent income from list prices. Vast provides per-machine earnings reports; their granularity and accounting need verification before adding them. Any future estimates must be explicitly labelled. Publishing actual income requires deciding that financial disclosure is intended.
+- The empty income row has been removed from tooltips. Income is currently unavailable. The public schema supports `incomeUsd`, but the collector does not invent income from list prices. Vast provides per-machine earnings reports; their granularity and accounting need verification before adding them. Any future estimates must be explicitly labelled. Publishing actual income requires deciding that financial disclosure is intended.
 
 The demo button generates clearly labelled illustrative history in the browser. It does not overwrite or publish sample records. Add `?demo=1` to preview directly.
 
 ## Public-data boundary
 
-Only chosen names, timestamps, running/availability/listing states, retained counts, occupied/observed/listed/unlisted/offline/maintenance seconds, sanitized listing-expiration and maintenance start/end times, and optional explicitly sourced income belong in `public/data.json`. API output is allowlisted before export. Raw responses, credentials, machine IDs, hostnames, IP addresses, customer names, image names, maintenance reasons, free-text errors and billing records are never serialized. The workflow uploads only `public/`.
+Only chosen names, timestamps, running/availability/listing states, current running and stored counts, allocated disk-space totals, occupied/observed/listed/unlisted/offline/maintenance seconds, sanitized listing-expiration and maintenance start/end times, and optional explicitly sourced income belong in `public/data.json`. API output is allowlisted before export. Raw responses, credentials, machine IDs, hostnames, IP addresses, customer names, image names, maintenance reasons, free-text errors and billing records are never serialized. The workflow uploads only `public/`.
 
 Status behavior was checked against Vast's public console on 26 October 2026: [machine dashboard module](https://cloud.vast.ai/assets/MachinesPageSwitcher-BpoDvDWr.js), [API request module](https://cloud.vast.ai/assets/index-rkOnGsCI.js). These versioned asset URLs may change when Vast deploys its console. No extra API endpoint is required for maintenance because the machine response already contains the windows.
 
-The repository and its Git history are public too: use only sanitized summaries here. Occupancy and retained counts themselves are public by design. The only external page resource is Google Fonts; fallback system fonts work if unavailable.
+The repository and its Git history are public too: use only sanitized summaries here. Occupancy and stored counts themselves are public by design. The only external page resource is Google Fonts; fallback system fonts work if unavailable.
 
 ## Local development
 
-The compact interface shows its release version in the footer (currently **v1.1.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
+The compact interface shows its release version in the footer (currently **v1.2.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
 
 Requires Node 22 or later; no dependencies or build step.
 
