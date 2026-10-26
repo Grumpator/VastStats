@@ -1,4 +1,4 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.2.0';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.3.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 const percent=n=>n==null?'—':n.toFixed(1)+'%';
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
@@ -36,8 +36,8 @@ function render(){
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';
   const totalLatest=field=>{const values=data.boxes.map(b=>b.lastSample?.[field]);return values.length&&values.every(n=>Number.isFinite(n)&&n>=0)?values.reduce((a,b)=>a+b,0):null;};
   const running=totalLatest('runningInstances'),storage=totalLatest('allocatedStorageGb');
-  $('#running').textContent=running??'—';$('#running-note').textContent=obs?(occ/3600).toFixed(1)+' box-hours in selected period':'latest Vast instance count';
-  $('#stored-note').textContent=storage==null?'latest Vast instance count':storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated · latest';
+  $('#running').textContent=running??'—';$('#hours').textContent=obs?(occ/3600).toFixed(1):'—';
+  $('#stored-note').textContent=storage==null?'latest Vast instance counts':storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated · latest';
   const latest=data.boxes.map(b=>b.lastSample?b.lastSample.storedInstances:b.hours.at(-1)?.storedInstances);$('#stored').textContent=latest.length&&latest.every(n=>n!=null)?latest.reduce((a,b)=>a+b,0):'—';
   const boxes=$('#boxes');boxes.replaceChildren();boxes.className=view==='month'?'month-boxes':'';
   data.boxes.forEach((box,index)=>{
@@ -89,8 +89,8 @@ $('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').o
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
 const metricHelp={
   occupancy:['Fleet occupancy','The percentage of observed box-time with at least one running rental in the selected period. Running box-hours ÷ observed box-hours × 100. For example, three boxes observed for 24 hours provide 72 box-hours; 36 running box-hours means 50% occupancy. Missing observations are excluded; confirmed offline time counts as not running.'],
-  running:['Running','The latest total number of running customer instances reported by Vast across all boxes. This current snapshot does not change when you select a historical period. The smaller box-hours figure sums time with a running rental in that period: two boxes running for three hours each give six box-hours. Offline status is separate; Vast’s instance counters can lag a disconnection.'],
-  stored:['Stored','The latest total number of stored customer instances reported by Vast, including both running and stopped instances. This current snapshot does not change with the selected period. GB allocated is Vast’s allocated disk-space total across the boxes, not a measurement of the actual files in those instances; it can include other Vast storage allocations. It is shown only when every box reports a size.'],
+  hours:['Hours','Running box-hours across all boxes in the selected period. One box with at least one running rental for one hour contributes one box-hour; two boxes running for three hours each contribute six. Multiple simultaneous rentals on one box do not multiply its time. Fleet occupancy is running box-hours divided by observed box-hours. Missing observations are excluded and confirmed offline time contributes zero running hours.'],
+  images:['Images · Running / Stored','Latest customer instance counts reported by Vast across all boxes. Running is the number currently running; Stored includes both running and stopped instances, so the two counts should not be added together. These current snapshots do not change with the historical period. Offline counters can lag a disconnection. GB allocated totals Vast’s allocated disk space, not actual instance file usage, and can include other Vast allocations. It is shown only when every box reports a size.'],
   coverage:['Data coverage','The proportion of elapsed box-time in the selected period for which occupancy observations are available. It excludes future time. Gaps between collections are unknown, not idle. Fleet occupancy is calculated from the known portion, so read occupancy together with coverage.']
 };
 function closeMetricHelp(){ $('#metric-details').hidden=true;document.querySelectorAll('[data-info]').forEach(b=>b.setAttribute('aria-expanded','false')); }

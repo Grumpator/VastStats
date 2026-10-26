@@ -31,9 +31,9 @@ GitHub Actions checks roughly every five minutes. Scheduled runs can be delayed 
 - Numbers are the **stored customer instance count**, including stopped rentals, at the last observation in that square. They are not Docker cache counts or sums across hours.
 - Hover, keyboard focus, or tap shows occupancy percentage, running hours, stored count, state durations, and data coverage.
 - Summary occupancy uses observed time only. Coverage reports how much elapsed time is known. Running box-hours add time across boxes.
-- **Running** and **Stored** show the latest fleet instance counts reported by Vast, independent of the historical period. Stored includes running and stopped instances. Running counts can lag when a box disconnects; confirmed offline time still counts as zero historical occupancy.
-- Under Stored, **GB allocated** totals Vast's allocated disk space across all boxes when every value is available. This is not actual instance file usage and may include other Vast allocations. Missing values are not treated as zero.
-- Each summary card has a small **i** button with a metric explanation; click or tap to expand it, or use the keyboard. Running box-hours remain below the Running count for the selected period.
+- The **Images** pill combines **Running** and **Stored**, which show the latest fleet instance counts reported by Vast, independent of the historical period. Stored includes running and stopped instances. Running counts can lag when a box disconnects; confirmed offline time still counts as zero historical occupancy.
+- Under Images, **GB allocated** totals Vast's allocated disk space across all boxes when every value is available. This is not actual instance file usage and may include other Vast allocations. Missing values are not treated as zero.
+- Each summary card has a small **i** button with a metric explanation; click or tap to expand it, or use the keyboard. The **Hours** pill shows running box-hours for the selected period. The four summary pills are Occupancy, Hours, Images, and Data coverage.
 - London calendar boundaries account for 23/25-hour daylight-saving days. Repeated hours on clock-change days follow actual time; tooltips identify GMT/BST.
 - **Border = box state:** thick green for listed, thick grey for unlisted, thick amber for maintenance, thick red for offline. Each square has one 3px border, with priority **offline → maintenance → unlisted → listed**. A border means that state was observed during the hour/day; it does not imply that the entire period was spent in that state. A mixed listed/unlisted period uses grey. If there is no listing or availability evidence, the square keeps a thin neutral outline.
 - **Fill = occupancy:** green for running throughout observed time, amber for part of observed time, white for none, grey for unknown/missing data. The border and fill are independent: a listed box can be idle, and an unlisted box can still have an existing running rental.
@@ -57,9 +57,9 @@ The repository and its Git history are public too: use only sanitized summaries 
 
 ## Local development
 
-The compact interface shows its release version in the footer (currently **v1.2.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
+The compact interface shows its release version in the footer (currently **v1.3.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
 
-Requires Node 22 or later; no dependencies or build step.
+Requires Node 24 or later; no dependencies or build step. GitHub Actions uses Ubuntu 24.04 explicitly and actions with Node 24 runtimes.
 
 When changing browser code or styling, bump the version in `package.json`, the visible footer and asset queries in `index.html`, and the `model.js` import in `app.js`. Data is fetched without browser caching independently of the code version.
 
