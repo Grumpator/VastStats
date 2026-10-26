@@ -1,4 +1,4 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.0.0';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.1.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 const percent=n=>n==null?'—':n.toFixed(1)+'%',money=n=>n==null?'Unavailable':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
@@ -8,7 +8,7 @@ function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.clas
 function hideTip(){ $('#tooltip').hidden=true;if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=null; }
 function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
-  const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(view==='day'||view==='week'?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):'');
+  const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(view==='week'?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):'');
   tip.append(element('h4','',box.name+' · '+title));const dl=element('dl');
   const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Retained instances',value.stored??'—'],['Income (USD)',money(value.income)],['Data coverage',percent(value.coverage*100)]];
   lines.push(['Offline time',value.connectionObserved?(value.offline/3600).toFixed(2)+' h':'Unknown'],['Maintenance time',value.maintenanceObserved?(value.maintenance/3600).toFixed(2)+' h':'Unknown']);
@@ -29,8 +29,8 @@ function cell(box,bin,calendar=false){
 function render(){
   hideTip();const days=periodDays(selected,view),start=midnight(days[0]),end=midnight(addDays(days.at(-1),1));
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
-  const title=view==='year'?selected.slice(0,4):view==='month'?fmt(start,{month:'long',year:'numeric'}):view==='day'?fmt(start,{weekday:'long',day:'numeric',month:'long',year:'numeric'}):fmt(start,{day:'numeric',month:'short'})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric'});
-  $('#period').textContent=title;$('#resolution').textContent=(view==='day'||view==='week'?'One square = one hour':'One square = one day')+' · Numbers = retained instances';
+  const title=view==='year'?selected.slice(0,4):view==='month'?fmt(start,{month:'long',year:'numeric'}):fmt(start,{day:'numeric',month:'short'})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric'});
+  $('#period').textContent=title;$('#resolution').textContent=(view==='week'?'One square = one hour':'One square = one day')+' · Numbers = retained instances';
   const stats=data.boxes.map(b=>aggregate(b.hours,start,end));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#hours').textContent=obs?(occ/3600).toFixed(1):'—';$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';
@@ -50,7 +50,7 @@ function render(){
     text.append(heading,element('p','box-caption',stats[index].observed?(stats[index].observed/3600).toFixed(1)+' hours observed':'Awaiting observations'));
     title.append(element('span','box-avatar',box.name[0]),text);const metric=element('div','box-percent',percent(stats[index].percent));metric.append(element('small','','occupancy'));header.append(title,metric);card.append(header);
     const scroll=element('div','grid-scroll');
-    if(view==='day'||view==='week') {
+    if(view==='week') {
       const labels=element('div','hour-labels');labels.append(element('span'));for(let h=0;h<24;h++)labels.append(element('span','',String(h).padStart(2,'0')));scroll.append(labels);
       for(const day of days){
         const line=element('div','hour-line'),label=element('div','day-label');label.append(element('strong','',fmt(midnight(day),{weekday:'short'})),document.createTextNode(day.slice(-2)));line.append(label);
@@ -80,7 +80,7 @@ async function load(){
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;render();}));
 $('#date').addEventListener('change',()=>{if($('#date').value){selected=$('#date').value;render();}});
-function move(direction){if(view==='day'||view==='week')selected=addDays(selected,direction*(view==='week'?7:1));else{const d=new Date(selected.slice(0,7)+'-01T12:00Z');if(view==='month')d.setUTCMonth(d.getUTCMonth()+direction);else d.setUTCFullYear(d.getUTCFullYear()+direction);selected=d.toISOString().slice(0,10);}$('#date').value=selected;render();}
+function move(direction){if(view==='week')selected=addDays(selected,direction*7);else{const d=new Date(selected.slice(0,7)+'-01T12:00Z');if(view==='month')d.setUTCMonth(d.getUTCMonth()+direction);else d.setUTCFullYear(d.getUTCFullYear()+direction);selected=d.toISOString().slice(0,10);}$('#date').value=selected;render();}
 $('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());$('#date').value=selected;render();};
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
 document.addEventListener('click',hideTip);document.addEventListener('keydown',e=>{if(e.key==='Escape')hideTip();});window.addEventListener('resize',hideTip);window.addEventListener('scroll',hideTip,true);

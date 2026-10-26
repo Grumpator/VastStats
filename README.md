@@ -23,7 +23,7 @@ GitHub Actions checks roughly every five minutes. Scheduled runs can be delayed 
 
 ## Reading the dashboard
 
-- **Day/week:** one square per actual hour. Week starts Monday.
+- **Week:** one square per actual hour. Week starts Monday; the separate Day view has been removed.
 - **Month:** one square per day, in a calendar.
 - **Year:** one square per day, in a contribution-style grid.
 - **Green:** running throughout observed time. **Amber:** running for some observed time. **White:** idle throughout observed time. **Grey:** no observations. Stripes indicate incomplete coverage; future periods have a dashed border.
@@ -33,7 +33,7 @@ GitHub Actions checks roughly every five minutes. Scheduled runs can be delayed 
 - Summary occupancy uses observed time only. Coverage reports how much elapsed time is known. Running box-hours add time across boxes.
 - The retained-instance summary is the latest recorded fleet count, independent of the selected historical period.
 - London calendar boundaries account for 23/25-hour daylight-saving days. Repeated hours on clock-change days follow actual time; tooltips identify GMT/BST.
-- **Border = box state:** thick green for listed, thick grey for unlisted, thick amber for maintenance, thick red for offline. Each square has one 2px border, with priority **offline → maintenance → unlisted → listed**. A border means that state was observed during the hour/day; it does not imply that the entire period was spent in that state. A mixed listed/unlisted period uses grey. If there is no listing or availability evidence, the square keeps a thin neutral outline.
+- **Border = box state:** thick green for listed, thick grey for unlisted, thick amber for maintenance, thick red for offline. Each square has one 3px border, with priority **offline → maintenance → unlisted → listed**. A border means that state was observed during the hour/day; it does not imply that the entire period was spent in that state. A mixed listed/unlisted period uses grey. If there is no listing or availability evidence, the square keeps a thin neutral outline.
 - **Fill = occupancy:** green for running throughout observed time, amber for part of observed time, white for none, grey for unknown/missing data. The border and fill are independent: a listed box can be idle, and an unlisted box can still have an existing running rental.
 - **Number = parked images:** the retained customer instance count (including stopped rentals) at the last observation in the square. It is not the Docker image cache count or an accumulated total.
 - Current badges beside each box name show online/offline, listed/unlisted, and active/planned maintenance separately from the historical square borders. Hover, tap or keyboard focus shows exact occupancy and the observed listed, unlisted, offline and maintenance durations. Raw error messages and maintenance reasons are not published.
@@ -55,9 +55,11 @@ The repository and its Git history are public too: use only sanitized summaries 
 
 ## Local development
 
+The compact interface shows its release version in the footer (currently **v1.1.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
+
 Requires Node 22 or later; no dependencies or build step.
 
-When changing browser code or styling, bump the matching version query in `index.html` and the `model.js` import in `app.js`. Data is fetched without browser caching independently of the code version.
+When changing browser code or styling, bump the version in `package.json`, the visible footer and asset queries in `index.html`, and the `model.js` import in `app.js`. Data is fetched without browser caching independently of the code version.
 
 ```sh
 npm test
