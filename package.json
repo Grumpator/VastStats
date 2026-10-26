@@ -1,0 +1,6 @@
+{
+  "name": "vaststats",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test", "preview": "node scripts/serve.mjs"}
+}

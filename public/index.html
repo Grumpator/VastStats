@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="A simple view of rental occupancy across the fleet.">
+  <title>VastStats · Fleet occupancy</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23245840'/%3E%3Cpath d='M8 10l8 14 8-14' fill='none' stroke='%23d4ef8f' stroke-width='4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css?v=1.0.0">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar"><a class="brand" href="./"><span class="brandmark" aria-hidden="true">v</span> VastStats<span class="brand-divider">/</span><span class="brand-sub">Fleet overview</span></a><span class="public-label"><span></span> Public dashboard</span></header>
+    <main>
+      <div class="intro"><div><p class="eyebrow">THE FLEET, AT A GLANCE</p><h1>Every box. Every hour.</h1><p class="subtitle">Rental occupancy and retained instances, in one place.</p></div><div class="freshness"><span class="status-dot"></span><span id="freshness">Waiting for first update</span></div></div>
+      <div id="notice" class="notice" role="status"></div>
+      <section class="toolbar" aria-label="View controls">
+        <div class="segments" role="group" aria-label="Time scale"><button data-view="day">Day</button><button data-view="week" aria-pressed="true">Week</button><button data-view="month">Month</button><button data-view="year">Year</button></div>
+        <div class="date-controls"><button id="previous" class="icon-button" aria-label="Previous period">‹</button><label class="date-label"><span class="sr-only">Choose date</span><input id="date" type="date"></label><button id="next" class="icon-button" aria-label="Next period">›</button><button id="today" class="text-button">Today</button></div>
+      </section>
+      <section class="summary" aria-label="Period summary"><div><span class="metric-label">Fleet occupancy</span><strong id="occupancy">—</strong><span class="metric-note">of observed time · sampled</span></div><div><span class="metric-label">Running box-hours</span><strong id="hours">—</strong><span class="metric-note">across the selected period</span></div><div><span class="metric-label">Retained instances</span><strong id="stored">—</strong><span class="metric-note">latest observed count</span></div><div><span class="metric-label">Data coverage</span><strong id="coverage">—</strong><span class="metric-note">of elapsed time in this period</span></div></section>
+      <section class="timeline"><div class="section-head"><div><h2 id="period"></h2><p id="resolution"></p></div><div class="legend" aria-label="Occupancy legend"><span><i class="full"></i>Full</span><span><i class="partial"></i>Partial</span><span><i class="idle"></i>Idle</span><span><i class="unknown"></i>No data</span><span><i class="listed-mark"></i>Listed</span><span><i class="unlisted-mark"></i>Unlisted</span><span><i class="maintenance-mark"></i>Maintenance</span><span><i class="offline-mark"></i>Offline</span></div></div><div id="boxes"></div></section>
+      <div class="explanation"><span class="info-icon">i</span><p>Fill = occupancy: green full, amber partial, white idle, grey unknown. Border = box state: green listed, grey unlisted, amber maintenance, red offline. Number = parked customer instances, including stopped ones. Stripes mean incomplete data. Hover, focus or tap for details.</p></div>
+    </main>
+    <footer><span>VastStats <span class="footer-dot">·</span> Europe/London</span><button id="demo" class="text-button">Explore sample data ↗</button></footer>
+  </div>
+  <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  <script type="module" src="app.js?v=1.0.0"></script>
+</body>
+</html>

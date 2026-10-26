@@ -1,0 +1,67 @@
+# VastStats
+
+A public, static Vast rental dashboard. No box is contacted by the website or GitHub Actions. No inbound ports or VPS are required.
+
+## Enable the page
+
+In this repository's **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. The included workflow publishes only `public/` on pushes to `main`.
+
+Expected address after the first successful deployment: https://grumpator.github.io/VastStats/
+
+## Connect the data
+
+In **Settings → Secrets and variables → Actions**, add two repository secrets:
+
+- `VAST_API_KEY`: a Vast account API key authorized to read your hosted machines. Use the narrowest available permissions. Never put the key in files, Issues, or browser JavaScript.
+- `VAST_BOX_MAP`: a JSON object mapping your private numeric machine IDs to public names, for example `{"123":"Alpha","456":"Beta","789":"Gamma"}`. Substitute your actual IDs. This map remains in GitHub Secrets, not in the published source or data.
+
+Then open **Actions → Update and publish dashboard → Run workflow**. First collection records a starting observation; the next successful check starts filling the grid. Collection also runs on code pushes. Without secrets the page still deploys with an empty history and an explicit waiting message. Keep both values in repository secrets: the map links private machine IDs to public names, and variables are not masked in logs.
+
+Use **Machines / read-only** permission for the API key. No User, Instances, Billing or Misc permissions are required by the current collector. Collection runs on GitHub, never on the boxes, so a box outage does not stop polling. Data commits use the `VastStats collector` author and GitHub's built-in job token; no personal GitHub key is needed on any box.
+
+GitHub Actions checks roughly every five minutes. Scheduled runs can be delayed or skipped, so this is sampled occupancy rather than a billing ledger. Consecutive observations at most 12 minutes apart integrate the previous state until the next observation. Larger gaps remain unknown. GitHub can disable scheduled workflows in public repositories after 60 days without activity; data commits normally provide activity, but failures should be checked if updates stop. No historical occupancy is inferred from today's state.
+
+## Reading the dashboard
+
+- **Day/week:** one square per actual hour. Week starts Monday.
+- **Month:** one square per day, in a calendar.
+- **Year:** one square per day, in a contribution-style grid.
+- **Green:** running throughout observed time. **Amber:** running for some observed time. **White:** idle throughout observed time. **Grey:** no observations. Stripes indicate incomplete coverage; future periods have a dashed border.
+- Occupancy means **at least one running rental on a box**, rather than GPU utilisation or fraction of GPUs allocated.
+- Numbers are the **retained customer instance count**, including stopped rentals, at the last observation in that square. They are not Docker cache counts or sums across hours.
+- Hover, keyboard focus, or tap shows occupancy percentage, running hours, retained count, income availability, and data coverage.
+- Summary occupancy uses observed time only. Coverage reports how much elapsed time is known. Running box-hours add time across boxes.
+- The retained-instance summary is the latest recorded fleet count, independent of the selected historical period.
+- London calendar boundaries account for 23/25-hour daylight-saving days. Repeated hours on clock-change days follow actual time; tooltips identify GMT/BST.
+- **Border = box state:** thick green for listed, thick grey for unlisted, thick amber for maintenance, thick red for offline. Each square has one 2px border, with priority **offline → maintenance → unlisted → listed**. A border means that state was observed during the hour/day; it does not imply that the entire period was spent in that state. A mixed listed/unlisted period uses grey. If there is no listing or availability evidence, the square keeps a thin neutral outline.
+- **Fill = occupancy:** green for running throughout observed time, amber for part of observed time, white for none, grey for unknown/missing data. The border and fill are independent: a listed box can be idle, and an unlisted box can still have an existing running rental.
+- **Number = parked images:** the retained customer instance count (including stopped rentals) at the last observation in the square. It is not the Docker image cache count or an accumulated total.
+- Current badges beside each box name show online/offline, listed/unlisted, and active/planned maintenance separately from the historical square borders. Hover, tap or keyboard focus shows exact occupancy and the observed listed, unlisted, offline and maintenance durations. Raw error messages and maintenance reasons are not published.
+- Offline status follows Vast's Machines console: `timeout >= 10` seconds. The collector requests `include_offline=1` so disconnected machines are included. A confirmed offline sample counts as zero running time even if Vast retains a stale nonzero rental counter. Retained instances are still shown when available.
+- Active maintenance uses uncancelled `machine_maintenance` windows (`start_time` plus `duration_hours`). Maintenance does not automatically imply offline or prevent an existing rental from running. Future windows get a separate planned badge.
+- Listing status follows Vast's `listed` flag and `end_date`: an expired listing is treated as unlisted. A known expiration splits listed/unlisted history at the actual expiration time, even between polls. Listing status is separate from whether an existing rental is running.
+- Missing machines/fields are unknown, not offline or idle. API errors preserve previous data, and badges become out of date after 20 minutes without a successful update. Occupancy and status coverage are independent: older records without status fields have unknown availability, not invented uptime.
+- Income is currently unavailable. The public schema supports `incomeUsd`, but the collector does not invent income from list prices. Vast provides per-machine earnings reports; their granularity and accounting need verification before adding them. Any future estimates must be explicitly labelled. Publishing actual income requires deciding that financial disclosure is intended.
+
+The demo button generates clearly labelled illustrative history in the browser. It does not overwrite or publish sample records. Add `?demo=1` to preview directly.
+
+## Public-data boundary
+
+Only chosen names, timestamps, running/availability/listing states, retained counts, occupied/observed/listed/unlisted/offline/maintenance seconds, sanitized listing-expiration and maintenance start/end times, and optional explicitly sourced income belong in `public/data.json`. API output is allowlisted before export. Raw responses, credentials, machine IDs, hostnames, IP addresses, customer names, image names, maintenance reasons, free-text errors and billing records are never serialized. The workflow uploads only `public/`.
+
+Status behavior was checked against Vast's public console on 26 October 2026: [machine dashboard module](https://cloud.vast.ai/assets/MachinesPageSwitcher-BpoDvDWr.js), [API request module](https://cloud.vast.ai/assets/index-rkOnGsCI.js). These versioned asset URLs may change when Vast deploys its console. No extra API endpoint is required for maintenance because the machine response already contains the windows.
+
+The repository and its Git history are public too: use only sanitized summaries here. Occupancy and retained counts themselves are public by design. The only external page resource is Google Fonts; fallback system fonts work if unavailable.
+
+## Local development
+
+Requires Node 22 or later; no dependencies or build step.
+
+When changing browser code or styling, bump the matching version query in `index.html` and the `model.js` import in `app.js`. Data is fetched without browser caching independently of the code version.
+
+```sh
+npm test
+npm run preview
+```
+
+Open http://127.0.0.1:4173/ (or add `?demo=1`).
