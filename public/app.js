@@ -1,5 +1,7 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.3.1';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.4.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
+// Live data comes from the repository; it does not require a Pages deployment.
+const dataUrl=['localhost','127.0.0.1','[::1]'].includes(location.hostname)?'data.json':'https://raw.githubusercontent.com/Grumpator/VastStats/main/public/data.json';
 const percent=n=>n==null?'—':n.toFixed(1)+'%';
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
 let recordsByBox=new Map(),activeCell=null;
@@ -79,7 +81,7 @@ function render(){
 }
 async function load(){
   if(demo){data=demoData();render();return;}
-  try{const response=await fetch('data.json',{cache:'no-store'});if(!response.ok)throw new Error();const next=await response.json();if(next.version!==1||!Array.isArray(next.boxes))throw new Error();data=next;render();}
+  try{const response=await fetch(dataUrl,{cache:'no-store'});if(!response.ok)throw new Error();const next=await response.json();if(next.version!==1||!Array.isArray(next.boxes))throw new Error();data=next;render();}
   catch{$('#notice').textContent='Could not refresh the data. Please try again shortly.';}
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;render();}));

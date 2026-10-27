@@ -4,7 +4,7 @@ A public, static Vast rental dashboard. No box is contacted by the website or Gi
 
 ## Enable the page
 
-In this repository's **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. The included workflow publishes only `public/` on pushes to `main`.
+In this repository's **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. The Deploy dashboard workflow publishes only `public/` when page code changes on `main`; data-only commits do not deploy.
 
 Expected address after the first successful deployment: https://grumpator.github.io/VastStats/
 
@@ -15,11 +15,17 @@ In **Settings → Secrets and variables → Actions**, add two repository secret
 - `VAST_API_KEY`: a Vast account API key authorized to read your hosted machines. Use the narrowest available permissions. Never put the key in files, Issues, or browser JavaScript.
 - `VAST_BOX_MAP`: a JSON object mapping your private numeric machine IDs to public names, for example `{"123":"Alpha","456":"Beta","789":"Gamma"}`. Substitute your actual IDs. This map remains in GitHub Secrets, not in the published source or data.
 
-Then open **Actions → Update and publish dashboard → Run workflow**. First collection records a starting observation; the next successful check starts filling the grid. Collection also runs on code pushes. Without secrets the page still deploys with an empty history and an explicit waiting message. Keep both values in repository secrets: the map links private machine IDs to public names, and variables are not masked in logs.
+Then open **Actions → Collect fleet data → Run workflow**. First collection records a starting observation; the next successful check starts filling the grid. Collection also runs when collector code or tests change. Without secrets the page still deploys with an empty history and an explicit waiting message. Keep both values in repository secrets: the map links private machine IDs to public names, and variables are not masked in logs.
 
 Use **Machines / read-only** permission for the API key. No User, Instances, Billing or Misc permissions are required by the current collector. Collection runs on GitHub, never on the boxes, so a box outage does not stop polling. Data commits use the `VastStats collector` author and GitHub's built-in job token; no personal GitHub key is needed on any box.
 
 GitHub Actions is configured to check every five minutes, using explicit minute values in the schedule. This is a requested cadence, not a guarantee: scheduled runs can be delayed or skipped. On 27 October 2026, only four scheduled runs were created over approximately twenty hours; changing to explicit minutes is a scheduling troubleshooting step, not a verified fix. Check runs with the `schedule` event separately from pushes and manual reruns. The collector logs its timestamp and the gap since the preceding collection. Consecutive observations at most 12 minutes apart integrate the previous state until the next observation. Larger gaps remain unknown. GitHub can disable scheduled workflows in public repositories after 60 days without activity; data commits normally provide activity, but failures should be checked if updates stop. No historical occupancy is inferred from today's state.
+
+## Collection and deployment
+
+Two independent workflows handle updates. **Collect fleet data** runs on the schedule, manually, or when collector code/tests change. It reads Vast and commits sanitized summaries; it has no Pages deployment permissions. Collection failures now fail that run visibly while preserving the previous data. **Deploy dashboard** runs when page files change or manually; it ignores data-only changes and does not need Vast secrets.
+
+The public page refreshes JSON from the public repository's raw-file URL every minute. This avoids redeploying the site for data updates. GitHub's raw-file caching can delay visibility; a cache-disabled browser request does not guarantee immediate CDN freshness. Local preview uses the local data file. The copy of data bundled in a Pages deployment is a snapshot, not the live public data source. Collection and raw data remain hosted by GitHub.
 
 ## Reading the dashboard
 
@@ -57,7 +63,7 @@ The repository and its Git history are public too: use only sanitized summaries 
 
 ## Local development
 
-The compact interface shows its release version in the footer (currently **v1.3.1**). The tagline and update timestamp share the header, leaving the main area for controls and data.
+The compact interface shows its release version in the footer (currently **v1.4.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
 
 Requires Node 24 or later; no dependencies or build step. GitHub Actions uses Ubuntu 24.04 explicitly and actions with Node 24 runtimes.
 
