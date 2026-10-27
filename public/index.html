@@ -5,7 +5,7 @@
   <meta name="description" content="A simple view of rental occupancy across the fleet.">
   <title>VastStats · Fleet occupancy</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23245840'/%3E%3Cpath d='M8 10l8 14 8-14' fill='none' stroke='%23d4ef8f' stroke-width='4'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="style.css?v=1.3.0">
+  <link rel="stylesheet" href="style.css?v=1.3.1">
 </head>
 <body>
   <div class="shell">
@@ -27,11 +27,11 @@
       </section>
       <aside id="metric-details" class="metric-details" aria-live="polite" hidden><div><strong id="metric-details-title"></strong><p id="metric-details-copy"></p></div><button id="close-metric-details" aria-label="Close explanation">×</button></aside>
       <section class="timeline"><div class="section-head"><div><h2 id="period"></h2><p id="resolution"></p></div><div class="legend" aria-label="Occupancy legend"><span><i class="full"></i>Full</span><span><i class="partial"></i>Partial</span><span><i class="idle"></i>Idle</span><span><i class="unknown"></i>No data</span><span><i class="listed-mark"></i>Listed</span><span><i class="unlisted-mark"></i>Unlisted</span><span><i class="maintenance-mark"></i>Maintenance</span><span><i class="offline-mark"></i>Offline</span></div></div><div id="boxes"></div></section>
-      <div class="explanation"><span class="info-icon">i</span><p>Fill = occupancy: green full, amber partial, white idle, grey unknown. Border = box state: green listed, grey unlisted, amber maintenance, red offline. Number = stored customer instances, including stopped ones. Stripes mean incomplete data. Hover, focus or tap for details.</p></div>
+      <div class="explanation"><span class="info-icon">i</span><p>Fill = occupancy: solid green full, green/white diagonal hatching partial, white idle, grey unknown. Border = box state: green listed, grey unlisted, amber maintenance, red offline. Number = stored customer instances, including stopped ones. A small corner dot means incomplete data. Hover, focus or tap for details.</p></div>
     </main>
-    <footer><span>VastStats <span class="version">v1.3.0</span><span class="footer-dot">·</span> Europe/London</span><button id="demo" class="text-button">Explore sample data ↗</button></footer>
+    <footer><span>VastStats <span class="version">v1.3.1</span><span class="footer-dot">·</span> Europe/London</span><button id="demo" class="text-button">Explore sample data ↗</button></footer>
   </div>
   <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
-  <script type="module" src="app.js?v=1.3.0"></script>
+  <script type="module" src="app.js?v=1.3.1"></script>
 </body>
 </html>

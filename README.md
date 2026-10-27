@@ -26,7 +26,7 @@ GitHub Actions checks roughly every five minutes. Scheduled runs can be delayed 
 - **Week:** one square per actual hour. Week starts Monday; the separate Day view has been removed.
 - **Month:** one square per day, in a calendar.
 - **Year:** one square per day, in a contribution-style grid.
-- **Green:** running throughout observed time. **Amber:** running for some observed time. **White:** idle throughout observed time. **Grey:** no observations. Stripes indicate incomplete coverage; future periods have a dashed border.
+- **Solid green:** running throughout observed time. **Green/white diagonal hatching:** running for some observed time. **White:** idle throughout observed time. **Grey:** no observations. A small corner dot indicates incomplete coverage; future periods have a dashed border.
 - Occupancy means **at least one running rental on a box**, rather than GPU utilisation or fraction of GPUs allocated.
 - Numbers are the **stored customer instance count**, including stopped rentals, at the last observation in that square. They are not Docker cache counts or sums across hours.
 - Hover, keyboard focus, or tap shows occupancy percentage, running hours, stored count, state durations, and data coverage.
@@ -36,7 +36,7 @@ GitHub Actions checks roughly every five minutes. Scheduled runs can be delayed 
 - Each summary card has a small **i** button with a metric explanation; click or tap to expand it, or use the keyboard. The **Hours** pill shows running box-hours for the selected period. The four summary pills are Occupancy, Hours, Images, and Data coverage.
 - London calendar boundaries account for 23/25-hour daylight-saving days. Repeated hours on clock-change days follow actual time; tooltips identify GMT/BST.
 - **Border = box state:** thick green for listed, thick grey for unlisted, thick amber for maintenance, thick red for offline. Each square has one 3px border, with priority **offline → maintenance → unlisted → listed**. A border means that state was observed during the hour/day; it does not imply that the entire period was spent in that state. A mixed listed/unlisted period uses grey. If there is no listing or availability evidence, the square keeps a thin neutral outline.
-- **Fill = occupancy:** green for running throughout observed time, amber for part of observed time, white for none, grey for unknown/missing data. The border and fill are independent: a listed box can be idle, and an unlisted box can still have an existing running rental.
+- **Fill = occupancy:** green for running throughout observed time, green/white diagonal hatching for part of observed time, white for none, grey for unknown/missing data. The border and fill are independent: a listed box can be idle, and an unlisted box can still have an existing running rental.
 - **Number = stored instances:** the stored customer instance count (including stopped rentals) at the last observation in the square. It is not the Docker image cache count or an accumulated total.
 - Current badges beside each box name show online/offline, listed/unlisted, and active/planned maintenance separately from the historical square borders. Hover, tap or keyboard focus shows exact occupancy and the observed listed, unlisted, offline and maintenance durations. Raw error messages and maintenance reasons are not published.
 - Offline status follows Vast's Machines console: `timeout >= 10` seconds. The collector requests `include_offline=1` so disconnected machines are included. A confirmed offline sample counts as zero running time even if Vast retains a stale nonzero rental counter. Stored instances are still shown when available.
@@ -57,7 +57,7 @@ The repository and its Git history are public too: use only sanitized summaries 
 
 ## Local development
 
-The compact interface shows its release version in the footer (currently **v1.3.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
+The compact interface shows its release version in the footer (currently **v1.3.1**). The tagline and update timestamp share the header, leaving the main area for controls and data.
 
 Requires Node 24 or later; no dependencies or build step. GitHub Actions uses Ubuntu 24.04 explicitly and actions with Node 24 runtimes.
 

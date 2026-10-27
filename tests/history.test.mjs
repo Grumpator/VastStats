@@ -73,6 +73,16 @@ test('handles actual 23 and 25 hour London days',()=>{
   assert.equal(periodDays('2024-02-15','year').length,366);
 });
 const sample=(running,storedInstances=1)=>[{name:'Alpha',running,storedInstances}];
+test('square stored count is the last observed count, not the maximum within the hour',()=>{
+  const start=Date.parse('2026-10-26T10:00Z');
+  let data={boxes:[]};
+  [1,2,1,0].forEach((count,index)=>{data=updateHistory(data,sample(false,count),start+index*300000);});
+  const hour=()=>aggregate(data.boxes[0].hours,start,start+3600000,start+3600000);
+  assert.equal(hour().stored,0);
+  for(let minute=20;minute<=55;minute+=5)data=updateHistory(data,sample(false,0),start+minute*60000);
+  data=updateHistory(data,sample(false,3),start+3600000);
+  assert.equal(hour().stored,0);
+});
 test('selected-period occupancy excludes missing history and future time',()=>{
   const now=Date.parse('2026-10-27T12:00Z');
   const rows=[

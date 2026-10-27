@@ -1,4 +1,4 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.3.0';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=1.3.1';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 const percent=n=>n==null?'—':n.toFixed(1)+'%';
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
@@ -10,7 +10,7 @@ function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
   const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(view==='week'?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):'');
   tip.append(element('h4','',box.name+' · '+title));const dl=element('dl');
-  const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Stored instances',value.stored??'—'],['Data coverage',percent(value.coverage*100)]];
+  const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Stored · last observation',value.stored??'—'],['Data coverage',percent(value.coverage*100)]];
   lines.push(['Offline time',value.connectionObserved?(value.offline/3600).toFixed(2)+' h':'Unknown'],['Maintenance time',value.maintenanceObserved?(value.maintenance/3600).toFixed(2)+' h':'Unknown']);
   lines.push(['Listed time',value.listingObserved?(value.listed/3600).toFixed(2)+' h':'Unknown'],['Unlisted time',value.listingObserved?(value.unlisted/3600).toFixed(2)+' h':'Unknown']);
   for(const [name,value] of lines)dl.append(element('dt','',name),element('dd','',String(value)));tip.append(dl);
