@@ -93,6 +93,9 @@ export async function collect(){
   const now=Date.now(),samples=sanitizeMachines(await response.json(),mapping,now);
   if(samples.some(s=>s.connection==='unknown'))console.warn('Some configured boxes have no usable heartbeat status. They will be shown as unknown, not offline.');
   const file=new URL('../public/data.json',import.meta.url),previous=JSON.parse(await readFile(file,'utf8'));
+  const previousAt=Date.parse(previous.updatedAt),gap=Number.isFinite(previousAt)?now-previousAt:null;
+  console.log('Collection timestamp: '+new Date(now).toISOString());
+  if(gap!==null)console.log('Time since previous collection: '+(gap/60000).toFixed(1)+' minutes. '+(gap>MAX_GAP?'Gap exceeds 12 minutes; missing occupancy remains unknown.':'Consecutive observations can extend occupancy history.'));
   const next=updateHistory(previous,samples,now);
   const temporary=new URL('../public/data.json.tmp',import.meta.url);
   await writeFile(temporary,JSON.stringify(next)+'\n');await rename(temporary,file);

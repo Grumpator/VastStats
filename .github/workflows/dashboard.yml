@@ -4,7 +4,8 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: '2-59/5 * * * *'
+    # Explicit minutes avoid relying on range/step handling in the scheduler.
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'
 
 permissions:
   contents: read
