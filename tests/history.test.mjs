@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {machineState,sanitizeMachines,updateHistory,parseMap} from '../scripts/collect.mjs';
-import {midnight,binsForDay,aggregate,periodDays,currentStatus} from '../public/model.js';
+import {midnight,addDays,binsForDay,aggregate,periodDays,currentStatus} from '../public/model.js';
 test('exports only names and counts, even when response contains secrets',()=>{
   const result=sanitizeMachines({machines:[{id:123,name:'private',hostname:'private-host',api_key:'secret',public_ipaddr:'192.0.2.1',timeout:0,machine_maintenance:null,current_rentals_running:1,current_rentals_resident:2}]},{123:'Alpha'});
   assert.deepEqual(result,[{name:'Alpha',running:true,runningInstances:1,storedInstances:2,allocatedStorageGb:null,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
@@ -73,6 +73,26 @@ test('handles actual 23 and 25 hour London days',()=>{
   assert.equal(periodDays('2024-02-15','year').length,366);
 });
 const sample=(running,storedInstances=1)=>[{name:'Alpha',running,storedInstances}];
+test('selected-period occupancy excludes missing history and future time',()=>{
+  const now=Date.parse('2026-10-27T12:00Z');
+  const rows=[
+    {start:'2026-10-20T10:00Z',end:'2026-10-20T13:00Z',observedSeconds:10800,occupiedSeconds:0},
+    {start:'2026-10-26T10:00Z',end:'2026-10-26T12:00Z',observedSeconds:7200,occupiedSeconds:7200}
+  ];
+  const forView=view=>{
+    const days=periodDays('2026-10-27',view);
+    return aggregate(rows,midnight(days[0]),midnight(addDays(days.at(-1),1)),now);
+  };
+  assert.equal(forView('week').percent,100);
+  assert.equal(forView('month').percent,40);
+  assert.equal(forView('year').percent,40);
+  assert.equal(forView('month').observed,18000);
+  assert.equal(forView('month').occupied,7200);
+  const future=aggregate(rows,midnight('2026-10-28'),midnight('2026-10-29'),now);
+  assert.equal(future.percent,null);assert.equal(future.observed,0);
+  const missing=aggregate(rows,midnight('2026-10-01'),midnight('2026-10-02'),now);
+  assert.equal(missing.percent,null);assert.equal(missing.observed,0);
+});
 test('integrates sampled running state across hour boundaries without inventing first-run history',()=>{
   let data=updateHistory({boxes:[]},sample(true),Date.parse('2026-10-26T09:58Z'));
   assert.equal(data.boxes[0].hours.length,0);
