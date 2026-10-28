@@ -61,6 +61,8 @@ These are code-derived fields, not a successfully retrieved response from this a
 
 ## Remaining validation
 
+The API's sanitized rejection explicitly identifies the missing route as `api.telemetry.token`. The console's permission checker supports a `"*"` category containing an exact route and method. A narrow proposed addition is `"*": {"api.telemetry.token": {"GET": {}}}` alongside existing `machine_read`. This grants the named route rather than all routes; its acceptance by the backend still needs validation with a newly scoped key. No additional standard read/write category has been established as necessary.
+
 1. Establish the narrowest supported telemetry authentication for this account; the existing Machines/read key receives 401.
 2. Confirm each box has archives and measure the actual range and upload delay.
 3. Verify exact versus coarse container intervals, coverage semantics and customer-instance filtering using a narrow historical window.

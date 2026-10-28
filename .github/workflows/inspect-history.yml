@@ -1,10 +1,6 @@
 name: Inspect Vast history API
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/inspect-history.mjs'
 permissions:
   contents: read
 jobs:
