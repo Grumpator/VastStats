@@ -4,8 +4,8 @@ import {machineState,sanitizeMachines,updateHistory,parseMap} from '../scripts/c
 import {midnight,addDays,binsForDay,aggregate,periodDays,currentStatus} from '../public/model.js';
 test('exports only names and counts, even when response contains secrets',()=>{
   const result=sanitizeMachines({machines:[{id:123,name:'private',hostname:'private-host',api_key:'secret',public_ipaddr:'192.0.2.1',timeout:0,machine_maintenance:null,current_rentals_running:1,current_rentals_resident:2}]},{123:'Alpha'});
-  assert.deepEqual(result,[{name:'Alpha',running:true,runningInstances:1,storedInstances:2,allocatedStorageGb:null,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
-  assert.deepEqual(sanitizeMachines({machines:[]},{123:'Alpha'})[0],{name:'Alpha',running:null,runningInstances:null,storedInstances:null,allocatedStorageGb:null,connection:'unknown',maintenanceWindows:null,listed:null,listingEndsAt:null});
+  assert.deepEqual(result,[{name:'Alpha',running:true,runningInstances:1,storedInstances:2,allocatedStorageGb:null,gpuCount:null,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
+  assert.deepEqual(sanitizeMachines({machines:[]},{123:'Alpha'})[0],{name:'Alpha',running:null,runningInstances:null,storedInstances:null,allocatedStorageGb:null,gpuCount:null,connection:'unknown',maintenanceWindows:null,listed:null,listingEndsAt:null});
   assert.throws(()=>parseMap('{"123":"Alpha","456":"Alpha"}'));
 });
 test('listing expires independently of running rentals and splits history between checks',()=>{
@@ -132,4 +132,13 @@ test('long gaps remain unknown and repeated collection does not double-count',()
   assert.equal(data.boxes[0].hours[0].observedSeconds,300);
   const missing=aggregate([],Date.parse('2026-10-26T10:00Z'),Date.parse('2026-10-26T11:00Z'));
   assert.equal(missing.state,'unknown');assert.equal(missing.percent,null);
+});
+
+test('GPU count is sanitized and retained in a snapshot without exposing GPU identifiers',()=>{
+ for(const [raw,expected] of [[1,1],[4,4],[0,0],[null,null],[undefined,null],[-1,null],[1.5,null],['4',null]]){
+  const sample=sanitizeMachines([{id:123,num_gpus:raw,gpu_ids:['private-id']}],{123:'Alpha'})[0];
+  assert.equal(sample.gpuCount,expected);
+  const snapshot=updateHistory({boxes:[]},[sample],Date.parse('2026-10-28T22:00Z')).boxes[0].lastSample;
+  assert.equal(snapshot.gpuCount,expected);assert.ok(!JSON.stringify(snapshot).includes('private-id'));
+ }
 });

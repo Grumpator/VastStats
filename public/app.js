@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.3.1';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.3.1';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot} from './model.js?v=2.4.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.4.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -18,7 +18,7 @@ let recordsByBox=new Map(),activeCell=null;
 $('#date').value=selected;
 function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function icon(kind,disabled=false){
-  const paths={power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
+  const paths={gpu:['M4 6h16v12H4Z','M8 10h8v4H8Z','M2 9h2','M2 15h2','M8 18v3','M12 18v3','M16 18v3','M20 10h2','M20 14h2'],power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   for(const [key,value] of Object.entries({viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))svg.setAttribute(key,value);
   for(const d of [...paths[kind],...(disabled?['M3 3l18 18']:[])]){const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',d);svg.append(path);}return svg;
@@ -33,7 +33,7 @@ function deviceDetails(box,stat,status){
   const panel=element('div','box-details-body'),close=element('button','box-details-close','×');close.type='button';close.setAttribute('aria-label','Close '+box.name+' details');close.onclick=()=>{details.open=false;summary.focus();};panel.append(close,element('strong','',box.name+' · details'));
   const stamp=box.lastSample?.at,checked=stamp?fmt(Date.parse(stamp),{dateStyle:'medium',timeStyle:'short'}):'Unavailable';
   const running=status.running===false?0:box.lastSample?.runningInstances??'Unknown',stored=box.lastSample?.storedInstances??'Unknown';
-  const lines=[['Status checked',checked+(status.stale?' · overdue':'')],['Connection',status.connection],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unknown'],['Maintenance',status.maintenance?'Active':status.next?'Planned from '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Off':'Unknown'],['Running instances',running],['Stored instances',stored],['Observed · selected period',stat.observed?duration(stat.observed):'None'],['Data coverage',percent(stat.coverage*100)],['History through',box.dataThrough?fmt(Date.parse(box.dataThrough),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']];
+  const lines=[['Status checked',checked+(status.stale?' · overdue':'')],['Connection',status.connection],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unknown'],['Maintenance',status.maintenance?'Active':status.next?'Planned from '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Off':'Unknown'],['Running instances',running],['Stored instances',stored],['GPUs',box.lastSample?.gpuCount??'Unknown'],['Observed · selected period',stat.observed?duration(stat.observed):'None'],['Data coverage',percent(stat.coverage*100)],['History through',box.dataThrough?fmt(Date.parse(box.dataThrough),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']];
   if(box.historyError)lines.push(['History refresh','Failed; previous data retained']);
   else if(box.dataThrough&&Date.now()-Date.parse(box.dataThrough)>2*3600000)lines.push(['History delay',duration((Date.now()-Date.parse(box.dataThrough))/1000)]);
   const dl=element('dl');for(const [label,value] of lines)dl.append(element('dt','',label),element('dd','',String(value)));panel.append(dl,element('p','','Icons describe the latest machine snapshot. Occupancy and observed time refer to the selected period.'));details.append(summary,panel);
@@ -75,17 +75,21 @@ function render(){
   const stats=data.boxes.map(b=>aggregate(b.hours,start,end));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';
-  const totalLatest=field=>{const values=data.boxes.map(b=>b.lastSample?.[field]);return values.length&&values.every(n=>Number.isFinite(n)&&n>=0)?values.reduce((a,b)=>a+b,0):null;};
-  const running=totalLatest('runningInstances'),storage=totalLatest('allocatedStorageGb');
-  $('#running').textContent=running??'—';$('#hours').textContent=obs?duration(occ):'—';
-  $('#stored-note').textContent=storage==null?'latest Vast instance counts':storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated · latest';
-  const latest=data.boxes.map(b=>b.lastSample?b.lastSample.storedInstances:b.hours.at(-1)?.storedInstances);$('#stored').textContent=latest.length&&latest.every(n=>n!=null)?latest.reduce((a,b)=>a+b,0):'—';
+  $('#hours').textContent=obs?duration(occ):'—';
+  const fleet=fleetSnapshot(data.boxes,Date.now(),data.snapshotMaxAgeSeconds??5400);
+  for(const field of ['online','listed','maintenance','running'])$('#'+field+'-boxes').textContent=(fleet[field]??'—')+'/'+fleet.total;
+  $('#stored').textContent=fleet.stored??'—';
+  $('#running-note').textContent=(fleet.runningInstances??'—')+' instances';
+  $('#stored-note').textContent=fleet.storage==null?'instances · size unknown':fleet.storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated';
+  $('#snapshot-note').textContent=fleet.overdue?'· '+fleet.overdue+' overdue':'· latest snapshot';
+  $('.now-group').classList.toggle('overdue',fleet.overdue>0);
   const boxes=$('#boxes');boxes.replaceChildren();boxes.className=view==='month'?'month-boxes':'';
   data.boxes.forEach((box,index)=>{
     recordsByBox.set(box.name,box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})));
     const card=element('article','box'),header=element('div','box-header'),title=element('div','box-title'),heading=element('h3','',box.name);heading.title=box.name;title.append(heading);
     const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),states=element('div','device-states'+(status.stale?' outdated':''));states.setAttribute('aria-label','Latest snapshot for '+box.name);
     const stamp=box.lastSample?.at,when=stamp?' · checked '+fmt(Date.parse(stamp),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+    states.append(stateIcon('gpu','muted','GPUs: '+(box.lastSample?.gpuCount??'unknown')+when,box.lastSample?.gpuCount??'?'));
     states.append(stateIcon('power',status.connection,'Connection: '+status.connection+when,status.connection==='unknown'?'?':null,status.connection==='offline'));
     states.append(stateIcon('tag',status.listed===true?'active':'muted',status.listed===true?'Listed'+when:status.listed===false?'Unlisted'+when:'Listing unknown'+when,status.listed===null?'?':null,status.listed===false));
     states.append(stateIcon(status.next&&!status.maintenance?'clock':'wrench',status.maintenance||status.next?'maintenance':'muted',status.maintenance?'Maintenance active'+when:status.next?'Maintenance planned: '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Maintenance off'+when:'Maintenance unknown'+when,status.maintenance===null&&!status.next?'?':null,status.maintenance===false&&!status.next));
@@ -132,8 +136,9 @@ function move(direction){if(view==='week')selected=addDays(selected,direction*7)
 $('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());$('#date').value=selected;load();};
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
 const metricHelp={
-  occupancy:['Fleet occupancy','The percentage of observed box-time with at least one running rental in the selected period. Running box-hours ÷ observed box-hours × 100. For example, three boxes observed for 24 hours provide 72 box-hours; 36 running box-hours means 50% occupancy. Only available telemetry contributes to the calculation. Current offline status does not rewrite historical occupancy.'],
+  occupancy:['Fleet occupancy','The percentage of observed box-time with at least one running rental in the selected period. Running box-hours ÷ observed box-hours × 100. For example, three boxes observed for 24 hours provide 72 box-hours; 36 running box-hours means 50% occupancy. This measures box-time, not GPU capacity: one busy GPU on a four-GPU box counts as occupied box-time. Only available telemetry contributes to the calculation. Current offline status does not rewrite historical occupancy.'],
   hours:['Hours','Running box-hours across all boxes in the selected period. One box with at least one running rental for one hour contributes one box-hour; two boxes running for three hours each contribute six. Multiple simultaneous rentals on one box do not multiply its time. Fleet occupancy is running box-hours divided by observed box-hours. Missing or delayed telemetry is excluded. Running intervals come from the API and can be backfilled later.'],
+  now:['Now · latest fleet snapshot','Online, Listed, Maintenance and Running count boxes in that state out of the entire fleet. Running also shows the total running instances. Stored totals retained instances, including running ones; do not add running and stored counts. GB allocated is allocated disk space, not measured file usage. These figures use the latest machine snapshots and do not change with the selected period. They are not live: collection is hourly and snapshots become overdue after 90 minutes. If any box has an unknown state or count, its fleet total shows a dash rather than assuming zero.'],
   images:['Images · Running / Stored','Latest customer instance counts reported by Vast across all boxes. Running is the number currently running; Stored includes both running and stopped instances, so the two counts should not be added together. These current snapshots do not change with the historical period. Offline counters can lag a disconnection. GB allocated totals Vast’s allocated disk space, not actual instance file usage, and can include other Vast allocations. It is shown only when every box reports a size.'],
   coverage:['Data coverage','The proportion of elapsed box-time in the selected period with reporting coverage from the telemetry API. Native API buckets up to five minutes are accepted; raw samples contribute one second each. It excludes future time. Gaps in telemetry are unknown, not idle. Fleet occupancy is calculated from the known portion, so read occupancy together with coverage.']
 };
@@ -148,4 +153,5 @@ document.addEventListener('click',event=>{if(!$('#view-help').contains(event.tar
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('#view-help').open){$('#view-help').open=false;$('#view-help>summary').focus();}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMetricHelp();});
 document.addEventListener('click',event=>{hideTip();document.querySelectorAll('.box-details[open]').forEach(details=>{if(!details.contains(event.target))details.open=false;});});document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideTip();closeBoxDetails();}});window.addEventListener('resize',hideTip);window.addEventListener('scroll',hideTip,true);
+document.querySelectorAll('[data-icon]').forEach(item=>item.append(icon(item.dataset.icon)));
 load();setInterval(load,60000);

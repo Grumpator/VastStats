@@ -77,6 +77,10 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v2.3.1** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v2.4.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Week/Month/Year opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
+
+Top summaries are separated into Selected period (occupancy, running box-hours and coverage) and Now (latest snapshot totals). Online, Listed, Maintenance and Running are box counts / total boxes. Running additionally shows instance count; Stored shows total retained instances and allocated GB. Unknown inputs produce a dash, not an assumed zero. Overdue snapshots are marked. The guide separates occupancy fills and state borders into two legend rows.
+
+Device headers also show a chip icon with total GPUs from Vast’s `num_gpus` machine field ([official CLI machine fields](https://github.com/vast-ai/vast-cli/blob/master/vast.py)). Only the count is published; GPU identifiers and models are excluded. Unknown counts show ? until a snapshot supplies the field. Multiple GPUs can support separate instances or be rented together; existing occupancy remains box-time with at least one running rental, not percentage of GPU capacity.

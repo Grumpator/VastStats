@@ -66,6 +66,13 @@ export function demoData(now=Date.now()) {
     }
     const stored=hours.at(-1)?.storedInstances??0;
     const daily=new Map();for(const row of hours){const key=dayKey(new Date(row.start)),d=daily.get(key)||{start:new Date(midnight(key)).toISOString(),observedSeconds:0,runningSessions:0};d.observedSeconds+=row.observedSeconds;d.runningSessions+=row.runningSessions;daily.set(key,d);}
-    return {name,hours,days:[...daily.values()],lastSample:{at:new Date(now).toISOString(),storedInstances:stored,runningInstances:index===1?0:stored?1:0,allocatedStorageGb:stored*(index+1)*40,connection:index===1?'offline':'online',listed:index!==1,maintenanceWindows:index===2?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:[]}};
+    return {name,hours,days:[...daily.values()],lastSample:{at:new Date(now).toISOString(),storedInstances:stored,gpuCount:index===2?2:1,runningInstances:index===1?0:stored?1:0,allocatedStorageGb:stored*(index+1)*40,connection:index===1?'offline':'online',listed:index!==1,maintenanceWindows:index===2?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:[]}};
   });return {version:1,updatedAt:new Date(now).toISOString(),boxes};
+}
+
+export function fleetSnapshot(boxes,now=Date.now(),maxAgeSeconds=5400){
+  const states=boxes.map(box=>currentStatus(box.lastSample,now,maxAgeSeconds));
+  const count=read=>states.length&&states.every(state=>read(state)!==null)?states.filter(state=>read(state)).length:null;
+  const sum=read=>{const values=boxes.map((box,i)=>read(box.lastSample,states[i]));return values.length&&values.every(value=>Number.isFinite(value)&&value>=0)?values.reduce((a,b)=>a+b,0):null;};
+  return {total:boxes.length,online:count(s=>s.connection==='unknown'?null:s.connection==='online'),listed:count(s=>s.listed),maintenance:count(s=>s.maintenance),running:count(s=>s.running),runningInstances:sum((s,state)=>state.running===false?0:state.running===null?null:s?.runningInstances),stored:sum(s=>s?.storedInstances),storage:sum(s=>s?.allocatedStorageGb),overdue:states.filter(s=>s.stale).length};
 }

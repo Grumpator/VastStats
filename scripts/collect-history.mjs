@@ -26,7 +26,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
   for(const [id,name] of Object.entries(mapping)){
     let stage='metadata';
     const old=previous.boxes.find(b=>b.name===name),sample=current.find(b=>b.name===name);
-    const entry={name,months:[...(old?.months||[])],lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb,connection:sample.connection,maintenanceWindows:sample.maintenanceWindows,listed:sample.listed,listingEndsAt:sample.listingEndsAt},historyUpdatedAt:old?.historyUpdatedAt??null,dataThrough:old?.dataThrough??null};
+    const entry={name,months:[...(old?.months||[])],lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances,gpuCount:sample.gpuCount??null,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb,connection:sample.connection,maintenanceWindows:sample.maintenanceWindows,listed:sample.listed,listingEndsAt:sample.listingEndsAt},historyUpdatedAt:old?.historyUpdatedAt??null,dataThrough:old?.dataThrough??null};
     try{
       const meta=await api.meta(id),first=meta.extent?.t0;
       if(!Number.isFinite(first)||first<=0)throw Error('No history extent');

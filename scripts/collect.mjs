@@ -40,7 +40,8 @@ export function sanitizeMachines(raw,mapping,now=Date.now()){
     const validCounts=Number.isInteger(running)&&running>=0&&Number.isInteger(stored)&&stored>=running;
     // Construct an allowlist. Never spread, serialize, or log the API response.
     const allocatedStorageGb=Number.isFinite(row?.alloc_disk_space)&&row.alloc_disk_space>=0?row.alloc_disk_space:null;
-    return {name,running:state.connection==='offline'?false:state.connection==='online'&&validCounts?running>0:null,runningInstances:validCounts?running:null,storedInstances:validCounts?stored:null,allocatedStorageGb,...state};
+    const gpuCount=Number.isInteger(row?.num_gpus)&&row.num_gpus>=0?row.num_gpus:null;
+    return {name,gpuCount,running:state.connection==='offline'?false:state.connection==='online'&&validCounts?running>0:null,runningInstances:validCounts?running:null,storedInstances:validCounts?stored:null,allocatedStorageGb,...state};
   });
 }
 function windowSeconds(windows,start,end){
@@ -80,7 +81,7 @@ export function updateHistory(previous,samples,now=Date.now()){
     const latest=hours.at(-1);
     // At an exact boundary the count belongs to the new hour, not the previous hour.
     if(latest&&Math.floor(Date.parse(latest.start)/HOUR)===Math.floor(now/HOUR))latest.storedInstances=sample.storedInstances;
-    return {name:sample.name,hours,lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances??null,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb??null,connection:sample.connection??'unknown',maintenanceWindows:sample.maintenanceWindows??null,listed:sample.listed??null,listingEndsAt:sample.listingEndsAt??null}};
+    return {name:sample.name,hours,lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances??null,gpuCount:sample.gpuCount??null,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb??null,connection:sample.connection??'unknown',maintenanceWindows:sample.maintenanceWindows??null,listed:sample.listed??null,listingEndsAt:sample.listingEndsAt??null}};
   });
   return {version:1,updatedAt:stamp,boxes};
 }
