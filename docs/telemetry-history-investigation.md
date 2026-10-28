@@ -4,7 +4,24 @@ Investigation: 28 October 2026. Existing dashboard behavior and stored history w
 
 ## Finding
 
-Vast has a host-side historical **container timeline**, separate from current machine counters and earnings reports. It is a promising source for calculating occupancy after the fact, without polling every five minutes. Access with the dashboard's existing restricted key is not yet established: it successfully read three machines, but telemetry token acquisition returned HTTP 401 on both the console and cloud origins. No authenticated archive or history query could therefore be tested against this account. The required additional permission, or whether this endpoint accepts this kind of scoped API key, remains unconfirmed; do not assume a general permission category will fix it.
+Vast has a host-side historical **container timeline**, separate from current machine counters and earnings reports. Authenticated tests successfully retrieved container histories for Alpha, Beta and Gamma using the exact restricted permissions below. A five-minute snapshot collector is therefore not required to retrieve those historical running intervals. Computing trustworthy occupancy still requires the coverage and freshness checks described below.
+
+```json
+{
+  "api": {
+    "machine_read": {},
+    "user_read": {
+      "api.telemetry.token": {"GET": {}}
+    }
+  }
+}
+```
+
+Machines/read alone failed telemetry authorization. Adding Billing/read without User/read also failed. Machines/read plus User/read worked, and subsequently limiting User/read to the exact telemetry-token GET route also worked. The earlier wildcard-category proposal did not grant the route. No tested key is recorded in this repository.
+
+Seven-day queries returned 20 containers for Alpha, 5 for Beta, and 36 for Gamma, with no approximation or fragmented-run flags. A Gamma request hit HTTP 429 after multiple probes and succeeded when retried separately; a production client needs bounded retry/backoff. Thirty-one-day queries with Machines/read plus User/read also succeeded. Archive starts were 2 September for Alpha, 9 October for Beta and 18 October for Gamma (2026).
+
+Container observations were not current: Alpha/Beta's latest returned container timestamps were on 27 October, and Gamma's on 28 October around noon. Metadata `extent.end` advanced to the current clock across requests; it must not be used alone as proof that all recent container data has arrived. Freshness and coverage need validation before presenting these intervals as current-month live occupancy.
 
 ## Primary evidence
 
@@ -39,7 +56,7 @@ The renderer consumes `sections.conts.active` and fields including:
 - `runs[]` with `start`, `end`, `open_start`, `open_end`, `fragmented`.
 - `run_count`, `running_s`, `last_state`, `last_state_ts`, `approx`, `is_vm`.
 
-These are code-derived fields, not a successfully retrieved response from this account. The manual **Inspect Vast history API** workflow checks access and prints only field names and aggregate counts. It never logs credentials, raw responses, or instance/machine IDs. Its authentication failure does not mean the ordinary collector is failing.
+These fields were initially found in console code and then verified against this account's authenticated responses. The manual **Inspect Vast history API** workflow checks access and prints only field names and aggregate counts. It never logs credentials, raw responses, or instance/machine IDs. Earlier authentication failures in that diagnostic did not mean the ordinary collector was failing.
 
 ## Turning the response into squares
 
@@ -61,11 +78,8 @@ These are code-derived fields, not a successfully retrieved response from this a
 
 ## Remaining validation
 
-The API's sanitized rejection explicitly identifies the missing route as `api.telemetry.token`. The console's permission checker supports a `"*"` category containing an exact route and method. A narrow proposed addition is `"*": {"api.telemetry.token": {"GET": {}}}` alongside existing `machine_read`. This grants the named route rather than all routes; its acceptance by the backend still needs validation with a newly scoped key. No additional standard read/write category has been established as necessary.
-
-1. Establish the narrowest supported telemetry authentication for this account; the existing Machines/read key receives 401.
-2. Confirm each box has archives and measure the actual range and upload delay.
-3. Verify exact versus coarse container intervals, coverage semantics and customer-instance filtering using a narrow historical window.
-4. Compare reconstructed occupancy with a known rental period before replacing the snapshot-based collector.
+1. Verify coverage semantics and customer-instance filtering using a narrow historical window, including why container observations lag the current clock.
+2. Compare reconstructed occupancy with a known rental period before replacing the snapshot-based collector.
+3. Test the desired current-month/closed-month strategy against delayed uploads and recording-format changes.
 
 No five-minute scheduler or new storage service is required just to perform these checks.

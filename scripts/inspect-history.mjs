@@ -2,6 +2,7 @@
 const key=process.env.VAST_API_KEY;
 if(!key)throw Error('VAST_API_KEY is required');
 const map=JSON.parse(process.env.VAST_BOX_MAP||'{}');
+const days=Math.min(366,Math.max(1,Number(process.env.HISTORY_DAYS)||7));
 let phase='token';
 const fields=value=>value&&typeof value==='object'&&!Array.isArray(value)?Object.keys(value).filter(k=>/^[a-z_]+$/i.test(k)):[];
 async function request(url,token,body){
@@ -35,18 +36,26 @@ try{
   const entities=archive?.entities||[];
   console.log(JSON.stringify({phase,fields:fields(archives),entityCount:entities.length,entityType:typeof entities[0],entityFields:fields(entities[0])}));
   for(const [id,name] of Object.entries(map)){
+    if(process.env.HISTORY_BOX&&process.env.HISTORY_BOX!==name)continue;
     const entity=entities.find(e=>String(typeof e==='object'?(e.id??e.entity):e)===id);
     if(entity===undefined){console.log(JSON.stringify({box:name,archiveFound:false}));continue;}
     const entityId=typeof entity==='object'?(entity.id??entity.entity):entity;
     phase='metadata';
     const meta=await request(base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/meta',auth.token);
-    console.log(JSON.stringify({box:name,phase,fields:fields(meta)}));
+    const timestamp=value=>Number.isFinite(value)&&value>0&&value<1e11?new Date(value*1000).toISOString():null;
+    const currentBox=current.machines?.find(m=>String(m.id)===id);
+    console.log(JSON.stringify({box:name,phase,fields:fields(meta),extentFields:fields(meta.extent),availableFrom:timestamp(meta.extent?.t0),availableTo:timestamp(meta.extent?.end),manifestFields:fields(meta.manifest),currentRunning:currentBox?.current_rentals_running,currentStored:currentBox?.current_rentals_resident}));
+    if(process.env.HISTORY_META_ONLY==='1')continue;
     phase='container-history';
-    const stop=Math.floor(Date.now()/1000),start=stop-7*86400;
+    const stop=Math.floor(Date.now()/1000),start=stop-days*86400;
     const result=await request(base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/query',auth.token,{start,stop,sections:{conts:{}}});
     const conts=result.sections?.conts,active=conts?.active;
     const rows=Array.isArray(active)?active:[];
-    console.log(JSON.stringify({box:name,phase,requestedDays:7,resultFields:fields(result),sectionFields:fields(result.sections),containerSectionFields:fields(conts),containerCount:rows.length,containerFields:fields(rows[0]),runFields:fields(rows[0]?.runs?.[0]),approximateContainers:rows.filter(r=>r.approx).length,fragmentedRuns:rows.flatMap(r=>r.runs||[]).filter(r=>r.fragmented).length,runCount:rows.reduce((n,r)=>n+(r.runs?.length||0),0),reportedRunningSeconds:rows.reduce((n,r)=>n+(r.running_s||0),0)}));
+    const runs=rows.flatMap(r=>r.runs||[]),latestSeen=rows.reduce((n,r)=>Math.max(n,r.last_seen||0),0);
+    const intervals=runs.filter(r=>Number.isFinite(r.start)&&Number.isFinite(r.end)&&r.end>r.start).map(r=>[Math.max(start,r.start),Math.min(stop,r.end)]).filter(([a,b])=>b>a).sort((a,b)=>a[0]-b[0]);
+    let unionSeconds=0,lastEnd=-Infinity;
+    for(const [a,b] of intervals){unionSeconds+=Math.max(0,b-Math.max(a,lastEnd));lastEnd=Math.max(lastEnd,b);}
+    console.log(JSON.stringify({box:name,phase,requestedDays:days,resultFields:fields(result),sectionFields:fields(result.sections),containerSectionFields:fields(conts),containerCount:rows.length,containerFields:fields(rows[0]),runFields:fields(runs[0]),approximateContainers:rows.filter(r=>r.approx).length,fragmentedRuns:runs.filter(r=>r.fragmented).length,runCount:runs.length,reportedRunningSeconds:rows.reduce((n,r)=>n+(r.running_s||0),0),unionRunningHours:Math.round(unionSeconds/36)/100,lastContainerObservation:timestamp(latestSeen),latestContainerLagHours:latestSeen?Math.round((stop-latestSeen)/36)/100:null,nonpositiveContainerIds:rows.filter(r=>Number(r.id)<=0).length,queryLevel:result.level}));
   }
 }catch{
   console.error('History inspection failed at '+phase+'. No raw response was logged.');
