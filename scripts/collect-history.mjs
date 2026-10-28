@@ -24,6 +24,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
   await api.connect();
   const stamp=new Date(now).toISOString(),month=dayKey(new Date(now)).slice(0,7),boxes=[];
   for(const [id,name] of Object.entries(mapping)){
+    let stage='metadata';
     const old=previous.boxes.find(b=>b.name===name),sample=current.find(b=>b.name===name);
     const entry={name,months:[...(old?.months||[])],lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb,connection:sample.connection,maintenanceWindows:sample.maintenanceWindows,listed:sample.listed,listingEndsAt:sample.listingEndsAt},historyUpdatedAt:old?.historyUpdatedAt??null,dataThrough:old?.dataThrough??null};
     try{
@@ -33,6 +34,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
       for(let m=from;m<=month;m=nextMonth(m)){if(available.length>=120)throw Error('History range too large');available.push(m);}
       const stop=Math.floor(now/1000);
       // Discover one reporting series. CPU/memory values stay private; only their sample presence is used.
+      stage='coverage-discovery';
       const overview=await api.query(id,first,stop,{metric:{points:100}});
       const keys=Object.keys(overview.sections?.metric?.channels||{}),series=keys.find(k=>/cpu|memory|mem_/i.test(k))??keys[0];
       if(!series)throw Error('Reporting coverage unavailable');
@@ -48,10 +50,12 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         // Request fine coverage. Vast may return native coarser buckets; >5m is rejected by the reducer.
         for(let at=since;at<until;){
           const to=Math.min(until,(Math.floor(at/DAY)+1)*DAY);
+          stage='daily-query';
           responses.push(await api.query(id,at,to,{conts:{},metric:{series:[series],points:Math.max(1,Math.ceil((to-at)/15))}}));
           at=to;
         }
         if(!responses.length)continue;
+        stage='interval-aggregation';
         const summary=summarizeHistory({name,start:since,stop:until,responses,now});
         // A changed upstream format must not erase previously recovered hours.
         summary.hours=mergeHours(cached?.hours||[],summary.hours);
@@ -60,6 +64,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         summary.month=m;summary.final=m<month&&!recent;
         summary.snapshots=cached?.snapshots||[];
         if(m===month){const status={at:stamp,connection:sample.connection,listed:sample.listed,maintenance:sample.maintenanceWindows?.some(w=>Date.parse(w.start)<=now&&now<Date.parse(w.end))??null};summary.snapshots=[...summary.snapshots.filter(s=>s.at!==stamp),status];}
+        stage='save-summary';
         await save(file,summary);
         if(!entry.months.includes(m))entry.months.push(m);
         console.log(name+' '+m+': '+summary.hours.length+' hourly summaries.');
@@ -67,9 +72,12 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
       entry.months.sort();
       const latest=await readJson(new URL(encodeURIComponent(name)+'/'+entry.months.at(-1)+'.json',root),null);
       entry.dataThrough=latest?.dataThrough??entry.dataThrough;entry.historyUpdatedAt=stamp;
-    }catch{
+    }catch(error){
       entry.historyError=true;
-      console.warn(name+': history refresh unavailable; keeping existing summaries.');
+      const http=/^Vast request failed \(HTTP (\d{3})\)$/.exec(error.message);
+      const known=new Set(['No history extent','Reporting coverage unavailable','Container history unavailable','Invalid container history','Invalid running interval','Invalid history window','Machine archive unavailable']);
+      const reason=http?'HTTP '+http[1]:known.has(error.message)?error.message:'unexpected response or storage failure';
+      console.warn(name+': '+stage+' failed ('+reason+'); keeping existing summaries.');
     }
     boxes.push(entry);
   }
