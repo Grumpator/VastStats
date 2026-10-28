@@ -58,7 +58,11 @@ try{
     if(process.env.HISTORY_META_ONLY==='1')continue;
     phase='container-history';
     const stop=Math.floor(Date.now()/1000),start=stop-days*86400;
-    const result=await request(base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/query',auth.token,{start,stop,sections:{conts:{}}});
+    const result=await request(base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/query',auth.token,{start,stop,sections:{conts:{},...(process.env.HISTORY_COVERAGE==='1'?{metric:{points:400}}:{})}});
+    if(process.env.HISTORY_COVERAGE==='1'){
+      const metric=result.sections?.metric,channels=Object.values(metric?.channels||{}),channel=channels[0];
+      console.log(JSON.stringify({box:name,phase:'coverage-shape',metricFields:fields(metric),step:metric?.step,pointCount:metric?.t?.length,channelFields:fields(channel),view:metric?.view??result.view,firstPoint:metric?.t?.[0],lastPoint:metric?.t?.at(-1),sampleCounts:channel?.n?{min:Math.min(...channel.n),max:Math.max(...channel.n)}:null,nonNullAverageCount:channel?.avg?.filter(n=>n!==null).length}));
+    }
     const conts=result.sections?.conts,active=conts?.active;
     const rows=Array.isArray(active)?active:[];
     const runs=rows.flatMap(r=>r.runs||[]),latestSeen=rows.reduce((n,r)=>Math.max(n,r.last_seen||0),0);

@@ -2,10 +2,11 @@ name: Inspect Vast history API
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/api-history]
     paths:
       - 'config/vast-api-permissions.json'
       - '.github/workflows/inspect-history.yml'
+      - 'scripts/inspect-history.mjs'
 permissions:
   contents: read
 jobs:
@@ -22,4 +23,5 @@ jobs:
         env:
           VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
           VAST_BOX_MAP: ${{ secrets.VAST_BOX_MAP }}
+          HISTORY_COVERAGE: '1'
         run: node scripts/inspect-history.mjs
