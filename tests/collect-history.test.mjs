@@ -12,6 +12,9 @@ test('late partial responses preserve previously recovered hours',()=>{
   const old={start:'2026-10-01T00:00Z',observedSeconds:3600,occupiedSeconds:1200};
   assert.deepEqual(mergeHours([old],[{...old,observedSeconds:30}]),[old]);
   assert.equal(mergeHours([old],[{...old,occupiedSeconds:1800}])[0].occupiedSeconds,1800);
+  const corrected={...old,observedSeconds:2997,occupiedSeconds:2997,storedInstances:1,calculationVersion:2};
+  assert.deepEqual(mergeHours([old],[corrected]),[corrected]);
+  assert.deepEqual(mergeHours([corrected],[{...corrected,observedSeconds:30}]),[corrected]);
 });
 test('collector creates per-box/month files and keeps cached history when one box fails',async()=>{
   const folder=await mkdtemp(join(tmpdir(),'vaststats-history-')),root=pathToFileURL(folder+'/');

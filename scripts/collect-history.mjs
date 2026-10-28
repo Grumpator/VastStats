@@ -9,7 +9,7 @@ export function nextMonth(month,delta=1){const d=new Date(month+'-01T12:00Z');d.
 export function monthWindow(month){return [midnight(month+'-01')/1000,midnight(nextMonth(month)+'-01')/1000];}
 export function mergeHours(previous,incoming){
   const rows=new Map(previous.map(r=>[r.start,r]));
-  for(const row of incoming){const old=rows.get(row.start);if(!old||row.observedSeconds>=old.observedSeconds)rows.set(row.start,row);}
+  for(const row of incoming){const old=rows.get(row.start);if(!old||(row.calculationVersion??0)>(old.calculationVersion??0)||row.observedSeconds>=old.observedSeconds)rows.set(row.start,row);}
   return [...rows.values()].sort((a,b)=>a.start.localeCompare(b.start));
 }
 async function readJson(file,fallback){try{return JSON.parse(await readFile(file,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}}
@@ -42,10 +42,11 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         const folder=new URL(encodeURIComponent(name)+'/',root);await mkdir(folder,{recursive:true});
         const file=new URL(m+'.json',folder),cached=await readJson(file,null);
         const recent=m===month||(Number(dayKey(new Date(now)).slice(-2))<=7&&m===nextMonth(month,-1));
-        if(cached&&!recent&&process.env.HISTORY_REBUILD!=='1')continue;
+        const revisionNeeded=cached?.aggregationVersion!==2;
+        if(cached&&!recent&&!revisionNeeded&&process.env.HISTORY_REBUILD!=='1')continue;
         const [begin,end]=monthWindow(m),until=Math.min(end,stop);
         const priorThrough=cached?.dataThrough?Date.parse(cached.dataThrough)/1000:null;
-        const since=Math.max(begin,first,process.env.HISTORY_REBUILD!=='1'&&priorThrough?priorThrough-3*DAY:begin);
+        const since=Math.max(begin,first,process.env.HISTORY_REBUILD!=='1'&&!revisionNeeded&&priorThrough?priorThrough-3*DAY:begin);
         const responses=[];
         // Request fine coverage. Vast may return native coarser buckets; >5m is rejected by the reducer.
         for(let at=since;at<until;){
@@ -59,7 +60,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         const summary=summarizeHistory({name,start:since,stop:until,responses,now});
         // A changed upstream format must not erase previously recovered hours.
         summary.hours=mergeHours(cached?.hours||[],summary.hours);
-        const through=[summary.dataThrough,cached?.dataThrough].filter(t=>Number.isFinite(Date.parse(t))).sort();
+        const through=[summary.dataThrough,...(!revisionNeeded?[cached?.dataThrough]:[])].filter(t=>Number.isFinite(Date.parse(t))).sort();
         summary.dataThrough=through.at(-1)??null;
         summary.month=m;summary.final=m<month&&!recent;
         summary.snapshots=cached?.snapshots||[];

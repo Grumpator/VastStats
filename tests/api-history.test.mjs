@@ -41,6 +41,15 @@ test('native coarse buckets leave gaps visible and raw samples represent one sec
   assert.deepEqual(coverageIntervals(m,start,start+3600),[[start,start+128],[start+256,start+384]]);
   assert.deepEqual(coverageIntervals({...m,raw:true},start,start+3600),[[start,start+1],[start+256,start+257]]);
 });
+
+test('an open running interval stays full with its stored count when hardware buckets extend past its last observation',()=>{
+  const row=container('123',[[0,2997]]);row.last_seen=start+2997;row.end_witnessed=false;row.runs[0].open_end=true;
+  const result=summarize([row],{step:128,raw:false,t:Array.from({length:25},(_,i)=>start+i*128),channels:{cpu:{avg:Array(25).fill(1)}}});
+  assert.equal(result.hours[0].observedSeconds,2997);assert.equal(result.hours[0].occupiedSeconds,2997);assert.equal(result.hours[0].storedInstances,1);
+  assert.equal(result.dataThrough,new Date((start+2997)*1000).toISOString());
+  row.end_witnessed=true;row.runs[0].open_end=false;
+  const ended=summarize([row]);assert.equal(ended.hours[0].observedSeconds,3600);assert.equal(ended.hours[0].occupiedSeconds,2997);assert.equal(ended.hours[0].storedInstances,0);
+});
 test('telemetry tokens are sent only to allowlisted HTTPS origins',async()=>{
   const api=new HistoryApi('private',{fetchImpl:async()=>new Response(JSON.stringify({token:'hidden',telemetry_url:'https://untrusted.example'})),pause:async()=>{}});
   await assert.rejects(api.connect(),/Untrusted/);

@@ -46,6 +46,10 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
       }
     }
   }
+  // Hardware buckets can extend beyond the last container observation. An open
+  // container has no known stop, so that trailing time is unknown, never idle.
+  const lifetimes=[...containers.values()];
+  if(lifetimes.some(c=>!c.ended))uncertain.push([Math.max(...lifetimes.map(c=>c.last)),limit]);
   // Remove approximate/fragmented spans from coverage, rather than treating them as idle or full.
   const exclusions=mergeIntervals(uncertain),observed=[];
   for(const [a,b] of mergeIntervals(coverage)){
@@ -57,7 +61,7 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
     if(!seen)continue;
     const last=known.at(-1)[1]-0.001;
     const stored=[...containers.values()].some(c=>!c.ended&&c.last<last)?null:[...containers.values()].filter(c=>c.first<=last&&c.last>last).length;
-    hours.push({start:new Date(at*1000).toISOString(),end:new Date(end*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),storedInstances:stored,source:'telemetry'});
+    hours.push({start:new Date(at*1000).toISOString(),end:new Date(end*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),storedInstances:stored,source:'telemetry',calculationVersion:2});
   }
-  return {version:2,name,source:'telemetry',updatedAt:new Date(now).toISOString(),dataThrough:observed.length?new Date(observed.at(-1)[1]*1000).toISOString():null,hours};
+  return {version:2,aggregationVersion:2,name,source:'telemetry',updatedAt:new Date(now).toISOString(),dataThrough:observed.length?new Date(observed.at(-1)[1]*1000).toISOString():null,hours};
 }

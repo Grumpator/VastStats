@@ -48,7 +48,7 @@ Hardware sample presence is used only to identify reporting coverage, not GPU ut
 
 ## Freshness and limitations
 
-Vast uploads telemetry in batches. Current machine state and historical telemetry may have different timestamps; a successful refresh does not prove recent running history has arrived. Metadata `extent.end` may represent the query clock, so watermarks are based on actual reporting samples. See [the API investigation](docs/telemetry-history-investigation.md).
+Vast uploads telemetry in batches. Current machine state and historical telemetry may have different timestamps; a successful refresh does not prove recent running history has arrived. Metadata `extent.end` may represent the query clock, so watermarks use actual reporting samples and are capped at the latest container observation while a container remains open. A trailing hardware bucket must not turn an unobserved running tail into idle time or erase its stored count. See [the API investigation](docs/telemetry-history-investigation.md).
 
 Device badges are machine-state snapshots, not live connections. Each card shows the snapshot time separately from its historical telemetry watermark, including whether a rental was running at that check. With hourly collection, updates are flagged overdue after 90 minutes. Last known connection/listing values remain visible and are labelled “Last seen” rather than being erased. The page does not have a private live-status endpoint.
 
@@ -75,4 +75,4 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v2.0.4** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v2.0.5** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
