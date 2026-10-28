@@ -28,6 +28,14 @@ test('invalid container sections cannot silently produce idle hours',()=>{
   assert.throws(()=>summarizeHistory({name:'Alpha',start,stop:start+3600,responses:[{sections:{metric:metric(),conts:{error:'missing'}}}]}));
   assert.deepEqual(mergeIntervals([[3,4],[0,2],[1,3],[5,5]]),[[0,4]]);
 });
+
+test('numeric string container identifiers match numeric identifiers without being exported',()=>{
+  const a=container('123',[[0,1800]]),b=container(123,[[1800,3600]]);
+  const result=summarize([a,b]);assert.equal(result.hours[0].storedInstances,1);
+  assert.equal(result.hours[0].occupiedSeconds,3600);
+  assert.equal(JSON.stringify(result).includes('123'),false);
+  assert.throws(()=>summarize([container('invalid',[])]),/identifier/);
+});
 test('native coarse buckets leave gaps visible and raw samples represent one second each',()=>{
   const m={step:128,t:[start,start+256],channels:{cpu:{avg:[1,1]}},raw:false};
   assert.deepEqual(coverageIntervals(m,start,start+3600),[[start,start+128],[start+256,start+384]]);

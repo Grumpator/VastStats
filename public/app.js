@@ -58,6 +58,7 @@ function render(){
     else if(status.next){const badge=element('span','status-badge planned','Maintenance planned');badge.title='Starts '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'});badges.append(badge);}
     heading.append(badges);
     text.append(heading,element('p','box-caption',stats[index].observed?(stats[index].observed/3600).toFixed(1)+' hours observed':'Awaiting observations'));
+    if(box.dataThrough)text.append(element('p','box-caption','History through '+fmt(Date.parse(box.dataThrough),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})));
     title.append(element('span','box-avatar',box.name[0]),text);const metric=element('div','box-percent',percent(stats[index].percent));metric.append(element('small','','occupancy'));header.append(title,metric);card.append(header);
     const scroll=element('div','grid-scroll');
     if(view==='week') {
@@ -94,7 +95,7 @@ async function load(){
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;load();}));
 $('#date').addEventListener('change',()=>{if($('#date').value){selected=$('#date').value;load();}});
 function move(direction){if(view==='week')selected=addDays(selected,direction*7);else{const d=new Date(selected.slice(0,7)+'-01T12:00Z');if(view==='month')d.setUTCMonth(d.getUTCMonth()+direction);else d.setUTCFullYear(d.getUTCFullYear()+direction);selected=d.toISOString().slice(0,10);}$('#date').value=selected;load();}
-$('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());$('#date').value=selected;render();};
+$('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());$('#date').value=selected;load();};
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
 const metricHelp={
   occupancy:['Fleet occupancy','The percentage of observed box-time with at least one running rental in the selected period. Running box-hours ÷ observed box-hours × 100. For example, three boxes observed for 24 hours provide 72 box-hours; 36 running box-hours means 50% occupancy. Only available telemetry contributes to the calculation. Current offline status does not rewrite historical occupancy.'],

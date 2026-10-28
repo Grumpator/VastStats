@@ -1,79 +1,74 @@
-# VastStats
+# VastStats v2
 
-A public, static Vast rental dashboard. No box is contacted by the website or GitHub Actions. No inbound ports or VPS are required.
+A public Vast fleet dashboard built from historical container-running intervals. The working v2 implementation is on `codex/api-history`; the previous snapshot-based dashboard and its data are preserved on [`v1`](https://github.com/Grumpator/VastStats/tree/v1). The live Pages site stays on `main` until v2 is merged.
 
-## Enable the page
+## Data flow
 
-In this repository's **Settings → Pages → Build and deployment**, select **GitHub Actions** as the source. The Deploy dashboard workflow publishes only `public/` when page code changes on `main`; data-only commits do not deploy.
+1. GitHub Actions reads current machine state and obtains a short-lived telemetry token using a private Vast API key.
+2. It queries container history and reporting samples, unions simultaneous running intervals, and builds hourly summaries. Missed collector runs can be backfilled from the API.
+3. Only public box names, timestamps, counts, durations and sanitized state snapshots are committed. Raw instance/machine IDs, tokens, API responses, hostnames and IPs stay private.
+4. The page loads the index and the per-box/month files required by the selected week, month or year. No API key reaches the browser.
 
-Expected address after the first successful deployment: https://grumpator.github.io/VastStats/
+The current month is reconciled with a three-day overlap before the latest imported telemetry. Initial imports recover all available months, up to a ten-year safety limit. Completed months remain stored; the preceding month is also reconciled during the first seven days of the next month for late uploads. A manual full rebuild is available. Previously recovered hours are retained when a later response has less coverage, including after an upstream recording-format change.
 
-## Connect the data
+This is the GitHub-only variant: it stores compact API-derived summaries and refreshes them periodically. Anonymous page loads do not call the private Vast API directly. A truly stateless on-demand version would require a serverless proxy to protect the key.
 
-In **Settings → Secrets and variables → Actions**, add two repository secrets:
+## Configure access
 
-For a new Vast key with current machine reads and historical telemetry access, paste [config/vast-api-permissions.json](config/vast-api-permissions.json) into Vast's **Advanced** permissions editor. This exact scope was verified on 28 October 2026 against all three configured boxes. It contains permission settings only, not a key. Store the generated key only in the `VAST_API_KEY` repository secret. Billing access and write permissions are not required. The current collector still uses machine snapshots; telemetry support is documented in [the history investigation](docs/telemetry-history-investigation.md).
+In GitHub **Settings → Secrets and variables → Actions**, set these **repository secrets**:
 
-- `VAST_API_KEY`: a Vast account API key authorized to read your hosted machines. Use the narrowest available permissions. Never put the key in files, Issues, or browser JavaScript.
-- `VAST_BOX_MAP`: a JSON object mapping your private numeric machine IDs to public names, for example `{"123":"Alpha","456":"Beta","789":"Gamma"}`. Substitute your actual IDs. This map remains in GitHub Secrets, not in the published source or data.
+- `VAST_API_KEY`: create a Vast key in Advanced mode using [config/vast-api-permissions.json](config/vast-api-permissions.json). Machines/read and User/read restricted to the telemetry-token GET route were verified on all three boxes. Billing and write permissions are not needed.
+- `VAST_BOX_MAP`: your private machine-ID to public-name map, such as `{"123":"Alpha","456":"Beta"}`. Public names must be unique ignoring case and contain only letters, numbers, spaces, underscores or hyphens, beginning with a letter (24 characters maximum). Keep real IDs in the secret.
 
-Then open **Actions → Collect fleet data → Run workflow**. First collection records a starting observation; the next successful check starts filling the grid. Collection also runs when collector code or tests change. Without secrets the page still deploys with an empty history and an explicit waiting message. Keep both values in repository secrets: the map links private machine IDs to public names, and variables are not masked in logs.
+Run **Actions → Collect API history → Run workflow**, choosing the appropriate branch. Select **rebuild** to reconcile every available month. The schedule requests one refresh per hour, at minute 17; GitHub may delay or skip triggers. Historical backfilling avoids the requirement to capture consecutive five-minute snapshots. This does not guarantee live freshness.
 
-Use **Machines / read-only** permission for the API key. No User, Instances, Billing or Misc permissions are required by the current collector. Collection runs on GitHub, never on the boxes, so a box outage does not stop polling. Data commits use the `VastStats collector` author and GitHub's built-in job token; no personal GitHub key is needed on any box.
+The workflow commits only `public/data/` and uses GitHub's built-in job token. No inbound ports, VPS or GitHub key on a box are needed. V2 branch collection writes to that branch only. The collector has no Pages deployment permission.
 
-GitHub Actions is configured to check every five minutes, using explicit minute values in the schedule. This is a requested cadence, not a guarantee: scheduled runs can be delayed or skipped. On 27 October 2026, only four scheduled runs were created over approximately twenty hours; changing to explicit minutes is a scheduling troubleshooting step, not a verified fix. Check runs with the `schedule` event separately from pushes and manual reruns. The collector logs its timestamp and the gap since the preceding collection. Consecutive observations at most 12 minutes apart integrate the previous state until the next observation. Larger gaps remain unknown. GitHub can disable scheduled workflows in public repositories after 60 days without activity; data commits normally provide activity, but failures should be checked if updates stop. No historical occupancy is inferred from today's state.
+## Files
 
-## Collection and deployment
+- `public/data/index.json`: fleet names, current snapshots, available month names, refresh/failure information and telemetry watermarks.
+- `public/data/Alpha/2026-10.json`: one box/month of hourly aggregates and explicitly observed state snapshots. Other names/months follow the same layout.
+- `config/vast-api-permissions.json`: permission configuration only, never a credential.
 
-Two independent workflows handle updates. **Collect fleet data** runs on the schedule, manually, or when collector code/tests change. It reads Vast and commits sanitized summaries; it has no Pages deployment permissions. Collection failures now fail that run visibly while preserving the previous data. **Deploy dashboard** runs when page files change or manually; it ignores data-only changes and does not need Vast secrets.
-
-The public page refreshes JSON from the public repository's raw-file URL every minute. This avoids redeploying the site for data updates. GitHub's raw-file caching can delay visibility; a cache-disabled browser request does not guarantee immediate CDN freshness. Local preview uses the local data file. The copy of data bundled in a Pages deployment is a snapshot, not the live public data source. Collection and raw data remain hosted by GitHub.
+The generated data files are intentionally public. They disclose fleet occupancy and instance counts. Never put raw responses or a private map in this repository.
 
 ## Reading the dashboard
 
-- **Week:** one square per actual hour. Week starts Monday; the separate Day view has been removed.
-- **Month:** one square per day, in a calendar.
-- **Year:** one square per day, in a contribution-style grid.
-- **Solid green:** running throughout observed time. **Green/white diagonal hatching:** running for some observed time. **White:** idle throughout observed time. **Grey:** no observations. A small corner dot indicates incomplete coverage; future periods have a dashed border.
-- Occupancy means **at least one running rental on a box**, rather than GPU utilisation or fraction of GPUs allocated.
-- Numbers are the **stored customer instance count**, including stopped rentals, at the last observation in that square. They are not Docker cache counts or sums across hours.
-- Hover, keyboard focus, or tap shows occupancy percentage, running hours, stored count, state durations, and data coverage.
-- Summary occupancy uses observed time only. Coverage reports how much elapsed time is known. Running box-hours add time across boxes.
-- The **Images** pill combines **Running** and **Stored**, which show the latest fleet instance counts reported by Vast, independent of the historical period. Stored includes running and stopped instances. Running counts can lag when a box disconnects; confirmed offline time still counts as zero historical occupancy.
-- Under Images, **GB allocated** totals Vast's allocated disk space across all boxes when every value is available. This is not actual instance file usage and may include other Vast allocations. Missing values are not treated as zero.
-- Each summary card has a small **i** button with a metric explanation; click or tap to expand it, or use the keyboard. The **Hours** pill shows running box-hours for the selected period. The four summary pills are Occupancy, Hours, Images, and Data coverage.
-- London calendar boundaries account for 23/25-hour daylight-saving days. Repeated hours on clock-change days follow actual time; tooltips identify GMT/BST.
-- **Border = box state:** thick green for listed, thick grey for unlisted, thick amber for maintenance, thick red for offline. Each square has one 3px border, with priority **offline → maintenance → unlisted → listed**. A border means that state was observed during the hour/day; it does not imply that the entire period was spent in that state. A mixed listed/unlisted period uses grey. If there is no listing or availability evidence, the square keeps a thin neutral outline.
-- **Fill = occupancy:** green for running throughout observed time, green/white diagonal hatching for part of observed time, white for none, grey for unknown/missing data. The border and fill are independent: a listed box can be idle, and an unlisted box can still have an existing running rental.
-- **Number = stored instances:** the stored customer instance count (including stopped rentals) at the last observation in the square. It is not the Docker image cache count or an accumulated total.
-- Current badges beside each box name show online/offline, listed/unlisted, and active/planned maintenance separately from the historical square borders. Hover, tap or keyboard focus shows exact occupancy and the observed listed, unlisted, offline and maintenance durations. Raw error messages and maintenance reasons are not published.
-- Offline status follows Vast's Machines console: `timeout >= 10` seconds. The collector requests `include_offline=1` so disconnected machines are included. A confirmed offline sample counts as zero running time even if Vast retains a stale nonzero rental counter. Stored instances are still shown when available.
-- Active maintenance uses uncancelled `machine_maintenance` windows (`start_time` plus `duration_hours`). Maintenance does not automatically imply offline or prevent an existing rental from running. Future windows get a separate planned badge.
-- Listing status follows Vast's `listed` flag and `end_date`: an expired listing is treated as unlisted. A known expiration splits listed/unlisted history at the actual expiration time, even between polls. Listing status is separate from whether an existing rental is running.
-- Missing machines/fields are unknown, not offline or idle. API errors preserve previous data, and badges become out of date after 20 minutes without a successful update. Occupancy and status coverage are independent: older records without status fields have unknown availability, not invented uptime.
-- The empty income row has been removed from tooltips. Income is currently unavailable. The public schema supports `incomeUsd`, but the collector does not invent income from list prices. Vast provides per-machine earnings reports; their granularity and accounting need verification before adding them. Any future estimates must be explicitly labelled. Publishing actual income requires deciding that financial disclosure is intended.
+- **Week:** one square per actual hour, starting Monday. London clock-change days have 23 or 25 squares.
+- **Month / Year:** one square per day. Percentages and Hours use the selected period and only available telemetry. Missing history and future time do not count as idle.
+- **Solid green:** running throughout reported coverage. **Green/white hatching:** running for part of it. **White:** no running intervals during reported coverage. **Grey:** unknown. A small corner dot indicates less than 95% coverage of elapsed time.
+- **Number:** stored instances at the last known point in the square. A blank number means it cannot be established. It is not the peak or the sum of rentals.
+- **Ring:** the current hour/day. A fresh machine snapshot can show its latest stored count and state even before duration data arrives; it does not contribute to historical occupancy.
+- **Border:** red offline, amber maintenance, grey unlisted, green listed, in that priority order. V2 borders indicate states explicitly captured in that period's snapshots. Unknown historical state is neutral. Container history alone does not establish historical listing/maintenance/offline duration.
+- **Occupancy:** union of running intervals divided by reported coverage. Two simultaneous rentals do not double-count a box's time. **Hours:** the same union duration summed across boxes.
+- **Images:** current Running/Stored counts, independent of historical navigation. Stored includes running and stopped instances. GB allocated is Vast's allocated disk total, not actual file usage.
+- **Data coverage:** reported telemetry sampling intervals divided by elapsed box-time in the selected period. Raw samples contribute one second; native aggregate buckets up to five minutes are accepted. Coarser buckets, missing samples, and approximate/fragmented container spans stay unknown.
 
-The demo button generates clearly labelled illustrative history in the browser. It does not overwrite or publish sample records. Add `?demo=1` to preview directly.
+Hardware sample presence is used only to identify reporting coverage, not GPU utilisation. CPU/memory measurements themselves are discarded. Container state is sampled by Vast, so these figures are not billing-grade accounting.
 
-## Public-data boundary
+## Freshness and limitations
 
-Only chosen names, timestamps, running/availability/listing states, current running and stored counts, allocated disk-space totals, occupied/observed/listed/unlisted/offline/maintenance seconds, sanitized listing-expiration and maintenance start/end times, and optional explicitly sourced income belong in `public/data.json`. API output is allowlisted before export. Raw responses, credentials, machine IDs, hostnames, IP addresses, customer names, image names, maintenance reasons, free-text errors and billing records are never serialized. The workflow uploads only `public/`.
+Vast uploads telemetry in batches. Current machine state and historical telemetry may have different timestamps; a successful refresh does not prove recent running history has arrived. Metadata `extent.end` may represent the query clock, so watermarks are based on actual reporting samples. See [the API investigation](docs/telemetry-history-investigation.md).
 
-Status behavior was checked against Vast's public console on 26 October 2026: [machine dashboard module](https://cloud.vast.ai/assets/MachinesPageSwitcher-BpoDvDWr.js), [API request module](https://cloud.vast.ai/assets/index-rkOnGsCI.js). These versioned asset URLs may change when Vast deploys its console. No extra API endpoint is required for maintenance because the machine response already contains the windows.
+API errors retain existing summaries and mark the affected box's history as unavailable to refresh. API rate limits have bounded retries. A failure for every box fails the run visibly. Historical idle coverage is based on reporting samples, and absence of a container alone does not produce observed time.
 
-The repository and its Git history are public too: use only sanitized summaries here. Occupancy and stored counts themselves are public by design. The only external page resource is Google Fonts; fallback system fonts work if unavailable.
+Vast can restart its recording history after format-changing updates. Saved month summaries preserve already recovered hours. Truly immutable, exact billing history or historical disk usage is not promised.
+
+The **Inspect Vast history API** diagnostic workflow remains separate from collection. It exports only schemas and aggregate counts. No raw telemetry is uploaded as an Actions artifact.
+
+## Page deployment
+
+Use **Settings → Pages → Source: GitHub Actions**. **Deploy dashboard** publishes page code on changes to `public/`, ignoring `public/data/` and the legacy data filename. Data-only refreshes do not redeploy Pages. The public page fetches summaries from the repository's raw-file URLs every minute; GitHub caching may delay visibility.
 
 ## Local development
 
-The compact interface shows its release version in the footer (currently **v1.4.0**). The tagline and update timestamp share the header, leaving the main area for controls and data.
-
-Requires Node 24 or later; no dependencies or build step. GitHub Actions uses Ubuntu 24.04 explicitly and actions with Node 24 runtimes.
-
-When changing browser code or styling, bump the version in `package.json`, the visible footer and asset queries in `index.html`, and the `model.js` import in `app.js`. Data is fetched without browser caching independently of the code version.
+Node 24+, no dependencies or build step:
 
 ```sh
 npm test
 npm run preview
 ```
 
-Open http://127.0.0.1:4173/ (or add `?demo=1`).
+Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
+
+Version **v2.0.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.

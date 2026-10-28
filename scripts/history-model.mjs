@@ -32,12 +32,13 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
     if(section?.error||!Array.isArray(section?.active))throw Error('Container history unavailable');
     const view=section.view??response.view;
     for(const row of section.active){
-      if(!Number.isInteger(row.id)||row.id<=0)throw Error('Invalid container history: identifier');
+      const id=typeof row.id==='string'&&/^\d+$/.test(row.id)?Number(row.id):row.id;
+      if(!Number.isSafeInteger(id)||id<=0)throw Error('Invalid container history: identifier');
       if(!Number.isFinite(row.first_seen))throw Error('Invalid container history: first observation');
       if(!Number.isFinite(row.last_seen))throw Error('Invalid container history: last observation');
       if(!Array.isArray(row.runs))throw Error('Invalid container history: intervals');
-      const old=containers.get(row.id);
-      containers.set(row.id,{first:Math.min(old?.first??Infinity,row.first_seen),last:Math.max(old?.last??-Infinity,row.last_seen),ended:old&&old.last>row.last_seen?old.ended:row.end_witnessed===true});
+      const old=containers.get(id);
+      containers.set(id,{first:Math.min(old?.first??Infinity,row.first_seen),last:Math.max(old?.last??-Infinity,row.last_seen),ended:old&&old.last>row.last_seen?old.ended:row.end_witnessed===true});
       if(row.approx){if(Array.isArray(view))uncertain.push([view[0],view[1]]);else uncertain.push([start,limit]);}
       for(const run of row.runs){
         if(!Number.isFinite(run.start)||!Number.isFinite(run.end)||run.end<run.start)throw Error('Invalid running interval');
