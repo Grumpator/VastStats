@@ -5,6 +5,13 @@ import {summarizeHistory} from './history-model.mjs';
 import {parseMap,sanitizeMachines} from './collect.mjs';
 import {dayKey,midnight} from '../public/model.js';
 const DAY=86400;
+// Stay below Vast's 4,000-point cap and align with native power-of-two buckets.
+// A 15s daily request is resampled to 21.6s, shifting timestamps away from their
+// advertised native bucket boundaries and creating artificial coverage gaps.
+export function coverageQuery(start,stop){
+  const step=32,begin=Math.floor(start/step)*step,end=Math.ceil(stop/step)*step;
+  return {start:begin,stop:end,points:(end-begin)/step};
+}
 export function nextMonth(month,delta=1){const d=new Date(month+'-01T12:00Z');d.setUTCMonth(d.getUTCMonth()+delta);return d.toISOString().slice(0,7);}
 export function monthWindow(month){return [midnight(month+'-01')/1000,midnight(nextMonth(month)+'-01')/1000];}
 export function mergeHours(previous,incoming){
@@ -42,18 +49,19 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         const folder=new URL(encodeURIComponent(name)+'/',root);await mkdir(folder,{recursive:true});
         const file=new URL(m+'.json',folder),cached=await readJson(file,null);
         const recent=m===month||(Number(dayKey(new Date(now)).slice(-2))<=7&&m===nextMonth(month,-1));
-        const revisionNeeded=cached?.aggregationVersion!==3;
+        const revisionNeeded=cached?.aggregationVersion!==4;
         if(cached&&!recent&&!revisionNeeded&&process.env.HISTORY_REBUILD!=='1')continue;
         const [begin,end]=monthWindow(m),until=Math.min(end,stop);
         const priorThrough=cached?.dataThrough?Date.parse(cached.dataThrough)/1000:null;
         const sinceBase=process.env.HISTORY_REBUILD!=='1'&&!revisionNeeded&&priorThrough?priorThrough-3*DAY:begin;
         const since=Math.max(begin,first,midnight(dayKey(new Date(sinceBase*1000)))/1000);
         const responses=[];
-        // Request fine coverage. Vast may return native coarser buckets; >5m is rejected by the reducer.
+        // Align the query grid with native buckets; the summary clips padding to the actual window.
         for(let at=since;at<until;){
           const to=Math.min(until,(Math.floor(at/DAY)+1)*DAY);
           stage='daily-query';
-          responses.push(await api.query(id,at,to,{conts:{},metric:{series:[series],points:Math.max(1,Math.ceil((to-at)/15))}}));
+          const query=coverageQuery(at,to);
+          responses.push(await api.query(id,query.start,query.stop,{conts:{},metric:{series:[series],points:query.points}}));
           at=to;
         }
         if(!responses.length)continue;

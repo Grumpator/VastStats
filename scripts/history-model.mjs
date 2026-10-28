@@ -75,12 +75,12 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
     if(!seen)continue;
     const last=known.at(-1)[1]-0.001;
     const stored=[...containers.values()].some(c=>!c.ended&&c.last<last)?null:[...containers.values()].filter(c=>c.first<=last&&c.last>last).length;
-    hours.push({start:new Date(at*1000).toISOString(),end:new Date(end*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),storedInstances:stored,runningSessions:countIn(range),source:'telemetry',calculationVersion:3});
+    hours.push({start:new Date(at*1000).toISOString(),end:new Date(end*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),storedInstances:stored,runningSessions:countIn(range),source:'telemetry',calculationVersion:4});
   }
   const days=[];
   for(let key=dayKey(new Date(start*1000));midnight(key)/1000<limit;key=addDays(key,1)){
     const a=midnight(key)/1000,b=midnight(addDays(key,1))/1000,range=[[Math.max(a,start),Math.min(b,limit)]],seen=seconds(intersectIntervals(observed,range));
-    if(seen)days.push({start:new Date(a*1000).toISOString(),end:new Date(b*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),runningSessions:countIn(range),calculationVersion:3});
+    if(seen)days.push({start:new Date(a*1000).toISOString(),end:new Date(b*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),runningSessions:countIn(range),calculationVersion:4});
   }
-  return {version:2,aggregationVersion:3,name,source:'telemetry',updatedAt:new Date(now).toISOString(),dataThrough:observed.length?new Date(observed.at(-1)[1]*1000).toISOString():null,hours,days};
+  return {version:2,aggregationVersion:4,name,source:'telemetry',updatedAt:new Date(now).toISOString(),dataThrough:observed.length?new Date(observed.at(-1)[1]*1000).toISOString():null,hours,days};
 }
