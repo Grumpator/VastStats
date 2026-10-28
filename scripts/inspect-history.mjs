@@ -10,7 +10,11 @@ async function request(url,token,body){
   return response.json();
 }
 try{
-  const auth=await request('https://console.vast.ai/api/v0/telemetry/token/',key);
+  phase='machine-key-check';
+  const current=await request('https://console.vast.ai/api/v0/machines/?owner=me&include_offline=1',key);
+  console.log(JSON.stringify({phase,status:'success',machineCount:current.machines?.length}));
+  phase='token';
+  const auth=await request('https://cloud.vast.ai/api/v0/telemetry/token/',key);
   console.log(JSON.stringify({phase,status:'success',fields:fields(auth)}));
   const base=auth.telemetry_url||'https://telemetry.vast.ai';
   if(!['https://telemetry.vast.ai','https://candidate-telemetry.vast.ai','https://alpha-telemetry.vast.ai'].includes(base.replace(/\/$/,'')))throw Error('Unexpected telemetry origin');
