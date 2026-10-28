@@ -58,7 +58,12 @@ try{
     if(process.env.HISTORY_META_ONLY==='1')continue;
     phase='container-history';
     const stop=Math.floor(Date.now()/1000),start=stop-days*86400;
-    const result=await request(base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/query',auth.token,{start,stop,sections:{conts:{}}});
+    const result=await request(base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/query',auth.token,{start,stop,sections:{conts:{},...(process.env.HISTORY_COVERAGE==='1'?{metric:{points:Number(process.env.HISTORY_POINTS)||400}}:{})}});
+    if(process.env.HISTORY_COVERAGE==='1'){
+      const metric=result.sections?.metric,channels=Object.values(metric?.channels||{}),channel=channels[0];
+      const delta=metric?.t?.slice(1).map((t,i)=>t-metric.t[i]).filter(n=>n>0).sort((a,b)=>a-b)||[];
+      console.log(JSON.stringify({box:name,phase:'coverage-shape',metricFields:fields(metric),step:metric?.step,raw:metric?.raw,level:result.level,minLeafLevel:meta.manifest?.min_leaf_level,metricManifest:meta.manifest?.metric,pointCount:metric?.t?.length,channelFields:fields(channel),view:metric?.view??result.view,firstPoint:metric?.t?.[0],lastPoint:metric?.t?.at(-1),medianDelta:delta[Math.floor(delta.length/2)],minDelta:delta[0],maxDelta:delta.at(-1),sampleCounts:channel?.n?{min:Math.min(...channel.n),max:Math.max(...channel.n)}:null,nonNullAverageCount:channel?.avg?.filter(n=>n!==null).length}));
+    }
     const conts=result.sections?.conts,active=conts?.active;
     const rows=Array.isArray(active)?active:[];
     const runs=rows.flatMap(r=>r.runs||[]),latestSeen=rows.reduce((n,r)=>Math.max(n,r.last_seen||0),0);

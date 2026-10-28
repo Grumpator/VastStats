@@ -1,51 +1,56 @@
-name: Collect fleet data
+name: Collect API history
 on:
   push:
-    branches: [main]
+    branches: [main, codex/api-history]
     paths:
-      - "scripts/collect.mjs"
-      - "tests/**"
-      - "package.json"
-      - ".github/workflows/dashboard.yml"
+      - 'scripts/history-*.mjs'
+      - 'scripts/collect-history.mjs'
+      - 'scripts/collect.mjs'
+      - 'public/model.js'
+      - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/dashboard.yml'
   workflow_dispatch:
+    inputs:
+      rebuild:
+        description: Reconcile all available months instead of the recent overlap
+        type: boolean
+        default: false
   schedule:
-    # Explicit minutes avoid relying on range/step handling in the scheduler.
-    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'
-
+    - cron: '17 * * * *'
 permissions:
   contents: read
-
 concurrency:
-  group: vaststats-collection
+  group: vaststats-api-history-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   collect:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
-      - name: Test aggregation and public export
+      - name: Test history aggregation and public-data boundary
         run: npm test
-      - name: Collect public summary
+      - name: Rebuild summaries from Vast history
         env:
           VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
           VAST_BOX_MAP: ${{ secrets.VAST_BOX_MAP }}
-        run: node scripts/collect.mjs
-      - name: Save summary history
+          HISTORY_REBUILD: ${{ inputs.rebuild && '1' || '0' }}
+        run: node scripts/collect-history.mjs
+      - name: Save sanitized month summaries
         run: |
           git config user.name 'VastStats collector'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add public/data.json
+          git add public/data/
           if ! git diff --cached --quiet; then
-            git commit -m "Update public fleet summary"
+            git commit -m "Refresh API history summaries"
             git push
           fi
