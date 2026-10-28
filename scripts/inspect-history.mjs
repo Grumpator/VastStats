@@ -1,3 +1,4 @@
+import {coverageIntervals} from './history-model.mjs';
 // Read-only investigation. Never log tokens, machine/instance IDs or raw API responses.
 const key=process.env.VAST_API_KEY;
 if(!key)throw Error('VAST_API_KEY is required');
@@ -63,6 +64,20 @@ try{
       const metric=result.sections?.metric,channels=Object.values(metric?.channels||{}),channel=channels[0];
       const delta=metric?.t?.slice(1).map((t,i)=>t-metric.t[i]).filter(n=>n>0).sort((a,b)=>a-b)||[];
       console.log(JSON.stringify({box:name,phase:'coverage-shape',metricFields:fields(metric),step:metric?.step,raw:metric?.raw,level:result.level,minLeafLevel:meta.manifest?.min_leaf_level,metricManifest:meta.manifest?.metric,pointCount:metric?.t?.length,channelFields:fields(channel),view:metric?.view??result.view,firstPoint:metric?.t?.[0],lastPoint:metric?.t?.at(-1),medianDelta:delta[Math.floor(delta.length/2)],minDelta:delta[0],maxDelta:delta.at(-1),sampleCounts:channel?.n?{min:Math.min(...channel.n),max:Math.max(...channel.n)}:null,nonNullAverageCount:channel?.avg?.filter(n=>n!==null).length}));
+    }
+    if(process.env.HISTORY_COVERAGE==='1'){
+      phase='coverage-audit';
+      const auditStart=Math.floor((stop-3*86400)/86400)*86400,auditStop=auditStart+86400;
+      const route=base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/query';
+      const overview=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{metric:{points:100}}});
+      const keys=Object.keys(overview.sections?.metric?.channels||{}),series=keys.find(k=>/cpu|memory|mem_/i.test(k))??keys[0];
+      if(series){
+        const audit=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{conts:{},metric:{series:[series],points:5760}}});
+        const m=audit.sections?.metric,deltaCounts={};
+        for(let i=1;i<(m?.t?.length??0);i++){const delta=m.t[i]-m.t[i-1];deltaCounts[delta]=(deltaCounts[delta]||0)+1;}
+        const hours=Array.from({length:24},(_,h)=>{const a=auditStart+h*3600,b=a+3600;const intervals=coverageIntervals(m,a,b);return Math.round(intervals.reduce((n,[x,y])=>n+y-x,0)*1000)/1000;});
+        console.log(JSON.stringify({box:name,phase,auditDay:timestamp(auditStart),step:m?.step,raw:m?.raw,view:m?.view,pointCount:m?.t?.length,firstTimestamps:m?.t?.slice(0,12),deltaCounts,observedSecondsPerHour:hours}));
+      }
     }
     const conts=result.sections?.conts,active=conts?.active;
     const rows=Array.isArray(active)?active:[];
