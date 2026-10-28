@@ -44,7 +44,7 @@ export function aggregate(records,start,end,now=Date.now()) {
     state:!elapsed?'future':!observed?'unknown':percent>=99.999?'full':percent>0?'partial':'idle'};
 }
 export function currentStatus(sample,now=Date.now(),maxAgeSeconds=1200){
-  if(!sample||!Number.isFinite(Date.parse(sample.at))||now-Date.parse(sample.at)>maxAgeSeconds*1000)return {connection:'stale',maintenance:null,next:null,listed:null};
+  if(!sample||!Number.isFinite(Date.parse(sample.at))||now<Date.parse(sample.at)||now-Date.parse(sample.at)>maxAgeSeconds*1000)return {connection:'stale',maintenance:null,next:null,listed:null};
   const windows=sample.maintenanceWindows;
   const active=windows?.some(w=>Date.parse(w.start)<=now&&now<Date.parse(w.end))??null;
   const next=windows?.find(w=>Date.parse(w.start)>now)??null;
