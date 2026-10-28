@@ -73,9 +73,11 @@ try{
       const keys=Object.keys(overview.sections?.metric?.channels||{}),series=keys.find(k=>/cpu|memory|mem_/i.test(k))??keys[0];
       if(series){
         const audit=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{conts:{},metric:{series:[series],points:5760}}});
-        const aligned=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{metric:{series:[series],points:675}}});
+        for(const requestedPoints of [675,2700]){
+        const aligned=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{metric:{series:[series],points:requestedPoints}}});
         const alignedMetric=aligned.sections?.metric;
-        console.log(JSON.stringify({box:name,phase:'coverage-aligned-audit',step:alignedMetric?.step,raw:alignedMetric?.raw,pointCount:alignedMetric?.t?.length,firstTimestamps:alignedMetric?.t?.slice(0,12),observedSeconds:coverageIntervals(alignedMetric,auditStart,auditStop).reduce((n,[a,b])=>n+b-a,0)}));
+        console.log(JSON.stringify({box:name,phase:'coverage-aligned-audit',requestedPoints,step:alignedMetric?.step,raw:alignedMetric?.raw,pointCount:alignedMetric?.t?.length,firstTimestamps:alignedMetric?.t?.slice(0,12),observedSeconds:coverageIntervals(alignedMetric,auditStart,auditStop).reduce((n,[a,b])=>n+b-a,0)}));
+        }
         const m=audit.sections?.metric,deltaCounts={};
         for(let i=1;i<(m?.t?.length??0);i++){const delta=m.t[i]-m.t[i-1];deltaCounts[delta]=(deltaCounts[delta]||0)+1;}
         const hours=Array.from({length:24},(_,h)=>{const a=auditStart+h*3600,b=a+3600;const intervals=coverageIntervals(m,a,b);return Math.round(intervals.reduce((n,[x,y])=>n+y-x,0)*1000)/1000;});
