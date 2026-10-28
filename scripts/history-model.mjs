@@ -15,10 +15,11 @@ const seconds=intervals=>intervals.reduce((n,[a,b])=>n+b-a,0);
 
 export function coverageIntervals(metric,start,stop){
   // Refuse coarse charts: a nonempty monthly chart bucket does not prove an hour was observed.
-  if(!metric||!Array.isArray(metric.t)||!Number.isFinite(metric.step)||metric.step<=0||metric.step>30)return [];
+  if(!metric||!Array.isArray(metric.t)||!Number.isFinite(metric.step)||metric.step<=0||(!metric.raw&&metric.step>300))return [];
+  const width=metric.raw?1:metric.step;
   const channels=Object.values(metric.channels||{}).filter(c=>Array.isArray(c?.avg));
   if(!channels.length)return [];
-  return mergeIntervals(metric.t.flatMap((t,i)=>Number.isFinite(t)&&channels.some(c=>Number.isFinite(c.avg[i]))?[[Math.max(start,t),Math.min(stop,t+metric.step)]]:[]));
+  return mergeIntervals(metric.t.flatMap((t,i)=>Number.isFinite(t)&&channels.some(c=>Number.isFinite(c.avg[i]))?[[Math.max(start,t),Math.min(stop,t+width)]]:[]));
 }
 
 export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
@@ -33,7 +34,7 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
     for(const row of section.active){
       if(!Number.isInteger(row.id)||row.id<=0||!Number.isFinite(row.first_seen)||!Number.isFinite(row.last_seen)||!Array.isArray(row.runs))throw Error('Invalid container history');
       const old=containers.get(row.id);
-      containers.set(row.id,{first:Math.min(old?.first??Infinity,row.first_seen),last:Math.max(old?.last??-Infinity,row.last_seen)});
+      containers.set(row.id,{first:Math.min(old?.first??Infinity,row.first_seen),last:Math.max(old?.last??-Infinity,row.last_seen),ended:old&&old.last>row.last_seen?old.ended:row.end_witnessed===true});
       if(row.approx){if(Array.isArray(view))uncertain.push([view[0],view[1]]);else uncertain.push([start,limit]);}
       for(const run of row.runs){
         if(!Number.isFinite(run.start)||!Number.isFinite(run.end)||run.end<run.start)throw Error('Invalid running interval');
@@ -51,7 +52,7 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
     const end=Math.min(at+3600,limit),range=[[Math.max(at,start),end]],known=intersectIntervals(observed,range),seen=seconds(known);
     if(!seen)continue;
     const last=known.at(-1)[1]-0.001;
-    const stored=[...containers.values()].filter(c=>c.first<=last&&c.last>last).length;
+    const stored=[...containers.values()].some(c=>!c.ended&&c.last<last)?null:[...containers.values()].filter(c=>c.first<=last&&c.last>last).length;
     hours.push({start:new Date(at*1000).toISOString(),end:new Date(end*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),storedInstances:stored,source:'telemetry'});
   }
   return {version:2,name,source:'telemetry',updatedAt:new Date(now).toISOString(),dataThrough:observed.length?new Date(observed.at(-1)[1]*1000).toISOString():null,hours};

@@ -5,6 +5,7 @@ on:
     paths:
       - 'public/**'
       - '!public/data.json'
+      - '!public/data/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 permissions:

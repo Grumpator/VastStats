@@ -28,6 +28,11 @@ test('invalid container sections cannot silently produce idle hours',()=>{
   assert.throws(()=>summarizeHistory({name:'Alpha',start,stop:start+3600,responses:[{sections:{metric:metric(),conts:{error:'missing'}}}]}));
   assert.deepEqual(mergeIntervals([[3,4],[0,2],[1,3],[5,5]]),[[0,4]]);
 });
+test('native coarse buckets leave gaps visible and raw samples represent one second each',()=>{
+  const m={step:128,t:[start,start+256],channels:{cpu:{avg:[1,1]}},raw:false};
+  assert.deepEqual(coverageIntervals(m,start,start+3600),[[start,start+128],[start+256,start+384]]);
+  assert.deepEqual(coverageIntervals({...m,raw:true},start,start+3600),[[start,start+1],[start+256,start+257]]);
+});
 test('telemetry tokens are sent only to allowlisted HTTPS origins',async()=>{
   const api=new HistoryApi('private',{fetchImpl:async()=>new Response(JSON.stringify({token:'hidden',telemetry_url:'https://untrusted.example'})),pause:async()=>{}});
   await assert.rejects(api.connect(),/Untrusted/);
