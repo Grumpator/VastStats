@@ -1,0 +1,25 @@
+name: Inspect Vast history API
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/inspect-history.mjs'
+      - '.github/workflows/inspect-history.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Inspect read-only history response schemas
+        env:
+          VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
+          VAST_BOX_MAP: ${{ secrets.VAST_BOX_MAP }}
+        run: node scripts/inspect-history.mjs
