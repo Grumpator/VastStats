@@ -76,7 +76,8 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
       entry.historyError=true;
       const http=/^Vast request failed \(HTTP (\d{3})\)$/.exec(error.message);
       const known=new Set(['No history extent','Reporting coverage unavailable','Container history unavailable','Invalid container history','Invalid running interval','Invalid history window','Machine archive unavailable']);
-      const reason=http?'HTTP '+http[1]:known.has(error.message)?error.message:'unexpected response or storage failure';
+      const shape=/^Invalid container history: (identifier|first observation|last observation|intervals)$/.test(error.message);
+      const reason=http?'HTTP '+http[1]:known.has(error.message)||shape?error.message:'unexpected response or storage failure';
       console.warn(name+': '+stage+' failed ('+reason+'); keeping existing summaries.');
     }
     boxes.push(entry);
