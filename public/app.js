@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.0.2';
-import {loadHistoryData,applySnapshots} from './history-data.js?v=2.0.2';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.0.3';
+import {loadHistoryData,applySnapshots} from './history-data.js?v=2.0.3';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);

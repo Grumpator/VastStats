@@ -1,6 +1,7 @@
-import {periodDays} from './model.js?v=2.0.2';
+import {periodDays} from './model.js?v=2.0.3';
 export async function loadHistoryData(base,selected,view,{fetchImpl=fetch}={}){
-  const get=async path=>{const response=await fetchImpl(new URL(path,base),{cache:'no-store'});if(!response.ok)throw Error('History summary unavailable');return response.json();};
+  const refresh=String(Math.floor(Date.now()/60000));
+  const get=async path=>{const url=new URL(path,base);url.searchParams.set('refresh',refresh);const response=await fetchImpl(url,{cache:'no-store'});if(!response.ok)throw Error('History summary unavailable');return response.json();};
   const index=await get('index.json');
   if(index.version!==2||!Array.isArray(index.boxes))throw Error('Unsupported history index');
   const months=new Set(periodDays(selected,view).map(d=>d.slice(0,7)));
