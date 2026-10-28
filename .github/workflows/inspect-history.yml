@@ -1,6 +1,11 @@
 name: Inspect Vast history API
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'config/vast-api-permissions.json'
+      - '.github/workflows/inspect-history.yml'
 permissions:
   contents: read
 jobs:

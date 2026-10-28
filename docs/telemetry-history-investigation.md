@@ -56,7 +56,7 @@ The renderer consumes `sections.conts.active` and fields including:
 - `runs[]` with `start`, `end`, `open_start`, `open_end`, `fragmented`.
 - `run_count`, `running_s`, `last_state`, `last_state_ts`, `approx`, `is_vm`.
 
-These fields were initially found in console code and then verified against this account's authenticated responses. The manual **Inspect Vast history API** workflow checks access and prints only field names and aggregate counts. It never logs credentials, raw responses, or instance/machine IDs. Earlier authentication failures in that diagnostic did not mean the ordinary collector was failing.
+These fields were initially found in console code and then verified against this account's authenticated responses. **Inspect Vast history API** checks access manually or when its workflow or the permissions reference changes. It prints only field names and aggregate counts, with bounded retry/backoff for rate limits. It never logs credentials, raw responses, or instance/machine IDs. Earlier authentication failures in that diagnostic did not mean the ordinary collector was failing.
 
 ## Turning the response into squares
 

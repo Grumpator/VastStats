@@ -6,7 +6,17 @@ const days=Math.min(366,Math.max(1,Number(process.env.HISTORY_DAYS)||7));
 let phase='token';
 const fields=value=>value&&typeof value==='object'&&!Array.isArray(value)?Object.keys(value).filter(k=>/^[a-z_]+$/i.test(k)):[];
 async function request(url,token,body){
-  const response=await fetch(url,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(60000)});
+  let response;
+  for(let attempt=0;attempt<3;attempt++){
+    response=await fetch(url,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(60000)});
+    if(response.status!==429||attempt===2)break;
+    const header=response.headers.get('retry-after');
+    const delay=header===null?2000*2**attempt:Number.isFinite(Number(header))?Number(header)*1000:Date.parse(header)-Date.now();
+    if(!Number.isFinite(delay)||delay>60000)break;
+    await response.arrayBuffer();
+    console.log(JSON.stringify({phase,status:'rate-limited',retryAfterSeconds:Math.max(1,Math.ceil(delay/1000))}));
+    await new Promise(resolve=>setTimeout(resolve,Math.max(1000,delay)));
+  }
   if(!response.ok){
     let reason;
     try{
