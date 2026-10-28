@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.2.0';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.2.0';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.3.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.3.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -17,6 +17,30 @@ let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchPa
 let recordsByBox=new Map(),activeCell=null;
 $('#date').value=selected;
 function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
+function icon(kind,disabled=false){
+  const paths={power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  for(const [key,value] of Object.entries({viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))svg.setAttribute(key,value);
+  for(const d of [...paths[kind],...(disabled?['M3 3l18 18']:[])]){const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',d);svg.append(path);}return svg;
+}
+function stateIcon(kind,state,label,count=null,disabled=false){
+  const item=element('span','device-state '+state);item.title=label;item.setAttribute('role','img');item.setAttribute('aria-label',label);item.append(icon(kind,disabled));
+  if(count!==null)item.append(element('span','device-count',String(count)));return item;
+}
+function closeBoxDetails(){document.querySelectorAll('.box-details[open]').forEach(details=>details.open=false);}
+function deviceDetails(box,stat,status){
+  const details=element('details','box-details'),summary=element('summary',status.stale?'overdue':'');summary.setAttribute('aria-label','Details for '+box.name);summary.title='Details for '+box.name;summary.append(icon('info'));
+  const panel=element('div','box-details-body'),close=element('button','box-details-close','×');close.type='button';close.setAttribute('aria-label','Close '+box.name+' details');close.onclick=()=>{details.open=false;summary.focus();};panel.append(close,element('strong','',box.name+' · details'));
+  const stamp=box.lastSample?.at,checked=stamp?fmt(Date.parse(stamp),{dateStyle:'medium',timeStyle:'short'}):'Unavailable';
+  const running=status.running===false?0:box.lastSample?.runningInstances??'Unknown',stored=box.lastSample?.storedInstances??'Unknown';
+  const lines=[['Status checked',checked+(status.stale?' · overdue':'')],['Connection',status.connection],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unknown'],['Maintenance',status.maintenance?'Active':status.next?'Planned from '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Off':'Unknown'],['Running instances',running],['Stored instances',stored],['Observed · selected period',stat.observed?duration(stat.observed):'None'],['Data coverage',percent(stat.coverage*100)],['History through',box.dataThrough?fmt(Date.parse(box.dataThrough),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']];
+  if(box.historyError)lines.push(['History refresh','Failed; previous data retained']);
+  else if(box.dataThrough&&Date.now()-Date.parse(box.dataThrough)>2*3600000)lines.push(['History delay',duration((Date.now()-Date.parse(box.dataThrough))/1000)]);
+  const dl=element('dl');for(const [label,value] of lines)dl.append(element('dt','',label),element('dd','',String(value)));panel.append(dl,element('p','','Icons describe the latest machine snapshot. Occupancy and observed time refer to the selected period.'));details.append(summary,panel);
+  details.dataset.box=box.name;
+  details.addEventListener('toggle',()=>{if(details.open){panel.classList.remove('above');const bounds=panel.getBoundingClientRect();if(bounds.bottom>innerHeight-12&&summary.getBoundingClientRect().top>bounds.height+12)panel.classList.add('above');}});
+  return details;
+}
 function hideTip(){ $('#tooltip').hidden=true;if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=null; }
 function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
@@ -43,6 +67,7 @@ function cell(box,bin,calendar=false){
   b.addEventListener('mouseenter',()=>showTip(b,box,bin,value));b.addEventListener('mouseleave',hideTip);b.addEventListener('focus',()=>showTip(b,box,bin,value));b.addEventListener('blur',hideTip);b.addEventListener('click',e=>{e.stopPropagation();showTip(b,box,bin,value);});return b;
 }
 function render(){
+  const detailsOpenFor=document.querySelector('.box-details[open]')?.dataset.box;
   hideTip();const days=periodDays(selected,view),start=midnight(days[0]),end=midnight(addDays(days.at(-1),1));
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
   const title=view==='year'?selected.slice(0,4):view==='month'?fmt(start,{month:'long',year:'numeric'}):fmt(start,{day:'numeric',month:'short'})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric'});
@@ -58,23 +83,17 @@ function render(){
   const boxes=$('#boxes');boxes.replaceChildren();boxes.className=view==='month'?'month-boxes':'';
   data.boxes.forEach((box,index)=>{
     recordsByBox.set(box.name,box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})));
-    const card=element('article','box');const header=element('div','box-header'),title=element('div','box-title'),text=element('div');
-    const heading=element('div','box-heading');heading.append(element('h3','',box.name));
-    const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),badges=element('div','status-badges');
-    const labels={online:'Online',offline:'Offline',unknown:'Status unknown'};
-    const qualifier=status.stale?'Last seen ':'';
-    badges.append(element('span','status-badge '+status.connection,qualifier+labels[status.connection]));
-    badges.append(element('span','status-badge '+(status.listed===true?'listed':status.listed===false?'unlisted':'unknown'),qualifier+(status.listed===true?'Listed':status.listed===false?'Unlisted':'Listing unknown')));
-    if(status.running!==null)badges.append(element('span','status-badge '+(status.running?'listed':'unlisted'),status.running?'Running at last check':'Not running at last check'));
-    if(status.stale)badges.append(element('span','status-badge planned','Update overdue'));
-    if(status.maintenance)badges.append(element('span','status-badge maintenance','Maintenance'));
-    else if(status.next){const badge=element('span','status-badge planned','Maintenance planned');badge.title='Starts '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'});badges.append(badge);}
-    heading.append(badges);
-    text.append(heading);
-    if(box.lastSample?.at)text.append(element('p','box-caption','Status snapshot · '+fmt(Date.parse(box.lastSample.at),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+(status.stale?' · overdue':'')));
-    text.append(element('p','box-caption',stats[index].observed?duration(stats[index].observed)+' observed':'Awaiting observations'));
-    if(box.dataThrough)text.append(element('p','box-caption','History through '+fmt(Date.parse(box.dataThrough),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})));
-    title.append(element('span','box-avatar',box.name[0]),text);const metric=element('div','box-percent',percent(stats[index].percent));metric.append(element('small','','occupancy'));header.append(title,metric);card.append(header);
+    const card=element('article','box'),header=element('div','box-header'),title=element('div','box-title'),heading=element('h3','',box.name);heading.title=box.name;title.append(heading);
+    const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),states=element('div','device-states'+(status.stale?' outdated':''));states.setAttribute('aria-label','Latest snapshot for '+box.name);
+    const stamp=box.lastSample?.at,when=stamp?' · checked '+fmt(Date.parse(stamp),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+    states.append(stateIcon('power',status.connection,'Connection: '+status.connection+when,status.connection==='unknown'?'?':null,status.connection==='offline'));
+    states.append(stateIcon('tag',status.listed===true?'active':'muted',status.listed===true?'Listed'+when:status.listed===false?'Unlisted'+when:'Listing unknown'+when,status.listed===null?'?':null,status.listed===false));
+    states.append(stateIcon(status.next&&!status.maintenance?'clock':'wrench',status.maintenance||status.next?'maintenance':'muted',status.maintenance?'Maintenance active'+when:status.next?'Maintenance planned: '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Maintenance off'+when:'Maintenance unknown'+when,status.maintenance===null&&!status.next?'?':null,status.maintenance===false&&!status.next));
+    const running=status.running===false?0:box.lastSample?.runningInstances??'?';
+    states.append(stateIcon(status.running===false?'pause':'play',status.running?'active':'muted','Running instances: '+running+when,running));
+    states.append(stateIcon('stored','muted','Stored instances: '+(box.lastSample?.storedInstances??'unknown')+when,box.lastSample?.storedInstances??'?'));
+    title.append(states);const metric=element('div','box-percent',percent(stats[index].percent));metric.title='Occupancy in the selected period';metric.append(element('small','','occupancy'));
+    const actions=element('div','box-actions'),details=deviceDetails(box,stats[index],status);actions.append(metric,details);header.append(title,actions);card.append(header);
     const scroll=element('div','grid-scroll');
     if(view==='week') {
       const labels=element('div','hour-labels');labels.append(element('span'));for(let h=0;h<24;h++)labels.append(element('span','',String(h).padStart(2,'0')));scroll.append(labels);
@@ -92,13 +111,11 @@ function render(){
       const months=element('div','year-months');for(let m=0;m<12;m++)months.append(element('span','',fmt(new Date(Number(selected.slice(0,4)),m,15),{month:'short'})));scroll.append(months);
       const grid=element('div','year-grid');const padding=(new Date(days[0]+'T12:00Z').getUTCDay()+6)%7;for(let i=0;i<padding;i++)grid.append(element('span','blank'));for(const day of days)grid.append(cell(box,binsForDay(day,false)[0]));scroll.append(grid);
     }
-    card.append(scroll);boxes.append(card);
+    card.append(scroll);boxes.append(card);if(box.name===detailsOpenFor)details.open=true;
   });
   const updated=data.updatedAt?Date.parse(data.updatedAt):null,stale=updated&&Date.now()-updated>2*3600000;
   $('.freshness').classList.toggle('live',!!updated&&!stale&&!demo);$('#freshness').textContent=demo?'Sample data':updated?(stale?'Update overdue · ':'Updated ')+fmt(updated,{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}):'Waiting for API history';
   $('#notice').textContent=demo?'SAMPLE DATA · Illustrative history for exploring the views. These are not actual rental figures.':!updated?'Waiting for the first history import. Missing telemetry will remain grey.':stale?'Refresh is overdue. Available API history is shown; a later refresh can recover missed periods.':'';
-  const delayed=data.boxes.filter(b=>b.dataThrough&&Date.now()-Date.parse(b.dataThrough)>2*3600000).map(b=>b.name);
-  if(!demo&&updated&&!stale&&delayed.length)$('#notice').textContent='Historical telemetry is delayed for '+delayed.join(', ')+'. See “History through” on each box; current status comes from a separate snapshot.';
   if(!demo&&data.boxes.some(b=>b.historyError))$('#notice').textContent='Some history could not be refreshed. Previously imported data has been kept.';
   $('#demo').textContent=demo?'Return to recorded data ↗':'Explore sample data ↗';
 }
@@ -127,5 +144,5 @@ document.querySelectorAll('[data-info]').forEach(button=>button.addEventListener
 }));
 $('#close-metric-details').onclick=closeMetricHelp;
 document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMetricHelp();});
-document.addEventListener('click',hideTip);document.addEventListener('keydown',e=>{if(e.key==='Escape')hideTip();});window.addEventListener('resize',hideTip);window.addEventListener('scroll',hideTip,true);
+document.addEventListener('click',event=>{hideTip();document.querySelectorAll('.box-details[open]').forEach(details=>{if(!details.contains(event.target))details.open=false;});});document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideTip();closeBoxDetails();}});window.addEventListener('resize',hideTip);window.addEventListener('scroll',hideTip,true);
 load();setInterval(load,60000);
