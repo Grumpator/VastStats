@@ -50,7 +50,9 @@ Hardware sample presence is used only to identify reporting coverage, not GPU ut
 
 Vast uploads telemetry in batches. Current machine state and historical telemetry may have different timestamps; a successful refresh does not prove recent running history has arrived. Metadata `extent.end` may represent the query clock, so watermarks are based on actual reporting samples. See [the API investigation](docs/telemetry-history-investigation.md).
 
-Device badges are machine-state snapshots, not live connections. Each card shows the snapshot time separately from its historical telemetry watermark. After 20 minutes the badges become “Status out of date” and “Listing unknown”. The hourly collection schedule can therefore leave badges stale between runs; the page does not have a private live-status endpoint yet.
+Device badges are machine-state snapshots, not live connections. Each card shows the snapshot time separately from its historical telemetry watermark, including whether a rental was running at that check. With hourly collection, updates are flagged overdue after 90 minutes. Last known connection/listing values remain visible and are labelled “Last seen” rather than being erased. The page does not have a private live-status endpoint.
+
+A running machine snapshot does not establish occupancy throughout an hour or day. Grey squares mean historical coverage has not arrived; they can coexist with “Running at last check”. As new API history arrives, collection backfills those squares. Solid green requires running throughout the observed portion, with the incomplete-data marker if coverage is partial.
 
 API errors retain existing summaries and mark the affected box's history as unavailable to refresh. API rate limits have bounded retries. A failure for every box fails the run visibly. Historical idle coverage is based on reporting samples, and absence of a container alone does not produce observed time.
 
@@ -73,4 +75,4 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v2.0.1** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v2.0.2** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.

@@ -1,4 +1,4 @@
-import {periodDays} from './model.js?v=2.0.1';
+import {periodDays} from './model.js?v=2.0.2';
 export async function loadHistoryData(base,selected,view,{fetchImpl=fetch}={}){
   const get=async path=>{const response=await fetchImpl(new URL(path,base),{cache:'no-store'});if(!response.ok)throw Error('History summary unavailable');return response.json();};
   const index=await get('index.json');

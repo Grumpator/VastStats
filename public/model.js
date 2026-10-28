@@ -43,13 +43,15 @@ export function aggregate(records,start,end,now=Date.now()) {
     borderState:offline>0?'offline':maintenance>0?'maintenance':unlisted>0?'unlisted':listed>0?'listed':'unknown',
     state:!elapsed?'future':!observed?'unknown':percent>=99.999?'full':percent>0?'partial':'idle'};
 }
-export function currentStatus(sample,now=Date.now(),maxAgeSeconds=1200){
-  if(!sample||!Number.isFinite(Date.parse(sample.at))||now<Date.parse(sample.at)||now-Date.parse(sample.at)>maxAgeSeconds*1000)return {connection:'stale',maintenance:null,next:null,listed:null};
+export function currentStatus(sample,now=Date.now(),maxAgeSeconds=5400){
+  if(!sample||!Number.isFinite(Date.parse(sample.at))||now<Date.parse(sample.at))return {connection:'unknown',maintenance:null,next:null,listed:null,running:null,stale:true};
+  const stale=now-Date.parse(sample.at)>maxAgeSeconds*1000;
   const windows=sample.maintenanceWindows;
   const active=windows?.some(w=>Date.parse(w.start)<=now&&now<Date.parse(w.end))??null;
   const next=windows?.find(w=>Date.parse(w.start)>now)??null;
   const listed=sample.listed===true&&sample.listingEndsAt&&Date.parse(sample.listingEndsAt)<=now?false:sample.listed??null;
-  return {connection:sample.connection??'unknown',maintenance:active,next,listed};
+  const running=sample.connection==='offline'?false:typeof sample.running==='boolean'?sample.running:Number.isFinite(sample.runningInstances)?sample.runningInstances>0:null;
+  return {connection:sample.connection??'unknown',maintenance:active,next,listed,running,stale};
 }
 export function demoData(now=Date.now()) {
   const boxes=['Alpha','Beta','Gamma'].map((name,index)=>{

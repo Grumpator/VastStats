@@ -14,8 +14,9 @@ test('a missing month fails explicitly instead of displaying fabricated empty hi
 test('now cell shows a fresh snapshot without adding occupancy or observed duration',()=>{
   const start=Date.parse('2026-10-28T12:00Z'),at=new Date(start+60000).toISOString();
   const value={observed:0,occupied:0,percent:null,stored:null,borderState:'unknown',state:'unknown'};
-  const box={snapshots:[],lastSample:{at,storedInstances:2,connection:'online',listed:true,maintenanceWindows:[]}};
+  const box={snapshots:[],lastSample:{at,storedInstances:2,connection:'online',listed:true,running:true,maintenanceWindows:[]}};
   const result=applySnapshots(value,box,{start,end:start+3600000},start+120000);
   assert.equal(result.stored,2);assert.equal(result.borderState,'listed');assert.equal(result.percent,null);assert.equal(result.observed,0);assert.equal(result.isNow,true);
+  assert.equal(result.currentSnapshot.running,true);assert.equal(result.state,'unknown');
   assert.equal(applySnapshots(value,box,{start,end:start+3600000},start+3*3600000).stored,null);
 });

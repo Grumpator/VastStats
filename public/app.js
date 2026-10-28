@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.0.1';
-import {loadHistoryData,applySnapshots} from './history-data.js?v=2.0.1';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.0.2';
+import {loadHistoryData,applySnapshots} from './history-data.js?v=2.0.2';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -19,6 +19,7 @@ function showTip(button,box,bin,value){
   lines.push(['Offline time',value.connectionObserved?(value.offline/3600).toFixed(2)+' h':'Unknown'],['Maintenance time',value.maintenanceObserved?(value.maintenance/3600).toFixed(2)+' h':'Unknown']);
   lines.push(['Listed time',value.listingObserved?(value.listed/3600).toFixed(2)+' h':'Unknown'],['Unlisted time',value.listingObserved?(value.unlisted/3600).toFixed(2)+' h':'Unknown']);
   if(value.snapshotAt)lines.push(['State snapshot',fmt(Date.parse(value.snapshotAt),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})]);
+  if(value.currentSnapshot)lines.push(['Running at snapshot',value.currentSnapshot.running===true?'Yes':value.currentSnapshot.running===false?'No':'Unknown']);
   for(const [name,value] of lines)dl.append(element('dt','',name),element('dd','',String(value)));tip.append(dl);
   tip.append(element('p','',value.state==='future'?'This period has not started.':value.observed?'API running intervals within reported telemetry. '+(value.coverage<.95?'Some observations are missing.':''):value.currentSnapshot?'Latest machine snapshot only; no duration has been measured for this period.':'No telemetry recorded for this period yet.'));
   tip.hidden=false;const r=button.getBoundingClientRect();tip.style.left=Math.max(10,Math.min(innerWidth-tip.offsetWidth-10,r.left+r.width/2-tip.offsetWidth/2))+'px';
@@ -26,7 +27,7 @@ function showTip(button,box,bin,value){
   if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=button;button.setAttribute('aria-describedby','tooltip');
 }
 function cell(box,bin,calendar=false){
-  const value=applySnapshots(aggregate(recordsByBox.get(box.name),bin.start,bin.end),box,bin,Date.now(),Math.min(data.snapshotMaxAgeSeconds??1200,1200));
+  const value=applySnapshots(aggregate(recordsByBox.get(box.name),bin.start,bin.end),box,bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
   const b=element('button','cell '+value.state+' border-'+value.borderState+(value.observed&&value.coverage<.95?' incomplete':'')+(value.isNow?' now':''),value.stored??'');
   b.type='button';b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium',timeStyle:'short'})+', '+(value.percent==null?'no data':percent(value.percent)+' occupancy')+', '+(value.stored??'unknown')+' stored instances'+(value.borderState!=='unknown'?', '+value.borderState+' border':'')+(value.maintenance?', includes maintenance':'')+(value.isNow?', current period':'')+(value.snapshotAt?', snapshot at '+fmt(Date.parse(value.snapshotAt),{timeStyle:'short'}):''));
   if(calendar)b.append(element('span','day-number',String(Number(bin.key.slice(-2)))));
@@ -50,15 +51,18 @@ function render(){
     recordsByBox.set(box.name,box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})));
     const card=element('article','box');const header=element('div','box-header'),title=element('div','box-title'),text=element('div');
     const heading=element('div','box-heading');heading.append(element('h3','',box.name));
-    const status=currentStatus(box.lastSample,Date.now(),Math.min(data.snapshotMaxAgeSeconds??1200,1200)),badges=element('div','status-badges');
-    const labels={online:'Online',offline:'Offline',unknown:'Status unknown',stale:'Status out of date'};
-    badges.append(element('span','status-badge '+status.connection,labels[status.connection]));
-    badges.append(element('span','status-badge '+(status.listed===true?'listed':status.listed===false?'unlisted':'unknown'),status.listed===true?'Listed':status.listed===false?'Unlisted':'Listing unknown'));
+    const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),badges=element('div','status-badges');
+    const labels={online:'Online',offline:'Offline',unknown:'Status unknown'};
+    const qualifier=status.stale?'Last seen ':'';
+    badges.append(element('span','status-badge '+status.connection,qualifier+labels[status.connection]));
+    badges.append(element('span','status-badge '+(status.listed===true?'listed':status.listed===false?'unlisted':'unknown'),qualifier+(status.listed===true?'Listed':status.listed===false?'Unlisted':'Listing unknown')));
+    if(status.running!==null)badges.append(element('span','status-badge '+(status.running?'listed':'unlisted'),status.running?'Running at last check':'Not running at last check'));
+    if(status.stale)badges.append(element('span','status-badge planned','Update overdue'));
     if(status.maintenance)badges.append(element('span','status-badge maintenance','Maintenance'));
     else if(status.next){const badge=element('span','status-badge planned','Maintenance planned');badge.title='Starts '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'});badges.append(badge);}
     heading.append(badges);
     text.append(heading);
-    if(box.lastSample?.at)text.append(element('p','box-caption','Status snapshot · '+fmt(Date.parse(box.lastSample.at),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+(status.connection==='stale'?' · out of date':'')));
+    if(box.lastSample?.at)text.append(element('p','box-caption','Status snapshot · '+fmt(Date.parse(box.lastSample.at),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+(status.stale?' · overdue':'')));
     text.append(element('p','box-caption',stats[index].observed?(stats[index].observed/3600).toFixed(1)+' hours observed':'Awaiting observations'));
     if(box.dataThrough)text.append(element('p','box-caption','History through '+fmt(Date.parse(box.dataThrough),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})));
     title.append(element('span','box-avatar',box.name[0]),text);const metric=element('div','box-percent',percent(stats[index].percent));metric.append(element('small','','occupancy'));header.append(title,metric);card.append(header);

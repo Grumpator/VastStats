@@ -53,7 +53,15 @@ test('scheduled maintenance respects starts, ends and cancellation, without expo
   assert.equal(currentStatus(sample,now).maintenance,false);
   assert.ok(currentStatus(sample,now).next);
   assert.equal(currentStatus(sample,now+60000).maintenance,true);
-  assert.equal(currentStatus(sample,now+21*60000).connection,'stale');
+  assert.equal(currentStatus(sample,now+21*60000).stale,false);
+});
+
+test('hourly status remains known after twenty minutes and is labelled overdue after ninety',()=>{
+  const now=Date.parse('2026-10-28T12:00Z'),sample={at:new Date(now).toISOString(),connection:'online',listed:true,running:true,maintenanceWindows:[]};
+  assert.equal(currentStatus(sample,now+60*60000).stale,false);
+  const overdue=currentStatus(sample,now+91*60000);
+  assert.equal(overdue.stale,true);assert.equal(overdue.connection,'online');assert.equal(overdue.listed,true);assert.equal(overdue.running,true);
+  assert.equal(currentStatus(sample,now-60000).connection,'unknown');
 });
 test('offline is zero occupancy with coverage; missing status remains unknown',()=>{
   const start=Date.parse('2026-10-26T10:00Z');
