@@ -12,6 +12,8 @@ Expected address after the first successful deployment: https://grumpator.github
 
 In **Settings → Secrets and variables → Actions**, add two repository secrets:
 
+For a new Vast key with current machine reads and historical telemetry access, paste [config/vast-api-permissions.json](config/vast-api-permissions.json) into Vast's **Advanced** permissions editor. This exact scope was verified on 28 October 2026 against all three configured boxes. It contains permission settings only, not a key. Store the generated key only in the `VAST_API_KEY` repository secret. Billing access and write permissions are not required. The current collector still uses machine snapshots; telemetry support is documented in [the history investigation](docs/telemetry-history-investigation.md).
+
 - `VAST_API_KEY`: a Vast account API key authorized to read your hosted machines. Use the narrowest available permissions. Never put the key in files, Issues, or browser JavaScript.
 - `VAST_BOX_MAP`: a JSON object mapping your private numeric machine IDs to public names, for example `{"123":"Alpha","456":"Beta","789":"Gamma"}`. Substitute your actual IDs. This map remains in GitHub Secrets, not in the published source or data.
 
