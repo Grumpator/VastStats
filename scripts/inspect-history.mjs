@@ -6,7 +6,18 @@ let phase='token';
 const fields=value=>value&&typeof value==='object'&&!Array.isArray(value)?Object.keys(value).filter(k=>/^[a-z_]+$/i.test(k)):[];
 async function request(url,token,body){
   const response=await fetch(url,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(60000)});
-  if(!response.ok){console.log(JSON.stringify({phase,httpStatus:response.status}));throw Error('Request failed');}
+  if(!response.ok){
+    let reason;
+    try{
+      const error=await response.json();
+      const message=error.error_code??error.error??error.msg??error.detail;
+      if(typeof message==='string'){
+        reason=message.split(key).join('[credential]').replace(/\b[A-Za-z0-9_-]{32,}\b/g,'[redacted]').replace(/\b\d{4,}\b/g,'[number]').slice(0,240);
+        for(const id of Object.keys(map))reason=reason.split(id).join('[machine]');
+      }
+    }catch{}
+    console.log(JSON.stringify({phase,httpStatus:response.status,reason}));throw Error('Request failed');
+  }
   return response.json();
 }
 try{
