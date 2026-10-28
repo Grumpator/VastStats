@@ -1,11 +1,18 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.1.0';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.1.0';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.1.1';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.1.1';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
 const dataSource=local?async()=>new URL('data/',location.href):githubDataSource();
 let loadGeneration=0;
 const percent=n=>n==null?'—':n.toFixed(1)+'%';
+const duration=seconds=>{
+  if(seconds>0&&seconds<60)return '<1 min';
+  const totalMinutes=Math.round(Math.max(0,seconds)/60);
+  if(seconds<3600)return totalMinutes+' min';
+  const hours=Math.floor(totalMinutes/60),minutes=totalMinutes%60;
+  return hours+' h'+(minutes?' '+minutes+' min':'');
+};
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
 let recordsByBox=new Map(),activeCell=null;
 $('#date').value=selected;
@@ -15,9 +22,9 @@ function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
   const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(view==='week'?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):'');
   tip.append(element('h4','',box.name+' · '+title));const dl=element('dl');
-  const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Runs during period',value.runCount??'—'],['Data coverage',percent(value.coverage*100)]];
-  lines.push(['Offline time',value.connectionObserved?(value.offline/3600).toFixed(2)+' h':'Unknown'],['Maintenance time',value.maintenanceObserved?(value.maintenance/3600).toFixed(2)+' h':'Unknown']);
-  lines.push(['Listed time',value.listingObserved?(value.listed/3600).toFixed(2)+' h':'Unknown'],['Unlisted time',value.listingObserved?(value.unlisted/3600).toFixed(2)+' h':'Unknown']);
+  const lines=[['Occupancy',percent(value.percent)],['Running time',duration(value.occupied)],['Runs during period',value.runCount??'—'],['Data coverage',percent(value.coverage*100)]];
+  lines.push(['Offline time',value.connectionObserved?duration(value.offline):'Unknown'],['Maintenance time',value.maintenanceObserved?duration(value.maintenance):'Unknown']);
+  lines.push(['Listed time',value.listingObserved?duration(value.listed):'Unknown'],['Unlisted time',value.listingObserved?duration(value.unlisted):'Unknown']);
   if(value.snapshotAt)lines.push(['State snapshot',fmt(Date.parse(value.snapshotAt),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})]);
   if(value.currentSnapshot)lines.push(['Running at snapshot',value.currentSnapshot.running===true?'Yes':value.currentSnapshot.running===false?'No':'Unknown']);
   for(const [name,value] of lines)dl.append(element('dt','',name),element('dd','',String(value)));tip.append(dl);
@@ -44,7 +51,7 @@ function render(){
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';
   const totalLatest=field=>{const values=data.boxes.map(b=>b.lastSample?.[field]);return values.length&&values.every(n=>Number.isFinite(n)&&n>=0)?values.reduce((a,b)=>a+b,0):null;};
   const running=totalLatest('runningInstances'),storage=totalLatest('allocatedStorageGb');
-  $('#running').textContent=running??'—';$('#hours').textContent=obs?(occ/3600).toFixed(1):'—';
+  $('#running').textContent=running??'—';$('#hours').textContent=obs?duration(occ):'—';
   $('#stored-note').textContent=storage==null?'latest Vast instance counts':storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated · latest';
   const latest=data.boxes.map(b=>b.lastSample?b.lastSample.storedInstances:b.hours.at(-1)?.storedInstances);$('#stored').textContent=latest.length&&latest.every(n=>n!=null)?latest.reduce((a,b)=>a+b,0):'—';
   const boxes=$('#boxes');boxes.replaceChildren();boxes.className=view==='month'?'month-boxes':'';
@@ -64,7 +71,7 @@ function render(){
     heading.append(badges);
     text.append(heading);
     if(box.lastSample?.at)text.append(element('p','box-caption','Status snapshot · '+fmt(Date.parse(box.lastSample.at),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+(status.stale?' · overdue':'')));
-    text.append(element('p','box-caption',stats[index].observed?(stats[index].observed/3600).toFixed(1)+' hours observed':'Awaiting observations'));
+    text.append(element('p','box-caption',stats[index].observed?duration(stats[index].observed)+' observed':'Awaiting observations'));
     if(box.dataThrough)text.append(element('p','box-caption','History through '+fmt(Date.parse(box.dataThrough),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})));
     title.append(element('span','box-avatar',box.name[0]),text);const metric=element('div','box-percent',percent(stats[index].percent));metric.append(element('small','','occupancy'));header.append(title,metric);card.append(header);
     const scroll=element('div','grid-scroll');
