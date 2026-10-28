@@ -24,4 +24,6 @@ jobs:
           VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
           VAST_BOX_MAP: ${{ secrets.VAST_BOX_MAP }}
           HISTORY_COVERAGE: '1'
+          HISTORY_DAYS: '1'
+          HISTORY_POINTS: '5760'
         run: node scripts/inspect-history.mjs
