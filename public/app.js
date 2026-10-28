@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.1.1';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.1.1';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.2.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.2.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -37,6 +37,7 @@ function cell(box,bin,calendar=false){
   const value=applySnapshots(aggregate(recordsByBox.get(box.name),bin.start,bin.end),box,bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
   value.runCount=periodRunCount(box,bin);
   const b=element('button','cell '+value.state+' border-'+value.borderState+(value.observed&&value.coverage<.95?' incomplete':'')+(value.isNow?' now':''),value.runCount??'');
+  if(value.percent!==null)b.style.setProperty('--occupancy',Math.max(0,Math.min(100,value.percent))+'%');
   b.type='button';b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium',timeStyle:'short'})+', '+(value.percent==null?'no data':percent(value.percent)+' occupancy')+', '+(value.runCount??'unknown')+' runs during period'+(value.borderState!=='unknown'?', '+value.borderState+' border':'')+(value.maintenance?', includes maintenance':'')+(value.isNow?', current period':'')+(value.snapshotAt?', snapshot at '+fmt(Date.parse(value.snapshotAt),{timeStyle:'short'}):''));
   if(calendar)b.append(element('span','day-number',String(Number(bin.key.slice(-2)))));
   b.addEventListener('mouseenter',()=>showTip(b,box,bin,value));b.addEventListener('mouseleave',hideTip);b.addEventListener('focus',()=>showTip(b,box,bin,value));b.addEventListener('blur',hideTip);b.addEventListener('click',e=>{e.stopPropagation();showTip(b,box,bin,value);});return b;
@@ -45,7 +46,7 @@ function render(){
   hideTip();const days=periodDays(selected,view),start=midnight(days[0]),end=midnight(addDays(days.at(-1),1));
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
   const title=view==='year'?selected.slice(0,4):view==='month'?fmt(start,{month:'long',year:'numeric'}):fmt(start,{day:'numeric',month:'short'})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric'});
-  $('#period').textContent=title;$('#resolution').textContent=(view==='week'?'One square = one hour':'One square = one day')+' · Numbers = runs during period';
+  $('#period').textContent=title;$('#resolution').textContent=(view==='week'?'One circle = one hour':'One circle = one day')+' · Numbers = runs during period';
   const stats=data.boxes.map(b=>aggregate(b.hours,start,end));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';
@@ -82,7 +83,7 @@ function render(){
         const bins=binsForDay(day,true);for(const bin of bins)line.append(cell(box,bin));
         if(bins.length!==24)line.setAttribute('aria-label','Clock change day: '+bins.length+' hours. Hover each square for its timezone.');scroll.append(line);
       }
-      if(days.some(d=>binsForDay(d,true).length!==24))scroll.append(element('p','box-caption','Clock change: this period includes a 23- or 25-hour day. Squares follow actual hours; hover for GMT/BST.'));
+      if(days.some(d=>binsForDay(d,true).length!==24))scroll.append(element('p','box-caption','Clock change: this period includes a 23- or 25-hour day. Circles follow actual hours; hover for GMT/BST.'));
     }else if(view==='month'){
       const grid=element('div','calendar');for(const d of ['M','T','W','T','F','S','S'])grid.append(element('span','weekday',d));
       const padding=(new Date(days[0]+'T12:00Z').getUTCDay()+6)%7;for(let i=0;i<padding;i++)grid.append(element('span','blank'));

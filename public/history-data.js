@@ -1,4 +1,4 @@
-import {periodDays} from './model.js?v=2.1.1';
+import {periodDays} from './model.js?v=2.2.0';
 export function githubDataSource({fetchImpl=fetch,now=Date.now}={}){
   let base=null,checked=-Infinity,pending=null;
   return async()=>{
