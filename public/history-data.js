@@ -1,7 +1,24 @@
-import {periodDays} from './model.js?v=2.0.3';
+import {periodDays} from './model.js?v=2.0.4';
+export function githubDataSource({fetchImpl=fetch,now=Date.now}={}){
+  let base=null,checked=-Infinity,pending=null;
+  return async()=>{
+    if(pending)return pending;
+    // One public ref lookup per five minutes, then immutable files from that commit.
+    if(now()-checked<300000){if(base)return base;throw Error('Repository version unavailable');}
+    checked=now();
+    pending=(async()=>{try{
+      const response=await fetchImpl('https://api.github.com/repos/Grumpator/VastStats/git/ref/heads/main',{cache:'no-store'});
+      if(!response.ok)throw Error('Repository version unavailable');
+      const ref=await response.json(),sha=ref.object?.sha;
+      if(ref.object?.type!=='commit'||! /^[a-f0-9]{40}$/.test(sha))throw Error('Invalid repository version');
+      base=new URL('https://raw.githubusercontent.com/Grumpator/VastStats/'+sha+'/public/data/');
+    }catch(error){if(!base)throw error;}
+    return base;})();
+    try{return await pending;}finally{pending=null;}
+  };
+}
 export async function loadHistoryData(base,selected,view,{fetchImpl=fetch}={}){
-  const refresh=String(Math.floor(Date.now()/60000));
-  const get=async path=>{const url=new URL(path,base);url.searchParams.set('refresh',refresh);const response=await fetchImpl(url,{cache:'no-store'});if(!response.ok)throw Error('History summary unavailable');return response.json();};
+  const get=async path=>{const response=await fetchImpl(new URL(path,base),{cache:'no-store'});if(!response.ok)throw Error('History summary unavailable');return response.json();};
   const index=await get('index.json');
   if(index.version!==2||!Array.isArray(index.boxes))throw Error('Unsupported history index');
   const months=new Set(periodDays(selected,view).map(d=>d.slice(0,7)));

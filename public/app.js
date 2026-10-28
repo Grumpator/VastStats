@@ -1,9 +1,9 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.0.3';
-import {loadHistoryData,applySnapshots} from './history-data.js?v=2.0.3';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.0.4';
+import {loadHistoryData,applySnapshots,githubDataSource} from './history-data.js?v=2.0.4';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
-const dataBase=local?new URL('data/',location.href):new URL('https://raw.githubusercontent.com/Grumpator/VastStats/main/public/data/');
+const dataSource=local?async()=>new URL('data/',location.href):githubDataSource();
 let loadGeneration=0;
 const percent=n=>n==null?'—':n.toFixed(1)+'%';
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
@@ -96,7 +96,7 @@ function render(){
 async function load(){
   const generation=++loadGeneration;
   if(demo){data=demoData();render();return;}
-  try{const next=await loadHistoryData(dataBase,selected,view);if(generation!==loadGeneration)return;data=next;render();}
+  try{const next=await loadHistoryData(await dataSource(),selected,view);if(generation!==loadGeneration)return;data=next;render();}
   catch{if(generation===loadGeneration)$('#notice').textContent='Could not load the API history summaries. The last loaded view is retained.';}
 }
 

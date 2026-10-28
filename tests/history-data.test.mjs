@@ -1,6 +1,17 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {loadHistoryData,applySnapshots} from '../public/history-data.js';
+import {loadHistoryData,applySnapshots,githubDataSource} from '../public/history-data.js';
+
+test('public data is pinned to one commit and rate-limited lookups retain the last resolved version',async()=>{
+  let at=0,calls=0,fail=false;const sha='a'.repeat(40);
+  const source=githubDataSource({now:()=>at,fetchImpl:async()=>{calls++;return fail?new Response('',{status:403}):new Response(JSON.stringify({object:{type:'commit',sha}}));}});
+  assert.equal((await source()).pathname,'/Grumpator/VastStats/'+sha+'/public/data/');
+  at=60000;await source();assert.equal(calls,1);
+  at=300000;fail=true;assert.equal((await source()).pathname.includes(sha),true);assert.equal(calls,2);
+  at=360000;await source();assert.equal(calls,2);
+  const invalid=githubDataSource({fetchImpl:async()=>new Response(JSON.stringify({object:{type:'commit',sha:'https://private.example'}}))});
+  await assert.rejects(invalid(),/Invalid repository/);
+});
 test('week navigation requests only the per-box files for both months it crosses',async()=>{
   const requested=[];
   const fetchImpl=async url=>{const p=new URL(url).pathname;requested.push(p);return new Response(JSON.stringify(p.endsWith('index.json')?{version:2,boxes:[{name:'Alpha',months:['2026-09','2026-10','2026-11']}]}:{version:2,name:'Alpha',month:p.includes('2026-10')?'2026-10':'2026-11',hours:[],snapshots:[]}));};
