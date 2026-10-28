@@ -67,6 +67,7 @@ try{
     const conts=result.sections?.conts,active=conts?.active;
     const rows=Array.isArray(active)?active:[];
     const runs=rows.flatMap(r=>r.runs||[]),latestSeen=rows.reduce((n,r)=>Math.max(n,r.last_seen||0),0);
+    if(name==='Gamma')console.log(JSON.stringify({box:name,phase:'recent-running-boundaries',containers:rows.filter(r=>r.last_seen>=stop-4*3600).slice(0,50).map(r=>({firstSeen:timestamp(r.first_seen),lastSeen:timestamp(r.last_seen),ended:r.end_witnessed===true,approximate:!!r.approx,runs:(r.runs||[]).filter(run=>run.end>=stop-4*3600).map(run=>({start:timestamp(run.start),end:timestamp(run.end),openEnd:!!run.open_end,fragmented:!!run.fragmented}))}))}));
     const intervals=runs.filter(r=>Number.isFinite(r.start)&&Number.isFinite(r.end)&&r.end>r.start).map(r=>[Math.max(start,r.start),Math.min(stop,r.end)]).filter(([a,b])=>b>a).sort((a,b)=>a[0]-b[0]);
     let unionSeconds=0,lastEnd=-Infinity;
     for(const [a,b] of intervals){unionSeconds+=Math.max(0,b-Math.max(a,lastEnd));lastEnd=Math.max(lastEnd,b);}
