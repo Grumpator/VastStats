@@ -1,6 +1,6 @@
 # VastStats v2
 
-A public Vast fleet dashboard built from historical container-running intervals. The working v2 implementation is on `codex/api-history`; the previous snapshot-based dashboard and its data are preserved on [`v1`](https://github.com/Grumpator/VastStats/tree/v1). The live Pages site stays on `main` until v2 is merged.
+A public Vast fleet dashboard built from historical container-running intervals. The live Pages site deploys from `main`; the previous snapshot-based dashboard and its data are preserved on [`v1`](https://github.com/Grumpator/VastStats/tree/v1).
 
 ## Data flow
 
