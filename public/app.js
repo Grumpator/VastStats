@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.0.5';
-import {loadHistoryData,applySnapshots,githubDataSource} from './history-data.js?v=2.0.5';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData} from './model.js?v=2.1.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.1.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -15,7 +15,7 @@ function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
   const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(view==='week'?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):'');
   tip.append(element('h4','',box.name+' · '+title));const dl=element('dl');
-  const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Stored · last observation',value.stored??'—'],['Data coverage',percent(value.coverage*100)]];
+  const lines=[['Occupancy',percent(value.percent)],['Running time',(value.occupied/3600).toFixed(2)+' h'],['Runs during period',value.runCount??'—'],['Data coverage',percent(value.coverage*100)]];
   lines.push(['Offline time',value.connectionObserved?(value.offline/3600).toFixed(2)+' h':'Unknown'],['Maintenance time',value.maintenanceObserved?(value.maintenance/3600).toFixed(2)+' h':'Unknown']);
   lines.push(['Listed time',value.listingObserved?(value.listed/3600).toFixed(2)+' h':'Unknown'],['Unlisted time',value.listingObserved?(value.unlisted/3600).toFixed(2)+' h':'Unknown']);
   if(value.snapshotAt)lines.push(['State snapshot',fmt(Date.parse(value.snapshotAt),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})]);
@@ -28,8 +28,9 @@ function showTip(button,box,bin,value){
 }
 function cell(box,bin,calendar=false){
   const value=applySnapshots(aggregate(recordsByBox.get(box.name),bin.start,bin.end),box,bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
-  const b=element('button','cell '+value.state+' border-'+value.borderState+(value.observed&&value.coverage<.95?' incomplete':'')+(value.isNow?' now':''),value.stored??'');
-  b.type='button';b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium',timeStyle:'short'})+', '+(value.percent==null?'no data':percent(value.percent)+' occupancy')+', '+(value.stored??'unknown')+' stored instances'+(value.borderState!=='unknown'?', '+value.borderState+' border':'')+(value.maintenance?', includes maintenance':'')+(value.isNow?', current period':'')+(value.snapshotAt?', snapshot at '+fmt(Date.parse(value.snapshotAt),{timeStyle:'short'}):''));
+  value.runCount=periodRunCount(box,bin);
+  const b=element('button','cell '+value.state+' border-'+value.borderState+(value.observed&&value.coverage<.95?' incomplete':'')+(value.isNow?' now':''),value.runCount??'');
+  b.type='button';b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium',timeStyle:'short'})+', '+(value.percent==null?'no data':percent(value.percent)+' occupancy')+', '+(value.runCount??'unknown')+' runs during period'+(value.borderState!=='unknown'?', '+value.borderState+' border':'')+(value.maintenance?', includes maintenance':'')+(value.isNow?', current period':'')+(value.snapshotAt?', snapshot at '+fmt(Date.parse(value.snapshotAt),{timeStyle:'short'}):''));
   if(calendar)b.append(element('span','day-number',String(Number(bin.key.slice(-2)))));
   b.addEventListener('mouseenter',()=>showTip(b,box,bin,value));b.addEventListener('mouseleave',hideTip);b.addEventListener('focus',()=>showTip(b,box,bin,value));b.addEventListener('blur',hideTip);b.addEventListener('click',e=>{e.stopPropagation();showTip(b,box,bin,value);});return b;
 }
@@ -37,7 +38,7 @@ function render(){
   hideTip();const days=periodDays(selected,view),start=midnight(days[0]),end=midnight(addDays(days.at(-1),1));
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
   const title=view==='year'?selected.slice(0,4):view==='month'?fmt(start,{month:'long',year:'numeric'}):fmt(start,{day:'numeric',month:'short'})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric'});
-  $('#period').textContent=title;$('#resolution').textContent=(view==='week'?'One square = one hour':'One square = one day')+' · Numbers = stored instances';
+  $('#period').textContent=title;$('#resolution').textContent=(view==='week'?'One square = one hour':'One square = one day')+' · Numbers = runs during period';
   const stats=data.boxes.map(b=>aggregate(b.hours,start,end));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?percent(obs/elapsed*100):'—';

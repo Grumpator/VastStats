@@ -1,6 +1,14 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {loadHistoryData,applySnapshots,githubDataSource} from '../public/history-data.js';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from '../public/history-data.js';
+
+test('hour and day squares use their own run counts, without summing hour counts or substituting stored counts',()=>{
+  const start=Date.parse('2026-10-28T00:00Z'),row={start:new Date(start).toISOString(),observedSeconds:3600,runningSessions:2,storedInstances:0};
+  const box={hours:[row],days:[{...row,runningSessions:3}],lastSample:{runningInstances:1,storedInstances:4}};
+  assert.equal(periodRunCount(box,{start,end:start+3600000}),2);
+  assert.equal(periodRunCount(box,{start,end:start+86400000}),3);
+  assert.equal(periodRunCount(box,{start:start+3600000,end:start+7200000}),null);
+});
 
 test('public data is pinned to one commit and rate-limited lookups retain the last resolved version',async()=>{
   let at=0,calls=0,fail=false;const sha='a'.repeat(40);

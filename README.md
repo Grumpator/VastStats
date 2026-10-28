@@ -5,7 +5,7 @@ A public Vast fleet dashboard built from historical container-running intervals.
 ## Data flow
 
 1. GitHub Actions reads current machine state and obtains a short-lived telemetry token using a private Vast API key.
-2. It queries container history and reporting samples, unions simultaneous running intervals, and builds hourly summaries. Missed collector runs can be backfilled from the API.
+2. It queries container history and reporting samples, unions simultaneous running intervals, and builds hourly summaries plus daily run counts. Missed collector runs can be backfilled from the API.
 3. Only public box names, timestamps, counts, durations and sanitized state snapshots are committed. Raw instance/machine IDs, tokens, API responses, hostnames and IPs stay private.
 4. The page loads the index and the per-box/month files required by the selected week, month or year. No API key reaches the browser.
 
@@ -37,8 +37,8 @@ The generated data files are intentionally public. They disclose fleet occupancy
 - **Week:** one square per actual hour, starting Monday. London clock-change days have 23 or 25 squares.
 - **Month / Year:** one square per day. Percentages and Hours use the selected period and only available telemetry. Missing history and future time do not count as idle.
 - **Solid green:** running throughout reported coverage. **Green/white hatching:** running for part of it. **White:** no running intervals during reported coverage. **Grey:** unknown. A small corner dot indicates less than 95% coverage of elapsed time.
-- **Number:** stored instances at the last known point in the square. A blank number means it cannot be established. It is not the peak or the sum of rentals.
-- **Ring:** the current hour/day. A fresh machine snapshot can show its latest stored count and state even before duration data arrives; it does not contribute to historical occupancy.
+- **Number:** running sessions that overlap the reported part of the hour/day. One instance stopping and restarting counts as two runs. A continuous run counts once in each square it overlaps; daily counts are calculated from the intervals, not by summing hourly counts. Back-to-back runs can produce solid green with a count greater than one. Idle observed periods show zero; unavailable history is blank. Stored counts remain in the Images pill.
+- **Ring:** the current hour/day. A fresh machine snapshot can show state before duration data arrives; it does not supply historical occupancy or the square's run count.
 - **Border:** red offline, amber maintenance, grey unlisted, green listed, in that priority order. V2 borders indicate states explicitly captured in that period's snapshots. Unknown historical state is neutral. Container history alone does not establish historical listing/maintenance/offline duration.
 - **Occupancy:** union of running intervals divided by reported coverage. Two simultaneous rentals do not double-count a box's time. **Hours:** the same union duration summed across boxes.
 - **Images:** current Running/Stored counts, independent of historical navigation. Stored includes running and stopped instances. GB allocated is Vast's allocated disk total, not actual file usage.
@@ -53,6 +53,8 @@ Vast uploads telemetry in batches. Current machine state and historical telemetr
 Device badges are machine-state snapshots, not live connections. Each card shows the snapshot time separately from its historical telemetry watermark, including whether a rental was running at that check. With hourly collection, updates are flagged overdue after 90 minutes. Last known connection/listing values remain visible and are labelled “Last seen” rather than being erased. The page does not have a private live-status endpoint.
 
 A running machine snapshot does not establish occupancy throughout an hour or day. Grey squares mean historical coverage has not arrived; they can coexist with “Running at last check”. As new API history arrives, collection backfills those squares. Solid green requires running throughout the observed portion, with the incomplete-data marker if coverage is partial.
+
+Run counting joins overlapping duplicate API records and open continuations at query boundaries. Separate stop/start episodes remain separate, even for the same instance. Raw identifiers are used only in memory; the public files contain counts, never instance identifiers. Counts cover observed running intervals and may increase when missing telemetry arrives.
 
 API errors retain existing summaries and mark the affected box's history as unavailable to refresh. API rate limits have bounded retries. A failure for every box fails the run visibly. Historical idle coverage is based on reporting samples, and absence of a container alone does not produce observed time.
 
@@ -75,4 +77,4 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v2.0.5** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v2.1.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.

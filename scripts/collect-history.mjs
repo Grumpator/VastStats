@@ -42,11 +42,12 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         const folder=new URL(encodeURIComponent(name)+'/',root);await mkdir(folder,{recursive:true});
         const file=new URL(m+'.json',folder),cached=await readJson(file,null);
         const recent=m===month||(Number(dayKey(new Date(now)).slice(-2))<=7&&m===nextMonth(month,-1));
-        const revisionNeeded=cached?.aggregationVersion!==2;
+        const revisionNeeded=cached?.aggregationVersion!==3;
         if(cached&&!recent&&!revisionNeeded&&process.env.HISTORY_REBUILD!=='1')continue;
         const [begin,end]=monthWindow(m),until=Math.min(end,stop);
         const priorThrough=cached?.dataThrough?Date.parse(cached.dataThrough)/1000:null;
-        const since=Math.max(begin,first,process.env.HISTORY_REBUILD!=='1'&&!revisionNeeded&&priorThrough?priorThrough-3*DAY:begin);
+        const sinceBase=process.env.HISTORY_REBUILD!=='1'&&!revisionNeeded&&priorThrough?priorThrough-3*DAY:begin;
+        const since=Math.max(begin,first,midnight(dayKey(new Date(sinceBase*1000)))/1000);
         const responses=[];
         // Request fine coverage. Vast may return native coarser buckets; >5m is rejected by the reducer.
         for(let at=since;at<until;){
@@ -60,6 +61,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         const summary=summarizeHistory({name,start:since,stop:until,responses,now});
         // A changed upstream format must not erase previously recovered hours.
         summary.hours=mergeHours(cached?.hours||[],summary.hours);
+        summary.days=mergeHours(cached?.days||[],summary.days);
         const through=[summary.dataThrough,...(!revisionNeeded?[cached?.dataThrough]:[])].filter(t=>Number.isFinite(Date.parse(t))).sort();
         summary.dataThrough=through.at(-1)??null;
         summary.month=m;summary.final=m<month&&!recent;

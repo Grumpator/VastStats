@@ -62,9 +62,10 @@ export function demoData(now=Date.now()) {
       const end=Math.min(t+HOUR,now),observed=(end-t)/1000;
       const occupancy=v>.35?(v>.47?1:.3+(v-.35)*4):0;
       const offline=(n+index*13)%379<3,maintenance=(n+index*17)%421<2,listed=(n+index*19)%503>=10;
-      hours.push({start:new Date(t).toISOString(),end:new Date(end).toISOString(),observedSeconds:observed,occupiedSeconds:offline?0:observed*occupancy,storedInstances:occupancy>0?1+(v>.88?1:0):v>.22?1:0,incomeUsd:null,connectionObservedSeconds:observed,offlineSeconds:offline?observed:0,maintenanceObservedSeconds:observed,maintenanceSeconds:maintenance?observed:0,listingObservedSeconds:observed,listedSeconds:listed?observed:0,unlistedSeconds:listed?0:observed});
+      hours.push({start:new Date(t).toISOString(),end:new Date(end).toISOString(),observedSeconds:observed,occupiedSeconds:offline?0:observed*occupancy,storedInstances:occupancy>0?1+(v>.88?1:0):v>.22?1:0,runningSessions:offline||!occupancy?0:1+(v>.88?1:0),incomeUsd:null,connectionObservedSeconds:observed,offlineSeconds:offline?observed:0,maintenanceObservedSeconds:observed,maintenanceSeconds:maintenance?observed:0,listingObservedSeconds:observed,listedSeconds:listed?observed:0,unlistedSeconds:listed?0:observed});
     }
     const stored=hours.at(-1)?.storedInstances??0;
-    return {name,hours,lastSample:{at:new Date(now).toISOString(),storedInstances:stored,runningInstances:index===1?0:stored?1:0,allocatedStorageGb:stored*(index+1)*40,connection:index===1?'offline':'online',listed:index!==1,maintenanceWindows:index===2?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:[]}};
+    const daily=new Map();for(const row of hours){const key=dayKey(new Date(row.start)),d=daily.get(key)||{start:new Date(midnight(key)).toISOString(),observedSeconds:0,runningSessions:0};d.observedSeconds+=row.observedSeconds;d.runningSessions+=row.runningSessions;daily.set(key,d);}
+    return {name,hours,days:[...daily.values()],lastSample:{at:new Date(now).toISOString(),storedInstances:stored,runningInstances:index===1?0:stored?1:0,allocatedStorageGb:stored*(index+1)*40,connection:index===1?'offline':'online',listed:index!==1,maintenanceWindows:index===2?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:[]}};
   });return {version:1,updatedAt:new Date(now).toISOString(),boxes};
 }

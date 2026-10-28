@@ -1,4 +1,4 @@
-import {periodDays} from './model.js?v=2.0.5';
+import {periodDays} from './model.js?v=2.1.0';
 export function githubDataSource({fetchImpl=fetch,now=Date.now}={}){
   let base=null,checked=-Infinity,pending=null;
   return async()=>{
@@ -29,9 +29,15 @@ export async function loadHistoryData(base,selected,view,{fetchImpl=fetch}={}){
       if(file.version!==2||file.name!==entry.name||file.month!==month||!Array.isArray(file.hours)||!Array.isArray(file.snapshots))throw Error('Invalid public month summary');
       return file;
     }));
-    return {...entry,hours:files.flatMap(f=>f.hours),snapshots:files.flatMap(f=>f.snapshots)};
+    return {...entry,hours:files.flatMap(f=>f.hours),days:files.flatMap(f=>f.days||[]),snapshots:files.flatMap(f=>f.snapshots)};
   }));
   return {...index,boxes};
+}
+
+export function periodRunCount(box,bin){
+  const rows=bin.end-bin.start>3600000?box.days:box.hours;
+  const row=rows?.find(r=>Date.parse(r.start)===bin.start);
+  return row?.observedSeconds>0&&Number.isInteger(row.runningSessions)&&row.runningSessions>=0?row.runningSessions:null;
 }
 
 export function applySnapshots(value,box,bin,now=Date.now(),maxAgeSeconds=5400){

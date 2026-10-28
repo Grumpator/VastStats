@@ -1,11 +1,29 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {HistoryApi} from '../scripts/history-api.mjs';
-import {summarizeHistory,coverageIntervals,mergeIntervals} from '../scripts/history-model.mjs';
+import {summarizeHistory,coverageIntervals,mergeIntervals,mergeRuns} from '../scripts/history-model.mjs';
 const start=Date.parse('2026-10-01T00:00Z')/1000;
 const metric=(count=240)=>({step:15,t:Array.from({length:count},(_,i)=>start+i*15),channels:{cpu:{avg:Array(count).fill(1)}}});
 const container=(id,runs)=>({id,first_seen:start,last_seen:start+3600,runs:runs.map(([a,b])=>({start:start+a,end:start+b})),hostname:'private',api_key:'secret'});
 const summarize=(rows,m=metric())=>summarizeHistory({name:'Alpha',start,stop:start+7200,now:(start+7200)*1000,responses:[{sections:{metric:m,conts:{active:rows}}}]});
+
+test('square counts runs, including stopped instances and restarts, rather than last stored count',()=>{
+  const row=container(123,[[0,600],[1200,1800]]);row.last_seen=start+1800;row.end_witnessed=true;
+  const result=summarize([row]);assert.equal(result.hours[0].storedInstances,0);assert.equal(result.hours[0].runningSessions,2);assert.equal(result.hours[0].occupiedSeconds,1200);
+  const full=summarize([container(123,[[0,1800]]),container(456,[[1800,3600]])]);
+  assert.equal(full.hours[0].runningSessions,2);assert.equal(full.hours[0].occupiedSeconds,3600);
+  assert.equal(summarize([]).hours[0].runningSessions,0);
+});
+
+test('a continuing run counts once per hour and once per day, despite duplicate API records',()=>{
+  const row=container(123,[[0,7200]]);row.last_seen=start+7200;
+  const result=summarize([row,row],metric(480));
+  assert.deepEqual(result.hours.map(h=>h.runningSessions),[1,1]);assert.equal(result.days[0].runningSessions,1);
+  assert.equal(mergeRuns([{start:0,end:60,openEnd:true},{start:60,end:120,openStart:true}]).length,1);
+  assert.equal(mergeRuns([{start:0,end:60},{start:60,end:120}]).length,2);
+  const gap=metric();gap.channels.cpu.avg.fill(null,40,80);
+  assert.equal(summarize([container(123,[[0,3600]])],gap).hours[0].runningSessions,1);
+});
 test('historical intervals backfill an hour regardless of collection gap and merge simultaneous rentals',()=>{
   const result=summarize([container(123,[[0,1800]]),container(456,[[900,2700]])]);
   assert.equal(result.hours[0].occupiedSeconds,2700);assert.equal(result.hours[0].observedSeconds,3600);
