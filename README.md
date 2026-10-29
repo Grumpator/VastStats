@@ -36,7 +36,7 @@ The generated data files are intentionally public. They disclose fleet occupancy
 
 - **Week:** one circle per actual hour, starting Monday. London clock-change days have 23 or 25 circles.
 - **Month / Year:** one circle per day. Percentages and Hours use the selected period and only available telemetry. Missing history and future time do not count as idle.
-- **Circle sectors:** green = confirmed running time, white = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the hour/day, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Summary/device occupancy percentages still use running / observed time, explicitly distinguished in the tooltip.
+- **Circle sectors:** green = confirmed running time, amber = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the hour/day, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Summary/device occupancy percentages still use running / observed time, explicitly distinguished in the tooltip.
 - **Number:** running sessions that overlap the reported part of the hour/day. One instance stopping and restarting counts as two runs. A continuous run counts once in each circle it overlaps; daily counts are calculated from the intervals, not by summing hourly counts. Back-to-back runs can produce solid green with a count greater than one. Idle observed periods show zero; unavailable history is blank. Stored counts remain in the Images pill.
 - **Ring:** the current hour/day. A fresh machine snapshot can show state before duration data arrives; it does not supply historical occupancy or the circle's run count.
 - **Border:** red offline, amber maintenance, grey unlisted, green listed, in that priority order. V2 borders indicate states explicitly captured in that period's snapshots. Unknown historical state is neutral. Container history alone does not establish historical listing/maintenance/offline duration.
@@ -77,7 +77,7 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v2.5.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v2.5.1** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Week/Month/Year opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 
@@ -89,4 +89,4 @@ Coverage calculation revision 4 aligns telemetry requests to a 32-second power-o
 
 The amber incomplete-data dot marks every observed circle below 100% coverage of its elapsed portion, with only a 1e-9 tolerance for floating-point noise. It no longer uses the former 95% threshold. Fully unknown grey circles and future periods do not need the dot. Coverage just below 100% displays <100% if one-decimal rounding would hide the gap.
 
-For example, Beta 27 October at 18:00 has 1,888 observed seconds and 1,858 running seconds: the circle is 51.6% green, 0.8% white and 47.6% grey. The tooltip separately shows 98.4% occupancy within observed data and 52.4% coverage. Unknown time is never presented as confirmed idle or running time.
+For example, Beta 27 October at 18:00 has 1,888 observed seconds and 1,858 running seconds: the circle is 51.6% green, 0.8% amber and 47.6% grey. The tooltip separately shows 98.4% occupancy within observed data and 52.4% coverage. Unknown time is never presented as confirmed idle or running time.
