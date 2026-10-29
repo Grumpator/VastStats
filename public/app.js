@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.5.2';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.5.2';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.5.3';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.5.3';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -94,13 +94,13 @@ function render(){
     const card=element('article','box'),header=element('div','box-header'),title=element('div','box-title'),heading=element('h3','',box.name);heading.title=box.name;title.append(heading);
     const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),states=element('div','device-states'+(status.stale?' outdated':''));states.setAttribute('aria-label','Latest snapshot for '+box.name);
     const stamp=box.lastSample?.at,when=stamp?' · checked '+fmt(Date.parse(stamp),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-    states.append(stateIcon('gpu','muted','GPUs: '+(box.lastSample?.gpuCount??'unknown')+when,box.lastSample?.gpuCount??'?'));
-    states.append(stateIcon('power',status.connection,'Connection: '+status.connection+when,status.connection==='unknown'?'?':null,status.connection==='offline'));
-    states.append(stateIcon('tag',status.listed===true?'active':'muted',status.listed===true?'Listed'+when:status.listed===false?'Unlisted'+when:'Listing unknown'+when,status.listed===null?'?':null,status.listed===false));
-    states.append(stateIcon(status.next&&!status.maintenance?'clock':'wrench',status.maintenance||status.next?'maintenance':'muted',status.maintenance?'Maintenance active'+when:status.next?'Maintenance planned: '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Maintenance off'+when:'Maintenance unknown'+when,status.maintenance===null&&!status.next?'?':null,status.maintenance===false&&!status.next));
     const running=status.running===false?0:box.lastSample?.runningInstances??'?';
     states.append(stateIcon(status.running===false?'pause':'play',status.running?'active':'muted','Running instances: '+running+when,running));
+    states.append(stateIcon('tag',status.listed===true?'active':'muted',status.listed===true?'Listed'+when:status.listed===false?'Unlisted'+when:'Listing unknown'+when,status.listed===null?'?':null,status.listed===false));
+    states.append(stateIcon('power',status.connection,'Connection: '+status.connection+when,status.connection==='unknown'?'?':null,status.connection==='offline'));
+    states.append(stateIcon(status.next&&!status.maintenance?'clock':'wrench',status.maintenance||status.next?'maintenance':'muted',status.maintenance?'Maintenance active'+when:status.next?'Maintenance planned: '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Maintenance off'+when:'Maintenance unknown'+when,status.maintenance===null&&!status.next?'?':null,status.maintenance===false&&!status.next));
     states.append(stateIcon('stored','muted','Stored instances: '+(box.lastSample?.storedInstances??'unknown')+when,box.lastSample?.storedInstances??'?'));
+    states.append(stateIcon('gpu','muted','GPUs: '+(box.lastSample?.gpuCount??'unknown')+when,box.lastSample?.gpuCount??'?'));
     title.append(states);const metric=element('div','box-percent',percent(stats[index].percent));metric.title='Occupancy within observed data in the selected period; see details for coverage';metric.append(element('small','','occupancy'));
     const actions=element('div','box-actions'),details=deviceDetails(box,stats[index],status);actions.append(metric,details);header.append(title,actions);card.append(header);
     const scroll=element('div','grid-scroll');
