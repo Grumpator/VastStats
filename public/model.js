@@ -76,3 +76,11 @@ export function fleetSnapshot(boxes,now=Date.now(),maxAgeSeconds=5400){
   const sum=read=>{const values=boxes.map((box,i)=>read(box.lastSample,states[i]));return values.length&&values.every(value=>Number.isFinite(value)&&value>=0)?values.reduce((a,b)=>a+b,0):null;};
   return {total:boxes.length,online:count(s=>s.connection==='unknown'?null:s.connection==='online'),listed:count(s=>s.listed),maintenance:count(s=>s.maintenance),running:count(s=>s.running),runningInstances:sum((s,state)=>state.running===false?0:state.running===null?null:s?.runningInstances),stored:sum(s=>s?.storedInstances),storage:sum(s=>s?.allocatedStorageGb),overdue:states.filter(s=>s.stale).length};
 }
+
+// Circle sectors describe confirmed running/idle time and unknown elapsed time.
+// Summary occupancy remains occupied / observed; future time is excluded from both.
+export function circleSegments(value){
+  const elapsed=Math.max(0,value.elapsed||0),observed=Math.min(elapsed,Math.max(0,value.observed||0)),running=Math.min(observed,Math.max(0,value.occupied||0));
+  if(!elapsed||!observed)return {running:null,idle:0,observed:0,unknown:elapsed?100:0};
+  return {running:running/elapsed*100,idle:(observed-running)/elapsed*100,observed:observed/elapsed*100,unknown:(elapsed-observed)/elapsed*100};
+}
