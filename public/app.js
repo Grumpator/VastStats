@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.6.1';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.6.1';
-import {compactEnd,compactBins,moveCompact,compactCount,recordsForBin,isoWeek} from './compact.js?v=2.6.1';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.7.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.7.0';
+import {compactEnd,compactBins,moveCompact,compactCount,recordsForBin,isoWeek} from './compact.js?v=2.7.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -45,20 +45,33 @@ function deviceDetails(box,stat,status){
   const panel=element('div','box-details-body'),close=element('button','box-details-close','×');close.type='button';close.setAttribute('aria-label','Close '+box.name+' details');close.onclick=()=>{details.open=false;summary.focus();};panel.append(close,element('strong','',box.name+' · details'));
   const stamp=box.lastSample?.at,checked=stamp?fmt(Date.parse(stamp),{dateStyle:'medium',timeStyle:'short'}):'Unavailable';
   const running=status.running===false?0:box.lastSample?.runningInstances??'Unknown',stored=box.lastSample?.storedInstances??'Unknown';
-  const lines=[['Status checked',checked+(status.stale?' · overdue':'')],['Connection',status.connection],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unknown'],['Maintenance',status.maintenance?'Active':status.next?'Planned from '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Off':'Unknown'],['Running instances',running],['Stored instances',stored],['GPUs',box.lastSample?.gpuCount??'Unknown'],['Observed occupancy',percent(stat.percent)],['Observed · selected period',stat.observed?duration(stat.observed):'None'],['Data coverage',coveragePercent(stat.coverage)],['History through',box.dataThrough?fmt(Date.parse(box.dataThrough),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']];
+  const lines=[['Status checked',checked+(status.stale?' · overdue':'')],['Connection',status.connection],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unknown'],['Maintenance',status.maintenance?'Active':status.next?'Planned from '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Off':'Unknown'],['Running instances',running],['Stored instances',stored],['GPUs',box.lastSample?.gpuCount??'Unknown'],['Observed occupancy',percent(stat.percent)],['Observed · selected period',stat.observed?duration(stat.observed):'None'],['Data coverage',stat.elapsed?coveragePercent(stat.coverage):'—'],['History through',box.dataThrough?fmt(Date.parse(box.dataThrough),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']];
   if(box.historyError)lines.push(['History refresh','Failed; previous data retained']);
   else if(box.dataThrough&&Date.now()-Date.parse(box.dataThrough)>2*3600000)lines.push(['History delay',duration((Date.now()-Date.parse(box.dataThrough))/1000)]);
+  if(box.historyStart)lines.push(['History available from',fmt(Date.parse(box.historyStart),{dateStyle:'medium',timeStyle:'short'})]);
   const dl=element('dl');for(const [label,value] of lines)dl.append(element('dt','',label),element('dd','',String(value)));panel.append(dl,element('p','','Icons describe the latest machine snapshot. Occupancy and observed time refer to the selected period.'));details.append(summary,panel);
   details.dataset.box=box.name;
   details.addEventListener('toggle',()=>{if(details.open){panel.classList.remove('above');const bounds=panel.getBoundingClientRect();if(bounds.bottom>innerHeight-12&&summary.getBoundingClientRect().top>bounds.height+12)panel.classList.add('above');}});
   return details;
 }
 function hideTip(){ $('#tooltip').hidden=true;if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=null; }
+function drillInto(bin){
+  if(compact){
+    const next={months:'weeks',weeks:'days',days:'hours'}[scale];if(!next)return false;
+    selected=bin.key;scale=next;
+    // End at the selected period's latest elapsed part, keeping its recent detail visible.
+    const last=bin.start>Date.now()?bin.end-1:Math.min(bin.end-1,Date.now());
+    windowEnd=compactEnd(dayKey(new Date(last)),scale);
+  }else{if(view==='week')return false;selected=bin.key;view=view==='year'?'month':'week';}
+  $('#date').value=selected;hideTip();load();return true;
+}
 function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
   const hourly=compact?scale==='hours':view==='week';
   const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(hourly?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):compact&&['weeks','months'].includes(scale)?' – '+fmt(bin.end-1,{day:'numeric',month:'short',year:'numeric'}):'');
   tip.append(element('h4','',box.name+' · '+title));const dl=element('dl');
+  if(value.state==='not-tracked')tip.append(element('p','','Before available history. Tracking begins '+fmt(Date.parse(box.historyStart),{dateStyle:'medium',timeStyle:'short'})+'. This time is excluded from data coverage; the API does not establish the box’s first boot.'));
+  else{
   const segments=circleSegments(value);
   const lines=[['Confirmed occupancy',percent(segments.running)],['Within observed data',percent(value.percent)],['Unknown time',value.elapsed?duration(Math.max(0,value.elapsed-value.observed)):'—'],['Running time',duration(value.occupied)],['Runs during period',value.runCount??'—'],['Data coverage',coveragePercent(value.coverage)]];
   lines.push(['Offline time',value.connectionObserved?duration(value.offline):'Unknown'],['Maintenance time',value.maintenanceObserved?duration(value.maintenance):'Unknown']);
@@ -67,6 +80,8 @@ function showTip(button,box,bin,value){
   if(value.currentSnapshot)lines.push(['Running at snapshot',value.currentSnapshot.running===true?'Yes':value.currentSnapshot.running===false?'No':'Unknown']);
   for(const [name,value] of lines)dl.append(element('dt','',name),element('dd','',String(value)));tip.append(dl);
   tip.append(element('p','',value.state==='future'?'This period has not started.':value.observed?'API running intervals within reported telemetry. '+(incompleteCoverage(value)?'Some observations are missing.':''):value.currentSnapshot?'Latest machine snapshot only; no duration has been measured for this period.':'No telemetry recorded for this period yet.'));
+  if(box.historyStart&&bin.start<Date.parse(box.historyStart)&&bin.end>Date.parse(box.historyStart))tip.append(element('p','','Only time from '+fmt(Date.parse(box.historyStart),{dateStyle:'medium',timeStyle:'short'})+' contributes to this circle and coverage.'));
+  }
   tip.hidden=false;const r=button.getBoundingClientRect();tip.style.left=Math.max(10,Math.min(innerWidth-tip.offsetWidth-10,r.left+r.width/2-tip.offsetWidth/2))+'px';
   tip.style.top=(r.top>tip.offsetHeight+16?r.top-tip.offsetHeight-10:Math.min(innerHeight-tip.offsetHeight-10,r.bottom+10))+'px';
   if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=button;button.setAttribute('aria-describedby','tooltip');
@@ -75,15 +90,16 @@ function cell(box,bin,calendar=false){
   const rows=recordsByBox.get(box.name);
   const binRows=compact?recordsForBin(rows,bin):rows;
   const source=compact?{...box,snapshots:recordsForBin(snapshotsByBox.get(box.name),bin)}:box;
-  const value=applySnapshots(aggregate(binRows,bin.start,bin.end),source,bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
-  value.runCount=periodRunCount(compact&&['weeks','months'].includes(scale)?{hours:binRows,runCounts:recordsForBin(countsByBox.get(box.name),bin)}:box,bin);
-  const b=element('button','cell '+value.state+' border-'+value.borderState+(incompleteCoverage(value)?' incomplete':'')+(value.isNow?' now':''),value.runCount??'');
+  const value=applySnapshots(aggregate(binRows,bin.start,bin.end,Date.now(),Date.parse(box.historyStart)),source,bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
+  value.runCount=value.state==='not-tracked'?null:periodRunCount(compact&&['weeks','months'].includes(scale)?{hours:binRows,runCounts:recordsForBin(countsByBox.get(box.name),bin)}:box,bin);
+  const b=element('button','cell '+value.state+' border-'+value.borderState+(incompleteCoverage(value)?' incomplete':'')+(value.isNow?' now':''),value.state==='not-tracked'?'–':value.runCount??'');
   const segments=circleSegments(value);
   if(segments.running!==null){b.classList.add('measured');if(segments.running>=100-1e-7)b.classList.add('complete-running');b.style.setProperty('--running',segments.running+'%');b.style.setProperty('--observed',segments.observed+'%');}
   if(value.runCount>99)b.classList.add('many-runs');
   b.type='button';b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium',timeStyle:'short'})+', '+(value.percent==null?'no data':percent(segments.running)+' confirmed occupancy, '+percent(value.percent)+' within observed data')+', '+(value.runCount??'unknown')+' runs during period'+(incompleteCoverage(value)?', incomplete data':'')+(value.borderState!=='unknown'?', '+value.borderState+' border':'')+(value.maintenance?', includes maintenance':'')+(value.isNow?', current period':'')+(value.snapshotAt?', snapshot at '+fmt(Date.parse(value.snapshotAt),{timeStyle:'short'}):''));
+  if(value.state==='not-tracked')b.setAttribute('aria-label',box.name+', '+fmt(bin.start,{dateStyle:'medium'})+', before available history; excluded from data coverage');
   if(calendar)b.append(element('span','day-number',String(Number(bin.key.slice(-2)))));
-  b.addEventListener('mouseenter',()=>showTip(b,box,bin,value));b.addEventListener('mouseleave',hideTip);b.addEventListener('focus',()=>showTip(b,box,bin,value));b.addEventListener('blur',hideTip);b.addEventListener('click',e=>{e.stopPropagation();showTip(b,box,bin,value);});return b;
+  b.addEventListener('mouseenter',()=>showTip(b,box,bin,value));b.addEventListener('mouseleave',hideTip);b.addEventListener('focus',()=>showTip(b,box,bin,value));b.addEventListener('blur',hideTip);b.addEventListener('click',e=>{e.stopPropagation();if(!drillInto(bin))showTip(b,box,bin,value);});return b;
 }
 function render(){
   const detailsOpenFor=document.querySelector('.box-details[open]')?.dataset.box;
@@ -97,7 +113,7 @@ function render(){
   $('#period').textContent=compact?fmt(start,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit'}:{})})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}:{})}):title;
   if(compact&&scale==='weeks'){const first=isoWeek(bins[0].key),last=isoWeek(bins.at(-1).key);$('#period').textContent='Week '+first.week+'/'+first.year+(bins.length>1?' – Week '+last.week+'/'+last.year:'');}
   $('#resolution').textContent=(compact?'One circle = one '+({hours:'hour',days:'day',weeks:'week',months:'month'}[scale]):view==='week'?'One circle = one hour':'One circle = one day')+' · Numbers = runs during period';
-  const stats=data.boxes.map(b=>aggregate(b.hours,start,end));let obs=0,occ=0,elapsed=0;
+  const stats=data.boxes.map(b=>aggregate(b.hours,start,end,Date.now(),Date.parse(b.historyStart)));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?coveragePercent(obs/elapsed):'—';
   $('#hours').textContent=obs?duration(occ):'—';
@@ -179,7 +195,7 @@ const metricHelp={
   hours:['Hours','Running box-hours across all boxes in the selected period. One box with at least one running rental for one hour contributes one box-hour; two boxes running for three hours each contribute six. Multiple simultaneous rentals on one box do not multiply its time. Fleet occupancy is running box-hours divided by observed box-hours. Missing or delayed telemetry is excluded. Running intervals come from the API and can be backfilled later.'],
   now:['Now · latest fleet snapshot','Running, Listed, Online and Maintenance count boxes in that state out of the entire fleet. Running also shows the total running instances. Stored totals retained instances, including running ones; do not add running and stored counts. GB allocated is allocated disk space, not measured file usage. These figures use the latest machine snapshots and do not change with the selected period. They are not live: collection is hourly and snapshots become overdue after 90 minutes. If any box has an unknown state or count, its fleet total shows a dash rather than assuming zero.'],
   images:['Images · Running / Stored','Latest customer instance counts reported by Vast across all boxes. Running is the number currently running; Stored includes both running and stopped instances, so the two counts should not be added together. These current snapshots do not change with the historical period. Offline counters can lag a disconnection. GB allocated totals Vast’s allocated disk space, not actual instance file usage, and can include other Vast allocations. It is shown only when every box reports a size.'],
-  coverage:['Data coverage','The proportion of elapsed box-time in the selected period with reporting coverage from the telemetry API. Native API buckets up to five minutes are accepted; raw samples contribute one second each. It excludes future time. Gaps in telemetry are unknown, not idle. Fleet occupancy is calculated from the known portion, so read occupancy together with coverage.']
+  coverage:['Data coverage','The proportion of elapsed box-time in the selected period with reporting coverage from the telemetry API. Native API buckets up to five minutes are accepted; raw samples contribute one second each. It excludes future time and time before each device’s earliest known history boundary. This boundary comes from the telemetry archive, not a proven first boot; it is kept when the archive later advances. A dash marks periods before tracking. Gaps in telemetry are unknown, not idle. Fleet occupancy is calculated from the known portion, so read occupancy together with coverage.']
 };
 function closeMetricHelp(){ $('#metric-details').hidden=true;document.querySelectorAll('[data-info]').forEach(b=>b.setAttribute('aria-expanded','false')); }
 document.querySelectorAll('[data-info]').forEach(button=>button.addEventListener('click',()=>{

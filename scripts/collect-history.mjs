@@ -34,9 +34,18 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
     let stage='metadata';
     const old=previous.boxes.find(b=>b.name===name),sample=current.find(b=>b.name===name);
     const entry={name,months:[...(old?.months||[])],lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances,gpuCount:sample.gpuCount??null,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb,connection:sample.connection,maintenanceWindows:sample.maintenanceWindows,listed:sample.listed,listingEndsAt:sample.listingEndsAt},historyUpdatedAt:old?.historyUpdatedAt??null,dataThrough:old?.dataThrough??null};
+    entry.historyStart=old?.historyStart??null;
     try{
       const meta=await api.meta(id),first=meta.extent?.t0;
-      if(!Number.isFinite(first)||first<=0)throw Error('No history extent');
+      if(!Number.isFinite(first)||first<=0||first>now/1000)throw Error('No history extent');
+      // Keep the earliest boundary ever known: archive retention must not hide old gaps.
+      const boundaries=[first*1000,Date.parse(entry.historyStart)].filter(Number.isFinite);
+      if(old?.months?.length){
+        const earliest=await readJson(new URL(encodeURIComponent(name)+'/'+[...old.months].sort()[0]+'.json',root),null);
+        const prior=earliest?.hours?.find(r=>r.observedSeconds>0&&Date.parse(r.end)<=first*1000);
+        if(prior)boundaries.push(Date.parse(prior.start));
+      }
+      entry.historyStart=new Date(Math.min(...boundaries)).toISOString();
       const from=dayKey(new Date(first*1000)).slice(0,7),available=[];
       for(let m=from;m<=month;m=nextMonth(m)){if(available.length>=120)throw Error('History range too large');available.push(m);}
       const stop=Math.floor(now/1000);

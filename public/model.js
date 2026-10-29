@@ -24,8 +24,9 @@ export function binsForDay(key,hourly) {
   if(!hourly) return [{start,end,key}];
   const bins=[];for(let t=start;t<end;t+=HOUR) bins.push({start:t,end:Math.min(t+HOUR,end),key}); return bins;
 }
-export function aggregate(records,start,end,now=Date.now()) {
-  const elapsed=Math.max(0,(Math.min(end,now)-start)/1000);let observed=0,occupied=0,income=0,hasIncome=true,stored=null,last=-Infinity,offline=0,maintenance=0,connectionObserved=0,maintenanceObserved=0,listed=0,unlisted=0,listingObserved=0;
+export function aggregate(records,start,end,now=Date.now(),historyStart=-Infinity) {
+  if(!Number.isFinite(historyStart))historyStart=-Infinity;
+  const elapsed=Math.max(0,(Math.min(end,now)-Math.max(start,historyStart))/1000);let observed=0,occupied=0,income=0,hasIncome=true,stored=null,last=-Infinity,offline=0,maintenance=0,connectionObserved=0,maintenanceObserved=0,listed=0,unlisted=0,listingObserved=0;
   for(const r of records) {
     const a=r.startMs??Date.parse(r.start),b=r.endMs??Date.parse(r.end),overlap=Math.max(0,(Math.min(b,end,now)-Math.max(a,start))/1000);
     if(!overlap||b<=a) continue;
@@ -41,7 +42,7 @@ export function aggregate(records,start,end,now=Date.now()) {
   const percent=observed?Math.min(100,occupied/observed*100):null;
   return {observed,occupied,elapsed,coverage,percent,stored,offline,maintenance,connectionObserved,maintenanceObserved,listed,unlisted,listingObserved,income:observed&&hasIncome?income:null,
     borderState:offline>0?'offline':maintenance>0?'maintenance':unlisted>0?'unlisted':listed>0?'listed':'unknown',
-    state:!elapsed?'future':!observed?'unknown':percent>=99.999?'full':percent>0?'partial':'idle'};
+    state:end<=historyStart&&start<now?'not-tracked':!elapsed?'future':!observed?'unknown':percent>=99.999?'full':percent>0?'partial':'idle'};
 }
 export function currentStatus(sample,now=Date.now(),maxAgeSeconds=5400){
   if(!sample||!Number.isFinite(Date.parse(sample.at))||now<Date.parse(sample.at))return {connection:'unknown',maintenance:null,next:null,listed:null,running:null,stale:true};

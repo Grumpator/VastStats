@@ -1,4 +1,4 @@
-import {dayKey,addDays,midnight,periodDays} from './model.js?v=2.6.1';
+import {dayKey,addDays,midnight,periodDays} from './model.js?v=2.7.0';
 const HOUR=3600000;
 export function isoWeek(key){
   const date=new Date(key+'T12:00Z'),weekday=date.getUTCDay()||7;
