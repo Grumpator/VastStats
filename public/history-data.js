@@ -1,4 +1,3 @@
-import {periodDays} from './model.js?v=2.7.0';
 export function githubDataSource({fetchImpl=fetch,now=Date.now}={}){
   let base=null,checked=-Infinity,pending=null;
   return async()=>{
@@ -17,7 +16,7 @@ export function githubDataSource({fetchImpl=fetch,now=Date.now}={}){
     try{return await pending;}finally{pending=null;}
   };
 }
-export async function loadHistoryData(base,selected,view,{fetchImpl=fetch,days=periodDays(selected,view)}={}){
+export async function loadHistoryData(base,days,{fetchImpl=fetch}={}){
   const get=async path=>{const response=await fetchImpl(new URL(path,base),{cache:'no-store'});if(!response.ok)throw Error('History summary unavailable');return response.json();};
   const index=await get('index.json');
   if(index.version!==2||!Array.isArray(index.boxes))throw Error('Unsupported history index');

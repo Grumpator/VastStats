@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {compactEnd,compactBins,moveCompact,compactCount,recordsForBin,isoWeek} from '../public/compact.js';
+import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from '../public/timeline.js';
 import {midnight} from '../public/model.js';
 import {periodRunCount,loadHistoryData} from '../public/history-data.js';
 import {summarizeHistory} from '../scripts/history-model.mjs';
@@ -11,25 +11,25 @@ test('ISO week labels use the week-year across New Year',()=>{
   assert.deepEqual(isoWeek('2026-10-26'),{week:44,year:2026});
 });
 
-test('compact pages are contiguous and preserve repeated London clock-change hours',()=>{
-  const end=compactEnd('2026-10-25','hours',Date.parse('2026-10-29T12:00Z'));
-  const bins=compactBins(end,'hours',25);
+test('timeline pages are contiguous and preserve repeated London clock-change hours',()=>{
+  const end=windowEndForDate('2026-10-25','hours',Date.parse('2026-10-29T12:00Z'));
+  const bins=timelineBins(end,'hours',25);
   assert.equal(bins[0].start,midnight('2026-10-25'));
   assert.equal(bins.at(-1).end,midnight('2026-10-26'));
-  assert.equal(compactBins(moveCompact(end,'hours',25,-1),'hours',25).at(-1).end,bins[0].start);
-  const days=compactBins(compactEnd('2026-10-26','days'),'days',3);
+  assert.equal(timelineBins(moveWindow(end,'hours',25,-1),'hours',25).at(-1).end,bins[0].start);
+  const days=timelineBins(windowEndForDate('2026-10-26','days'),'days',3);
   assert.equal(days[1].end-days[1].start,25*3600000);
 });
 
-test('compact weeks start Monday and monthly pages respect leap years and year boundaries',()=>{
-  const weeks=compactBins(compactEnd('2026-10-29','weeks'),'weeks',2);
+test('calendar weeks start Monday and monthly pages respect leap years and year boundaries',()=>{
+  const weeks=timelineBins(windowEndForDate('2026-10-29','weeks'),'weeks',2);
   assert.equal(weeks.at(-1).key,'2026-10-26');
-  const end=compactEnd('2028-03-12','months');
-  const months=compactBins(end,'months',3);
+  const end=windowEndForDate('2028-03-12','months');
+  const months=timelineBins(end,'months',3);
   assert.deepEqual(months.map(b=>b.key),['2028-01-01','2028-02-01','2028-03-01']);
   assert.equal(months[1].end-months[1].start,29*86400000);
-  assert.equal(moveCompact(moveCompact(end,'months',3,-1),'months',3,1),end);
-  for(const width of [320,375,900,1440]){const meta=width<=700?(width<=360?226:248):340,count=compactCount(width,meta);assert.ok(count*28-4<=width-26-meta-12);}
+  assert.equal(moveWindow(moveWindow(end,'months',3,-1),'months',3,1),end);
+  for(const width of [320,375,900,1440]){const meta=width<=700?(width<=360?226:248):340,count=visibleSlotCount(width,meta);assert.ok(count*28-4<=width-26-meta-12);}
 });
 
 test('run counters count restarts and carry-in once, including starts during coverage gaps',()=>{
@@ -50,9 +50,9 @@ test('run counters count restarts and carry-in once, including starts during cov
   assert.equal(periodRunCount(gap,{start:start*1000,end:stop*1000}),11);
 });
 
-test('compact windows load all intersecting months even across a year boundary',async()=>{
+test('timeline windows load all intersecting months even across a year boundary',async()=>{
   const requested=[],days=['2025-12-31','2026-01-01'];
   const fetchImpl=async url=>{const path=new URL(url).pathname;requested.push(path);const month=path.includes('2025-12')?'2025-12':'2026-01';return new Response(JSON.stringify(path.endsWith('index.json')?{version:2,boxes:[{name:'Alpha',months:['2025-12','2026-01','2026-02']}]}:{version:2,name:'Alpha',month,hours:[],snapshots:[],runCounts:[]}));};
-  await loadHistoryData('https://example.test/data/','2026-01-01','week',{fetchImpl,days});
+  await loadHistoryData('https://example.test/data/',days,{fetchImpl});
   assert.deepEqual(requested,['/data/index.json','/data/Alpha/2025-12.json','/data/Alpha/2026-01.json']);
 });

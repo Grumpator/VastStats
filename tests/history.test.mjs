@@ -1,7 +1,8 @@
+import {windowEndForDate,timelineBins} from '../public/timeline.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {machineState,sanitizeMachines,updateHistory,parseMap} from '../scripts/collect.mjs';
-import {midnight,addDays,binsForDay,aggregate,periodDays,currentStatus} from '../public/model.js';
+import {midnight,addDays,aggregate,currentStatus} from '../public/model.js';
 test('exports only names and counts, even when response contains secrets',()=>{
   const result=sanitizeMachines({machines:[{id:123,name:'private',hostname:'private-host',api_key:'secret',public_ipaddr:'192.0.2.1',timeout:0,machine_maintenance:null,current_rentals_running:1,current_rentals_resident:2}]},{123:'Alpha'});
   assert.deepEqual(result,[{name:'Alpha',running:true,runningInstances:1,storedInstances:2,allocatedStorageGb:null,gpuCount:null,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
@@ -74,11 +75,11 @@ test('offline is zero occupancy with coverage; missing status remains unknown',(
   assert.equal(missing.observed,300);assert.equal(missing.coverage,.5);
 });
 test('handles actual 23 and 25 hour London days',()=>{
-  assert.equal(binsForDay('2026-03-29',true).length,23);
-  assert.equal(binsForDay('2026-10-25',true).length,25);
+  assert.equal((midnight('2026-03-30')-midnight('2026-03-29'))/3600000,23);
+  assert.equal((midnight('2026-10-26')-midnight('2026-10-25'))/3600000,25);
   assert.equal(midnight('2026-10-25'),Date.parse('2026-10-24T23:00Z'));
-  assert.equal(periodDays('2024-02-15','month').length,29);
-  assert.equal(periodDays('2024-02-15','year').length,366);
+  const leap=timelineBins(windowEndForDate('2024-02-15','months'),'months',1)[0];
+  assert.equal((leap.end-leap.start)/86400000,29);
 });
 const sample=(running,storedInstances=1)=>[{name:'Alpha',running,storedInstances}];
 test('square stored count is the last observed count, not the maximum within the hour',()=>{
@@ -97,15 +98,15 @@ test('selected-period occupancy excludes missing history and future time',()=>{
     {start:'2026-10-20T10:00Z',end:'2026-10-20T13:00Z',observedSeconds:10800,occupiedSeconds:0},
     {start:'2026-10-26T10:00Z',end:'2026-10-26T12:00Z',observedSeconds:7200,occupiedSeconds:7200}
   ];
-  const forView=view=>{
-    const days=periodDays('2026-10-27',view);
-    return aggregate(rows,midnight(days[0]),midnight(addDays(days.at(-1),1)),now);
+  const forWindow=(scale,count)=>{
+    const bins=timelineBins(windowEndForDate('2026-10-27',scale,now),scale,count);
+    return aggregate(rows,bins[0].start,bins.at(-1).end,now);
   };
-  assert.equal(forView('week').percent,100);
-  assert.equal(forView('month').percent,40);
-  assert.equal(forView('year').percent,40);
-  assert.equal(forView('month').observed,18000);
-  assert.equal(forView('month').occupied,7200);
+  assert.equal(forWindow('days',2).percent,100);
+  assert.equal(forWindow('months',1).percent,40);
+  assert.equal(forWindow('weeks',2).percent,40);
+  assert.equal(forWindow('months',1).observed,18000);
+  assert.equal(forWindow('months',1).occupied,7200);
   const future=aggregate(rows,midnight('2026-10-28'),midnight('2026-10-29'),now);
   assert.equal(future.percent,null);assert.equal(future.observed,0);
   const missing=aggregate(rows,midnight('2026-10-01'),midnight('2026-10-02'),now);

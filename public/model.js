@@ -12,18 +12,6 @@ export function midnight(key) {
   }
   return t;
 }
-export function periodDays(key,view) {
-  let start=key,end=addDays(key,1);
-  if(view==='week') { const dow = new Date(key+'T12:00Z').getUTCDay(); start=addDays(key,-((dow+6)%7)); end=addDays(start,7); }
-  if(view==='month') { start=key.slice(0,7)+'-01'; const d=new Date(start+'T12:00Z'); d.setUTCMonth(d.getUTCMonth()+1); end=d.toISOString().slice(0,10); }
-  if(view==='year') { start=key.slice(0,4)+'-01-01';end=(Number(key.slice(0,4))+1)+'-01-01'; }
-  const days=[]; for(let d=start;d<end;d=addDays(d,1)) days.push(d); return days;
-}
-export function binsForDay(key,hourly) {
-  const start=midnight(key),end=midnight(addDays(key,1));
-  if(!hourly) return [{start,end,key}];
-  const bins=[];for(let t=start;t<end;t+=HOUR) bins.push({start:t,end:Math.min(t+HOUR,end),key}); return bins;
-}
 export function aggregate(records,start,end,now=Date.now(),historyStart=-Infinity) {
   if(!Number.isFinite(historyStart))historyStart=-Infinity;
   const elapsed=Math.max(0,(Math.min(end,now)-Math.max(start,historyStart))/1000);let observed=0,occupied=0,income=0,hasIncome=true,stored=null,last=-Infinity,offline=0,maintenance=0,connectionObserved=0,maintenanceObserved=0,listed=0,unlisted=0,listingObserved=0;

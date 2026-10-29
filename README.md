@@ -1,4 +1,4 @@
-# VastStats v2
+# VastStats v3
 
 A public Vast fleet dashboard built from historical container-running intervals. The live Pages site deploys from `main`; the previous snapshot-based dashboard and its data are preserved on [`v1`](https://github.com/Grumpator/VastStats/tree/v1).
 
@@ -7,7 +7,7 @@ A public Vast fleet dashboard built from historical container-running intervals.
 1. GitHub Actions reads current machine state and obtains a short-lived telemetry token using a private Vast API key.
 2. It queries container history and reporting samples, unions simultaneous running intervals, and builds hourly summaries plus daily run counts. Missed collector runs can be backfilled from the API.
 3. Only public box names, timestamps, counts, durations and sanitized state snapshots are committed. Raw instance/machine IDs, tokens, API responses, hostnames and IPs stay private.
-4. The page loads the index and the per-box/month files required by the selected week, month or year. No API key reaches the browser.
+4. The page loads the index and the per-box/month files required by the visible date window. No API key reaches the browser.
 
 The current month is reconciled with a three-day overlap before the latest imported telemetry. Initial imports recover all available months, up to a ten-year safety limit. Completed months remain stored; the preceding month is also reconciled during the first seven days of the next month for late uploads. A manual full rebuild is available. Previously recovered hours are retained when a later response has less coverage, including after an upstream recording-format change.
 
@@ -22,7 +22,7 @@ In GitHub **Settings → Secrets and variables → Actions**, set these **reposi
 
 Run **Actions → Collect API history → Run workflow**, choosing the appropriate branch. Select **rebuild** to reconcile every available month. The schedule requests one refresh per hour, at minute 17; GitHub may delay or skip triggers. Historical backfilling avoids the requirement to capture consecutive five-minute snapshots. This does not guarantee live freshness.
 
-The workflow commits only `public/data/` and uses GitHub's built-in job token. No inbound ports, VPS or GitHub key on a box are needed. V2 branch collection writes to that branch only. The collector has no Pages deployment permission.
+The workflow commits only `public/data/` and uses GitHub's built-in job token. No inbound ports, VPS or GitHub key on a box are needed. The collector has no Pages deployment permission.
 
 ## Files
 
@@ -32,21 +32,19 @@ The workflow commits only `public/data/` and uses GitHub's built-in job token. N
 
 The generated data files are intentionally public. They disclose fleet occupancy and instance counts. Never put raw responses or a private map in this repository.
 
-The stable dashboard before compact mode is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and the immutable `v2` tag.
+The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.0.0).
 
 ## Reading the dashboard
 
-- **Compact toggle (default):** one row per device, with as many circles as fit and no horizontal scrolling. Hours / Days / Weeks / Months select the duration of each circle (calendar weeks start Monday). The last circle contains the chosen date; Today includes the current hour/period. Previous/Next move by exactly one visible window. Summary and device statistics describe that window. Weekly/monthly counts use boundary-active runs plus witnessed starts, so continuous runs count once and restarts count again. Older imports without these counters show unavailable until rebuilt. The toggle preference is stored locally. Status icons use shared columns across devices. Weekly headers show ISO week numbers and week-years.
-- **Week:** one circle per actual hour, starting Monday. London clock-change days have 23 or 25 circles.
-- **Month / Year:** one circle per day. Percentages and Hours use the selected period and only available telemetry. Missing history and future time do not count as idle.
-- **Circle sectors:** green = confirmed running time, amber = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the hour/day, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Summary/device occupancy percentages still use running / observed time, explicitly distinguished in the tooltip.
-- **Number:** running sessions that overlap the reported part of the hour/day. One instance stopping and restarting counts as two runs. A continuous run counts once in each circle it overlaps; daily counts are calculated from the intervals, not by summing hourly counts. Back-to-back runs can produce solid green with a count greater than one. Idle observed periods show zero; unavailable history is blank. Stored counts remain in the Images pill.
-- **Ring:** the current hour/day. A fresh machine snapshot can show state before duration data arrives; it does not supply historical occupancy or the circle's run count.
-- **Border:** red offline, amber maintenance, grey unlisted, green listed, in that priority order. V2 borders indicate states explicitly captured in that period's snapshots. Unknown historical state is neutral. Container history alone does not establish historical listing/maintenance/offline duration.
+- **Timeline:** one row per device, with as many circles as fit and no horizontal scrolling. Hours / Days / Weeks / Months select the duration of each circle; weeks start Monday and months follow the calendar. Previous/Next move by one visible window. Today includes the current hour/period. Summary and device statistics describe that window. Status icons use shared columns across devices, and weekly headers show ISO week numbers and week-years. The table has matching 12px gaps to the horizontal lines above and below.
+- **Circle sectors:** green = confirmed running time, amber = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the selected circle period, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Summary/device occupancy percentages still use running / observed time, explicitly distinguished in the tooltip.
+- **Number:** running sessions during the circle period. One instance stopping and restarting counts as two runs. A continuous run counts once in each circle it overlaps; daily counts are calculated from the intervals, not by summing hourly counts. Back-to-back runs can produce solid green with a count greater than one. Idle observed periods show zero; unavailable history is blank. Weekly/monthly counts use runs already active at the boundary plus new starts; a continuous run is counted once and stop/start episodes count separately. Stored counts remain in the Now summary.
+- **Ring:** the current hour/day/week/month. A fresh machine snapshot can show state before duration data arrives; it does not supply historical occupancy or the circle's run count.
+- **Border:** red offline, amber maintenance, grey unlisted, green listed, in that priority order. Borders indicate states explicitly captured in that period's snapshots. Unknown historical state is neutral. Container history alone does not establish historical listing/maintenance/offline duration.
 - **Occupancy:** union of running intervals divided by reported coverage. Two simultaneous rentals do not double-count a box's time. **Hours:** the same union duration summed across boxes.
-- **Images:** current Running/Stored counts, independent of historical navigation. Stored includes running and stopped instances. GB allocated is Vast's allocated disk total, not actual file usage.
+- **Now:** current Running/Stored counts, independent of historical navigation. Stored includes running and stopped instances. GB allocated is Vast's allocated disk total, not actual file usage.
 - **Before tracking:** the collector retains the earliest known archive boundary (`historyStart`). Time before it is excluded from per-device/fleet coverage and circle fill denominators, and full slots show a dash. This is earliest available history, not proof of the first boot. The boundary never advances on later imports or metadata failures, so later missing telemetry remains missing. A partly tracked first hour/day/week/month counts only its tracked portion.
-- **Drill down:** click compact circles to move Months → Weeks → Days → Hours, or standard Year → Month → Week. The date is set to the clicked period, with its latest elapsed detail visible. Hover/focus retains details; hourly circles retain tap-to-show.
+- **Drill down:** click circles to move Months → Weeks → Days → Hours. The date is set to the clicked period, with its latest elapsed detail visible. Hover/focus retains details; hourly circles retain tap-to-show.
 - **Data coverage:** reported telemetry sampling intervals divided by elapsed box-time in the selected period. Raw samples contribute one second; native aggregate buckets up to five minutes are accepted. Coarser buckets, missing samples, and approximate/fragmented container spans stay unknown.
 
 Hardware sample presence is used only to identify reporting coverage, not GPU utilisation. CPU/memory measurements themselves are discarded. Container state is sampled by Vast, so these figures are not billing-grade accounting.
@@ -55,7 +53,7 @@ Hardware sample presence is used only to identify reporting coverage, not GPU ut
 
 Vast uploads telemetry in batches. Current machine state and historical telemetry may have different timestamps; a successful refresh does not prove recent running history has arrived. Metadata `extent.end` may represent the query clock, so watermarks use actual reporting samples and are capped at the latest container observation while a container remains open. A trailing hardware bucket must not turn an unobserved running tail into idle time or erase its stored count. See [the API investigation](docs/telemetry-history-investigation.md).
 
-Each compact device header shows its name, current-state icons and selected-period occupancy on one line. Icons follow the Now summary order: running instances (play/pause plus count), listing (tag), connection (power), maintenance (spanner, or clock for planned maintenance), stored instances (layers plus count), then GPU count (chip). Green means active, red means offline and amber means maintenance; a slash marks an inactive state. Hover an icon for its label. The info button opens snapshot time, history watermark, observed time and coverage, and works by tap or keyboard too. These are latest machine-state snapshots, not live connections. With hourly collection, updates are flagged overdue after 90 minutes: icons fade, the info button turns amber and details show the overdue timestamp. Last known values remain visible. The page does not have a private live-status endpoint.
+Each device row shows its name, current-state icons and selected-period occupancy on one line. Icons follow the Now summary order: running instances (play/pause plus count), listing (tag), connection (power), maintenance (spanner, or clock for planned maintenance), stored instances (layers plus count), then GPU count (chip). Green means active, red means offline and amber means maintenance; a slash marks an inactive state. Hover an icon for its label. The info button opens snapshot time, history watermark, observed time and coverage, and works by tap or keyboard too. These are latest machine-state snapshots, not live connections. With hourly collection, updates are flagged overdue after 90 minutes: icons fade, the info button turns amber and details show the overdue timestamp. Last known values remain visible. The page does not have a private live-status endpoint.
 
 A running machine snapshot does not establish occupancy throughout an hour or day. Grey circles mean historical coverage has not arrived; they can coexist with a running-instance icon. As new API history arrives, collection backfills those circles. Solid green requires complete coverage and running throughout the elapsed portion; partial coverage leaves a grey unknown sector and the amber marker.
 
@@ -69,7 +67,7 @@ The **Inspect Vast history API** diagnostic workflow remains separate from colle
 
 ## Page deployment
 
-Use **Settings → Pages → Source: GitHub Actions**. **Deploy dashboard** publishes page code on changes to `public/`, ignoring `public/data/` and the legacy data filename. Data-only refreshes do not redeploy Pages. The public page resolves `main` through GitHub's public ref API at most once every five minutes, then reads the index and months using that exact commit's immutable raw-file URLs. This avoids stale branch caches and mixing files from different commits. No GitHub credential reaches the browser. If a later ref lookup fails or is rate-limited, the last resolved commit remains available; initial lookup failure is shown as a load error.
+Use **Settings → Pages → Source: GitHub Actions**. **Deploy dashboard** publishes page code on changes to `public/`, ignoring `public/data/`. Data-only refreshes do not redeploy Pages. The public page resolves `main` through GitHub's public ref API at most once every five minutes, then reads the index and months using that exact commit's immutable raw-file URLs. This avoids stale branch caches and mixing files from different commits. No GitHub credential reaches the browser. If a later ref lookup fails or is rate-limited, the last resolved commit remains available; initial lookup failure is shown as a load error.
 
 ## Local development
 
@@ -82,11 +80,11 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v2.7.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v3.0.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
-The info button beside Week/Month/Year opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
+The info button beside Hours/Days/Weeks/Months opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 
-Top summaries are separated into Selected period (occupancy, running box-hours and coverage) and Now (latest snapshot totals). Online, Listed, Maintenance and Running are box counts / total boxes. Running additionally shows instance count; Stored shows total retained instances and allocated GB. Unknown inputs produce a dash, not an assumed zero. Overdue snapshots are marked. The guide separates occupancy fills and state borders into two legend rows.
+Top summaries are separated into Visible period (occupancy, running box-hours and coverage) and Now (latest snapshot totals). Running, Listed, Online and Maintenance are box counts / total boxes. Running additionally shows instance count; Stored shows total retained instances and allocated GB. Unknown inputs produce a dash, not an assumed zero. Overdue snapshots are marked. The guide separates occupancy fills and state borders into two legend rows.
 
 Device headers also show a chip icon with total GPUs from Vast’s `num_gpus` machine field ([official CLI machine fields](https://github.com/vast-ai/vast-cli/blob/master/vast.py)). Only the count is published; GPU identifiers and models are excluded. Unknown counts show ? until a snapshot supplies the field. Multiple GPUs can support separate instances or be rented together; existing occupancy remains box-time with at least one running rental, not percentage of GPU capacity.
 
