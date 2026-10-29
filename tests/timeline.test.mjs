@@ -32,6 +32,19 @@ test('calendar weeks start Monday and monthly pages respect leap years and year 
   for(const width of [320,375,900,1440]){const meta=width<=700?(width<=360?226:248):340,count=visibleSlotCount(width,meta);assert.ok(count*28-4<=width-26-meta-12);}
 });
 
+test('navigation advances by the screen-sized window without gaps or overlaps',()=>{
+  const large=visibleSlotCount(1168,340),small=visibleSlotCount(341,248);
+  assert.ok(large>small);
+  for(const count of [large,small])for(const scale of ['hours','days','weeks','months']){
+    const end=windowEndForDate('2026-10-29',scale),shown=timelineBins(end,scale,count);
+    const previous=timelineBins(moveWindow(end,scale,count,-1),scale,count);
+    const next=timelineBins(moveWindow(end,scale,count,1),scale,count);
+    assert.equal(previous.at(-1).end,shown[0].start);
+    assert.equal(next[0].start,shown.at(-1).end);
+    assert.equal(moveWindow(previous.at(-1).end,scale,count,1),end);
+  }
+});
+
 test('run counters count restarts and carry-in once, including starts during coverage gaps',()=>{
   const start=Date.parse('2026-10-01T00:00Z')/1000,stop=start+3*86400;
   const active=[{id:1,first_seen:start-3600,last_seen:stop,end_witnessed:true,runs:[{start:start-3600,end:stop}]}];

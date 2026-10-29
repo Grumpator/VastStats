@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=3.0.0';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=3.0.0';
-import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=3.0.0';
+import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=3.1.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=3.1.0';
+import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=3.1.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -18,14 +18,14 @@ const duration=seconds=>{
   return hours+' h'+(minutes?' '+minutes+' min':'');
 };
 let selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
-let scale='hours',windowEnd=null,slotCount=1;
+let scale='hours',windowEnd=null,displayedEnd=null,slotCount=1;
 function visibleBins(){return timelineBins(windowEnd??windowEndForDate(selected,scale),scale,slotCount);}
 function updateSlotCount(){slotCount=visibleSlotCount($('.timeline').clientWidth,parseFloat(getComputedStyle($('#boxes')).getPropertyValue('--device-columns-width'))||340);}
 function selectedDays(){
   const bins=visibleBins(),days=[];for(let key=bins[0].key;key<=dayKey(new Date(bins.at(-1).end-1));key=addDays(key,1))days.push(key);return days;
 }
 let recordsByBox=new Map(),countsByBox=new Map(),snapshotsByBox=new Map(),activeCell=null;
-$('#date').value=selected;
+
 function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function icon(kind,disabled=false){
   const paths={gpu:['M4 6h16v12H4Z','M8 10h8v4H8Z','M2 9h2','M2 15h2','M8 18v3','M12 18v3','M16 18v3','M20 10h2','M20 14h2'],power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
@@ -59,7 +59,7 @@ function drillInto(bin){
   // End at the selected period's latest elapsed part, keeping its recent detail visible.
   const last=bin.start>Date.now()?bin.end-1:Math.min(bin.end-1,Date.now());
   windowEnd=windowEndForDate(dayKey(new Date(last)),scale);
-  $('#date').value=selected;hideTip();load();return true;
+  hideTip();load();return true;
 }
 function showTip(button,box,bin,value){
   const tip=$('#tooltip');tip.replaceChildren();
@@ -98,10 +98,11 @@ function cell(box,bin){
 }
 function render(){
   const detailsOpenFor=document.querySelector('.box-details[open]')?.dataset.box;
-  hideTip();updateSlotCount();const bins=visibleBins(),start=bins[0].start,end=bins.at(-1).end;
+  hideTip();updateSlotCount();const bins=visibleBins(),start=bins[0].start,end=bins.at(-1).end;displayedEnd=end;
   document.querySelectorAll('[data-scale]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scale===scale)));
   $('#period').textContent=fmt(start,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit'}:{})})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}:{})});
   if(scale==='weeks'){const first=isoWeek(bins[0].key),last=isoWeek(bins.at(-1).key);$('#period').textContent='Week '+first.week+'/'+first.year+(bins.length>1?' – Week '+last.week+'/'+last.year:'');}
+  $('#previous').title='Previous '+slotCount+' '+scale;$('#next').title='Next '+slotCount+' '+scale;
   $('#resolution').textContent=('One circle = one '+({hours:'hour',days:'day',weeks:'week',months:'month'}[scale]))+' · Numbers = runs during period';
   const stats=data.boxes.map(b=>aggregate(b.hours,start,end,Date.now(),Date.parse(b.historyStart)));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
@@ -157,9 +158,8 @@ async function load(){
 }
 
 document.querySelectorAll('[data-scale]').forEach(b=>b.addEventListener('click',()=>{scale=b.dataset.scale;windowEnd=windowEndForDate(selected,scale);load();}));
-$('#date').addEventListener('change',()=>{if($('#date').value){selected=$('#date').value;windowEnd=windowEndForDate(selected,scale);load();}});
-function move(direction){windowEnd=moveWindow(windowEnd??windowEndForDate(selected,scale),scale,slotCount,direction);selected=dayKey(new Date(windowEnd-1));$('#date').value=selected;load();}
-$('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());windowEnd=null;$('#date').value=selected;load();};
+function move(direction){updateSlotCount();windowEnd=moveWindow(windowEnd??displayedEnd??windowEndForDate(selected,scale),scale,slotCount,direction);selected=dayKey(new Date(windowEnd-1));load();}
+$('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());windowEnd=null;load();};
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
 const metricHelp={
   occupancy:['Fleet occupancy','The percentage of observed box-time with at least one running rental in the selected period. Running box-hours ÷ observed box-hours × 100. For example, three boxes observed for 24 hours provide 72 box-hours; 36 running box-hours means 50% occupancy. This measures box-time, not GPU capacity: one busy GPU on a four-GPU box counts as occupied box-time. Only available telemetry contributes to the calculation. Current offline status does not rewrite historical occupancy.'],

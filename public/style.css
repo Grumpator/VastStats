@@ -24,19 +24,15 @@ h1{font-family:Manrope,sans-serif;font-weight:650;font-size:36px;letter-spacing:
 .segments{padding:3px;background:#eceedf80;border:1px solid #e4e8df;border-radius:9px;display:flex;gap:3px}
 .segments button{padding:6px 20px;font-size:12px;border-radius:6px;color:#73806d}
 .segments button[aria-pressed=true]{background:white;color:#284c34;box-shadow:0 1px 4px #20362b12;font-weight:650}
-.date-controls{display:flex;align-items:center;gap:9px}
 .icon-button{width:29px;height:29px;font-size:22px;border:1px solid var(--line);border-radius:6px;background:#fff}
 .text-button{font-size:12px;color:#698263;padding:8px}
-.date-label input{border:0;background:transparent;font-size:12px;width:128px;cursor:pointer}
 .summary{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 0;margin-bottom:18px}
 .summary>div{display:flex;flex-direction:column;padding:0 22px;border-right:1px solid var(--line)}
 .summary>div:last-child{border:0}
 .metric-label{font-size:11px;color:#72816f}
 .summary strong{font-family:Manrope,sans-serif;font-size:25px;font-weight:600;letter-spacing:-.8px;margin:3px 0}
 .metric-note{font-size:10px;color:#969e91}
-.section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 12px}
 h2{font-family:Manrope,sans-serif;font-size:17px;font-weight:650;letter-spacing:-.4px;margin:0}
-.section-head p{font-size:11px;color:var(--muted);margin:6px 0 0}
 .legend{display:flex;gap:16px;font-size:10px;color:#7b8577}
 .legend span{display:flex;align-items:center;gap:6px}
 .legend i{width:11px;height:11px;border-radius:50%;display:inline-block}
@@ -108,13 +104,11 @@ h1{font-size:31px}
 .toolbar{align-items:flex-start;flex-direction:column;gap:8px}
 .segments{width:100%}
 .segments button{flex:1;padding:8px 16px}
-.date-controls{align-self:flex-end}
 .summary{grid-template-columns:1fr 1fr;padding:0;margin-bottom:16px}
 .summary>div{padding:11px 14px}
 .summary>div:nth-child(2){border-right:0}
 .summary>div:nth-child(-n+2){border-bottom:1px solid var(--line)}
 .summary strong{font-size:23px}
-.section-head{align-items:flex-start;flex-direction:column;gap:9px}
 .box{padding:11px 12px}
 .legend{gap:14px}
 h1{font-size:29px}
@@ -187,7 +181,6 @@ h1{font-size:29px}
 .view-help-panel #resolution{margin:0 0 14px;color:#52664a}
 .view-help-panel .legend{gap:12px;margin-bottom:15px}
 .view-help-panel .box-details-close{position:sticky;float:right;top:0;margin:-8px -12px 0 0}
-.section-head{margin-bottom:10px}
 @media(max-width:550px){
 .view-picker{width:100%}
 .view-picker .segments{flex:1}
@@ -304,3 +297,6 @@ h1{font-size:29px}
 .device-table{margin-bottom:var(--table-gap)}
 .cell.not-tracked{background:transparent;border-color:transparent;color:#aeb7a8;border-radius:0;font-size:12px}
 .cell.not-tracked:hover,.cell.not-tracked:focus-visible{box-shadow:none;background:#f1f4ec}
+
+.section-head{display:grid;grid-template-columns:29px minmax(0,max-content) 29px auto;align-items:center;justify-content:start;gap:10px;margin:0 0 10px}.section-head h2{min-width:0;line-height:1.45}.section-head .icon-button{flex-shrink:0}.section-head #today{white-space:nowrap}
+@media(max-width:550px){.section-head{gap:6px}.section-head h2{font-size:13px}.section-head #today{padding:6px}}

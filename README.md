@@ -32,11 +32,11 @@ The workflow commits only `public/data/` and uses GitHub's built-in job token. N
 
 The generated data files are intentionally public. They disclose fleet occupancy and instance counts. Never put raw responses or a private map in this repository.
 
-The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.0.0).
+The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.1.0).
 
 ## Reading the dashboard
 
-- **Timeline:** one row per device, with as many circles as fit and no horizontal scrolling. Hours / Days / Weeks / Months select the duration of each circle; weeks start Monday and months follow the calendar. Previous/Next move by one visible window. Today includes the current hour/period. Summary and device statistics describe that window. Status icons use shared columns across devices, and weekly headers show ISO week numbers and week-years. The table has matching 12px gaps to the horizontal lines above and below.
+- **Timeline:** one row per device, with as many circles as fit and no horizontal scrolling. Hours / Days / Weeks / Months select the duration of each circle; weeks start Monday and months follow the calendar. Previous/Next flank the range below the summaries and move by exactly one visible window, using the number of circles that fit the current screen. Today sits on the same row and returns to the current period; there is no separate date picker. Today includes the current hour/period. Summary and device statistics describe that window. Status icons use shared columns across devices, and weekly headers show ISO week numbers and week-years. The table has matching 12px gaps to the horizontal lines above and below.
 - **Circle sectors:** green = confirmed running time, amber = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the selected circle period, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Summary/device occupancy percentages still use running / observed time, explicitly distinguished in the tooltip.
 - **Number:** running sessions during the circle period. One instance stopping and restarting counts as two runs. A continuous run counts once in each circle it overlaps; daily counts are calculated from the intervals, not by summing hourly counts. Back-to-back runs can produce solid green with a count greater than one. Idle observed periods show zero; unavailable history is blank. Weekly/monthly counts use runs already active at the boundary plus new starts; a continuous run is counted once and stop/start episodes count separately. Stored counts remain in the Now summary.
 - **Ring:** the current hour/day/week/month. A fresh machine snapshot can show state before duration data arrives; it does not supply historical occupancy or the circle's run count.
@@ -80,7 +80,7 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v3.0.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v3.1.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Hours/Days/Weeks/Months opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 
