@@ -1,5 +1,5 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.5.3';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.5.3';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.5.4';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.5.4';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -88,7 +88,7 @@ function render(){
   $('#stored-note').textContent=fleet.storage==null?'instances · size unknown':fleet.storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated';
   $('#snapshot-note').textContent=fleet.overdue?'· '+fleet.overdue+' overdue':'· latest snapshot';
   $('.now-group').classList.toggle('overdue',fleet.overdue>0);
-  const boxes=$('#boxes');boxes.replaceChildren();boxes.className=view==='month'?'month-boxes':'';
+  const boxes=$('#boxes');boxes.replaceChildren();boxes.className=view==='month'?'month-boxes':view==='week'?'week-boxes':'';
   data.boxes.forEach((box,index)=>{
     recordsByBox.set(box.name,box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})));
     const card=element('article','box'),header=element('div','box-header'),title=element('div','box-title'),heading=element('h3','',box.name);heading.title=box.name;title.append(heading);
