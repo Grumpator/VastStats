@@ -36,7 +36,7 @@ The stable dashboard before compact mode is preserved in the [`v2` branch](https
 
 ## Reading the dashboard
 
-- **Compact toggle:** one row per device, with as many circles as fit and no horizontal scrolling. Hours / Days / Weeks / Months select the duration of each circle (calendar weeks start Monday). The last circle contains the chosen date; Today includes the current hour/period. Previous/Next move by exactly one visible window. Summary and device statistics describe that window. Weekly/monthly counts use boundary-active runs plus witnessed starts, so continuous runs count once and restarts count again. Older imports without these counters show unavailable until rebuilt. The toggle preference is stored locally.
+- **Compact toggle (default):** one row per device, with as many circles as fit and no horizontal scrolling. Hours / Days / Weeks / Months select the duration of each circle (calendar weeks start Monday). The last circle contains the chosen date; Today includes the current hour/period. Previous/Next move by exactly one visible window. Summary and device statistics describe that window. Weekly/monthly counts use boundary-active runs plus witnessed starts, so continuous runs count once and restarts count again. Older imports without these counters show unavailable until rebuilt. The toggle preference is stored locally. Status icons use shared columns across devices. Weekly headers show ISO week numbers and week-years.
 - **Week:** one circle per actual hour, starting Monday. London clock-change days have 23 or 25 circles.
 - **Month / Year:** one circle per day. Percentages and Hours use the selected period and only available telemetry. Missing history and future time do not count as idle.
 - **Circle sectors:** green = confirmed running time, amber = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the hour/day, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Summary/device occupancy percentages still use running / observed time, explicitly distinguished in the tooltip.
@@ -80,7 +80,7 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v2.6.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v2.6.1** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Week/Month/Year opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 

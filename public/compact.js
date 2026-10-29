@@ -1,5 +1,11 @@
-import {dayKey,addDays,midnight,periodDays} from './model.js?v=2.6.0';
+import {dayKey,addDays,midnight,periodDays} from './model.js?v=2.6.1';
 const HOUR=3600000;
+export function isoWeek(key){
+  const date=new Date(key+'T12:00Z'),weekday=date.getUTCDay()||7;
+  date.setUTCDate(date.getUTCDate()+4-weekday);
+  const year=date.getUTCFullYear(),first=new Date(Date.UTC(year,0,1,12));
+  return {year,week:Math.ceil(((date-first)/86400000+1)/7)};
+}
 // An exclusive end keeps adjacent pages contiguous, including clock-change hours.
 export function compactEnd(selected,view,now=Date.now()){
   if(view==='hours')return selected===dayKey(new Date(now))?Math.floor(now/HOUR)*HOUR+HOUR:midnight(addDays(selected,1));

@@ -1,9 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {compactEnd,compactBins,moveCompact,compactCount,recordsForBin} from '../public/compact.js';
+import {compactEnd,compactBins,moveCompact,compactCount,recordsForBin,isoWeek} from '../public/compact.js';
 import {midnight} from '../public/model.js';
 import {periodRunCount,loadHistoryData} from '../public/history-data.js';
 import {summarizeHistory} from '../scripts/history-model.mjs';
+
+test('ISO week labels use the week-year across New Year',()=>{
+  assert.deepEqual(isoWeek('2021-01-01'),{week:53,year:2020});
+  assert.deepEqual(isoWeek('2025-12-29'),{week:1,year:2026});
+  assert.deepEqual(isoWeek('2026-10-26'),{week:44,year:2026});
+});
 
 test('compact pages are contiguous and preserve repeated London clock-change hours',()=>{
   const end=compactEnd('2026-10-25','hours',Date.parse('2026-10-29T12:00Z'));

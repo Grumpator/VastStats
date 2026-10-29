@@ -74,3 +74,6 @@
 @media(max-width:360px){.timeline{--compact-meta:226px}.compact-boxes .box-header{grid-template-columns:35px minmax(0,1fr) auto}.compact-boxes .device-states{gap:2px}.compact-boxes .device-state{gap:1px}.compact-boxes .device-state svg{width:10px;height:10px}.compact-boxes .box-details>summary{width:20px}}
 
 .cell.many-runs{font-size:7px}
+
+.device-states{--state-icon:16px;display:grid;grid-template-columns:calc(var(--state-icon) + 3px + var(--running-digits,1)*.65em) calc(var(--state-icon) + var(--listed-extra,0px)) calc(var(--state-icon) + var(--connection-extra,0px)) calc(var(--state-icon) + var(--maintenance-extra,0px)) calc(var(--state-icon) + 3px + var(--stored-digits,1)*.65em) calc(var(--state-icon) + 3px + var(--gpu-digits,1)*.65em);align-items:center;font-size:11px}.device-state{min-width:0}.device-state svg{width:var(--state-icon);height:var(--state-icon)}.compact-boxes .device-states{--state-icon:14px}
+@media(max-width:700px){.compact-boxes .device-states{--state-icon:12px}}@media(max-width:550px){.device-states{--state-icon:14px}.week-boxes .device-states{--state-icon:12px}}@media(max-width:360px){.compact-boxes .device-states{--state-icon:10px}}

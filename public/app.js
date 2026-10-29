@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.6.0';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.6.0';
-import {compactEnd,compactBins,moveCompact,compactCount,recordsForBin} from './compact.js?v=2.6.0';
+import {ZONE,dayKey,addDays,midnight,periodDays,binsForDay,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=2.6.1';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=2.6.1';
+import {compactEnd,compactBins,moveCompact,compactCount,recordsForBin,isoWeek} from './compact.js?v=2.6.1';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -18,8 +18,8 @@ const duration=seconds=>{
   return hours+' h'+(minutes?' '+minutes+' min':'');
 };
 let view='week',selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
-let compact=false,scale='hours',windowEnd=null,slotCount=1;
-try{compact=localStorage.getItem('vaststats-compact')==='true';}catch{}
+let compact=true,scale='hours',windowEnd=null,slotCount=1;
+try{compact=localStorage.getItem('vaststats-compact')!=='false';}catch{}
 function visibleBins(){return compactBins(windowEnd??compactEnd(selected,scale),scale,slotCount);}
 function updateSlotCount(){slotCount=compactCount($('.timeline').clientWidth,parseFloat(getComputedStyle($('#boxes')).getPropertyValue('--compact-meta'))||340);}
 function selectedDays(){
@@ -95,6 +95,7 @@ function render(){
   document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
   const title=view==='year'?selected.slice(0,4):view==='month'?fmt(start,{month:'long',year:'numeric'}):fmt(start,{day:'numeric',month:'short'})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric'});
   $('#period').textContent=compact?fmt(start,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit'}:{})})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}:{})}):title;
+  if(compact&&scale==='weeks'){const first=isoWeek(bins[0].key),last=isoWeek(bins.at(-1).key);$('#period').textContent='Week '+first.week+'/'+first.year+(bins.length>1?' – Week '+last.week+'/'+last.year:'');}
   $('#resolution').textContent=(compact?'One circle = one '+({hours:'hour',days:'day',weeks:'week',months:'month'}[scale]):view==='week'?'One circle = one hour':'One circle = one day')+' · Numbers = runs during period';
   const stats=data.boxes.map(b=>aggregate(b.hours,start,end));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
@@ -108,11 +109,14 @@ function render(){
   $('#snapshot-note').textContent=fleet.overdue?'· '+fleet.overdue+' overdue':'· latest snapshot';
   $('.now-group').classList.toggle('overdue',fleet.overdue>0);
   const boxes=$('#boxes');boxes.replaceChildren();boxes.className=compact?'compact-boxes':view==='month'?'month-boxes':view==='week'?'week-boxes':'';
+  // Shared column widths use the largest count in the fleet, never the row's own count.
+  for(const [field,property] of [['runningInstances','running'],['storedInstances','stored'],['gpuCount','gpu']])boxes.style.setProperty('--'+property+'-digits',Math.max(1,...data.boxes.map(b=>String(b.lastSample?.[field]??'?').length)));
+  for(const [field,property] of [['listed','listed'],['online','connection'],['maintenance','maintenance']])boxes.style.setProperty('--'+property+'-extra',fleet[field]===null?'.7em':'0px');
   $('#compact-axis')?.remove();
   if(compact){
     const axis=element('div','compact-axis');axis.id='compact-axis';axis.setAttribute('aria-hidden','true');axis.append(element('span','compact-axis-meta','Device · latest state · occupancy'));
     const labels=element('div','compact-circles compact-labels');
-    for(const bin of bins){const label=element('span','',fmt(bin.start,scale==='hours'?{hour:'2-digit',hourCycle:'h23'}:scale==='months'?{month:'short'}:{day:'numeric'}));label.title=fmt(bin.start,{dateStyle:'full',...(scale==='hours'?{timeStyle:'short'}:{})});label.append(element('small','',fmt(bin.start,scale==='hours'?{day:'numeric',month:'short'}:scale==='months'?{year:'numeric'}:{month:'short'})));labels.append(label);}
+    for(const bin of bins){const week=scale==='weeks'?isoWeek(bin.key):null,label=element('span','',week?'W'+week.week:fmt(bin.start,scale==='hours'?{hour:'2-digit',hourCycle:'h23'}:scale==='months'?{month:'short'}:{day:'numeric'}));label.title=fmt(bin.start,{dateStyle:'full',...(scale==='hours'?{timeStyle:'short'}:{})});label.append(element('small','',week?String(week.year):fmt(bin.start,scale==='hours'?{day:'numeric',month:'short'}:scale==='months'?{year:'numeric'}:{month:'short'})));labels.append(label);}
     axis.append(labels);boxes.before(axis);
   }
   data.boxes.forEach((box,index)=>{
