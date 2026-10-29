@@ -54,24 +54,28 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
       if(row.approx){if(Array.isArray(view))uncertain.push([view[0],view[1]]);else uncertain.push([start,limit]);}
       for(const run of row.runs){
         if(!Number.isFinite(run.start)||!Number.isFinite(run.end)||run.end<run.start)throw Error('Invalid running interval');
-        if(run.fragmented)uncertain.push([run.start,run.end]);else {const span=[Math.max(start,run.start),Math.min(limit,run.end)];running.push(span);containers.get(id).runs.push({start:span[0],end:span[1],openStart:!!run.open_start,openEnd:!!run.open_end});}
+        if(run.fragmented)uncertain.push([run.start,run.end]);else {const span=[Math.max(start,run.start),Math.min(limit,run.end)];running.push(span);containers.get(id).runs.push({start:run.start,end:Math.min(limit,run.end),openStart:!!run.open_start,openEnd:!!run.open_end});}
       }
     }
   }
   // Hardware buckets can extend beyond the last container observation. An open
   // container has no known stop, so that trailing time is unknown, never idle.
-  const lifetimes=[...containers.values()];
+  const lifetimes=[...containers.values()],uncertainRuns=mergeIntervals(uncertain);
   if(lifetimes.some(c=>!c.ended))uncertain.push([Math.max(...lifetimes.map(c=>c.last)),limit]);
   // Remove approximate/fragmented spans from coverage, rather than treating them as idle or full.
   const exclusions=mergeIntervals(uncertain),observed=[];
   for(const [a,b] of mergeIntervals(coverage)){
     let cursor=a;for(const [x,y] of exclusions){if(y<=cursor)continue;if(x>=b)break;if(x>cursor)observed.push([cursor,Math.min(x,b)]);cursor=Math.max(cursor,y);if(cursor>=b)break;}if(cursor<b)observed.push([cursor,b]);
   }
-  const occupied=intersectIntervals(mergeIntervals(running),observed),hours=[];
-  const instanceRuns=lifetimes.map(c=>mergeRuns(c.runs));
+  const occupied=intersectIntervals(mergeIntervals(running),observed),hours=[],runCounts=[];
+  const instanceRuns=lifetimes.map(c=>mergeRuns(c.runs)),runs=instanceRuns.flat();
   const countIn=range=>{const known=intersectIntervals(observed,range);return instanceRuns.reduce((n,runs)=>n+runs.filter(r=>intersectIntervals([[r.start,r.end]],known).length>0).length,0);};
   for(let at=Math.floor(start/3600)*3600;at<limit;at+=3600){
     const end=Math.min(at+3600,limit),range=[[Math.max(at,start),end]],known=intersectIntervals(observed,range),seen=seconds(known);
+    const countsKnown=!intersectIntervals(uncertainRuns,range).length;
+    const runStarts=runs.filter(r=>!r.openStart&&r.start>=Math.max(at,start)&&r.start<end).length;
+    const boundary=Math.max(at,start),runningAtStart=runs.filter(r=>(r.start<boundary||(r.start===boundary&&r.openStart))&&r.end>boundary).length;
+    runCounts.push({start:new Date(at*1000).toISOString(),end:new Date(end*1000).toISOString(),runStarts:countsKnown?runStarts:null,runningAtStart:countsKnown?runningAtStart:null});
     if(!seen)continue;
     const last=known.at(-1)[1]-0.001;
     const stored=[...containers.values()].some(c=>!c.ended&&c.last<last)?null:[...containers.values()].filter(c=>c.first<=last&&c.last>last).length;
@@ -82,5 +86,5 @@ export function summarizeHistory({name,start,stop,responses,now=Date.now()}){
     const a=midnight(key)/1000,b=midnight(addDays(key,1))/1000,range=[[Math.max(a,start),Math.min(b,limit)]],seen=seconds(intersectIntervals(observed,range));
     if(seen)days.push({start:new Date(a*1000).toISOString(),end:new Date(b*1000).toISOString(),observedSeconds:seen,occupiedSeconds:seconds(intersectIntervals(occupied,range)),runningSessions:countIn(range),calculationVersion:4});
   }
-  return {version:2,aggregationVersion:4,name,source:'telemetry',updatedAt:new Date(now).toISOString(),dataThrough:observed.length?new Date(observed.at(-1)[1]*1000).toISOString():null,hours,days};
+  return {version:2,aggregationVersion:5,name,source:'telemetry',updatedAt:new Date(now).toISOString(),dataThrough:observed.length?new Date(observed.at(-1)[1]*1000).toISOString():null,hours,days,runCounts};
 }

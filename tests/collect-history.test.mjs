@@ -58,6 +58,6 @@ test('aligned queries eliminate the real 98.8% bucket-grid artefact while preser
  assert.equal(partial.start%32,0);assert.equal(partial.stop%32,0);assert.ok(partial.points<=2700);
  const summary=summarizeHistory({name:'Alpha',start:start+13,stop:start+3617,now:(start+3617)*1000,responses:[{sections:{metric:responseFor(partial.start,partial.stop,partial.points),conts:{active:[]}}}]});
  assert.equal(summary.hours.reduce((n,h)=>n+h.observedSeconds,0),3604);
- assert.equal(summary.aggregationVersion,4);
+ assert.equal(summary.aggregationVersion,5);
  assert.equal(mergeHours([{start:'x',observedSeconds:3558,calculationVersion:3}],[{start:'x',observedSeconds:3500,calculationVersion:4}])[0].observedSeconds,3500);
 });
