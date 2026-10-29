@@ -67,15 +67,20 @@ try{
     }
     if(process.env.HISTORY_COVERAGE==='1'){
       phase='coverage-audit';
-      const auditStart=Math.floor((stop-3*86400)/86400)*86400,auditStop=auditStart+86400;
+      const auditStart=Math.floor((stop-(Number(process.env.HISTORY_AUDIT_DAYS)||3)*86400)/86400)*86400,auditStop=auditStart+86400;
       const route=base+'/api/v1/archives/machine/'+encodeURIComponent(entityId)+'/query';
       const overview=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{metric:{points:100}}});
       const keys=Object.keys(overview.sections?.metric?.channels||{}),series=keys.find(k=>/cpu|memory|mem_/i.test(k))??keys[0];
       if(series){
         const audit=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{conts:{},metric:{series:[series],points:5760}}});
         for(const requestedPoints of [675,2700]){
-        const aligned=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{metric:{series:[series],points:requestedPoints}}});
+        const aligned=await request(route,auth.token,{start:auditStart,stop:auditStop,sections:{conts:{},metric:{series:[series],points:requestedPoints}}});
         const alignedMetric=aligned.sections?.metric;
+        if(requestedPoints===2700){
+          const conts=aligned.sections?.conts,rows=conts?.active||[];
+          const hours=Array.from({length:24},(_,h)=>{const a=auditStart+h*3600,b=a+3600;return coverageIntervals(alignedMetric,a,b).reduce((n,[x,y])=>n+y-x,0);});
+          console.log(JSON.stringify({box:name,phase:'daily-gap-audit',auditDay:timestamp(auditStart),metricFirst:timestamp(alignedMetric?.t?.[0]),metricLast:timestamp(alignedMetric?.t?.at(-1)),observedSecondsPerHour:hours,containerCount:rows.length,containerError:!!conts?.error,approximate:rows.filter(r=>r.approx).length,fragmentedRuns:rows.flatMap(r=>r.runs||[]).filter(r=>r.fragmented).length,containers:rows.map(r=>({first:timestamp(r.first_seen),last:timestamp(r.last_seen),ended:!!r.end_witnessed,runs:(r.runs||[]).map(run=>({start:timestamp(run.start),end:timestamp(run.end),fragmented:!!run.fragmented}))}))}));
+        }
         console.log(JSON.stringify({box:name,phase:'coverage-aligned-audit',requestedPoints,step:alignedMetric?.step,raw:alignedMetric?.raw,pointCount:alignedMetric?.t?.length,firstTimestamps:alignedMetric?.t?.slice(0,12),observedSeconds:coverageIntervals(alignedMetric,auditStart,auditStop).reduce((n,[a,b])=>n+b-a,0)}));
         }
         const m=audit.sections?.metric,deltaCounts={};
