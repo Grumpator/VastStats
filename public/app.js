@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=4.0.0';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=4.0.0';
-import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=4.0.0';
+import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments,reliabilityLabel} from './model.js?v=4.1.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=4.1.0';
+import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=4.1.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -29,7 +29,7 @@ const boxKey=box=>box.deviceKey??box.storageKey??box.name;
 
 function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function icon(kind,disabled=false){
-  const paths={gpu:['M4 6h16v12H4Z','M8 10h8v4H8Z','M2 9h2','M2 15h2','M8 18v3','M12 18v3','M16 18v3','M20 10h2','M20 14h2'],power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
+  const paths={gauge:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 6v2','M6 12h2','M16 12h2','m12 12 4-5'],unverified:['M12 2l8 3v6c0 5-8 11-8 11S4 16 4 11V5Z','M8 11h8'],deverified:['M12 2l8 3v6c0 5-8 11-8 11S4 16 4 11V5Z','m9 8 6 6','m15 8-6 6'],shield:['M12 2l8 3v6c0 5-8 11-8 11S4 16 4 11V5Z','m8 11 3 3 5-6'],gpu:['M4 6h16v12H4Z','M8 10h8v4H8Z','M2 9h2','M2 15h2','M8 18v3','M12 18v3','M16 18v3','M20 10h2','M20 14h2'],power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   for(const [key,value] of Object.entries({viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))svg.setAttribute(key,value);
   for(const d of [...paths[kind],...(disabled?['M3 3l18 18']:[])]){const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',d);svg.append(path);}return svg;
@@ -44,7 +44,7 @@ function deviceDetails(box,stat,status){
   const panel=element('div','box-details-body'),close=element('button','box-details-close','×');close.type='button';close.setAttribute('aria-label','Close '+box.name+' details');close.onclick=()=>{details.open=false;summary.focus();};panel.append(close,element('strong','',box.name+' · details'));
   const stamp=box.lastSample?.at,checked=stamp?fmt(Date.parse(stamp),{dateStyle:'medium',timeStyle:'short'}):'Unavailable';
   const running=status.running===false?0:box.lastSample?.runningInstances??'Unknown',stored=box.lastSample?.storedInstances??'Unknown';
-  const lines=[['Status checked',checked+(status.stale?' · overdue':'')],['Connection',status.connection],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unknown'],['Maintenance',status.maintenance?'Active':status.next?'Planned from '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Off':'Unknown'],['Running instances',running],['Stored instances',stored],['GPUs',box.lastSample?.gpuCount??'Unknown'],['Occupancy',percent(stat.percent)],['Observed · selected period',stat.observed?duration(stat.observed):'None'],['Data coverage',stat.elapsed?coveragePercent(stat.coverage):'—'],['History through',box.dataThrough?fmt(Date.parse(box.dataThrough),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']];
+  const lines=[['Status checked',checked+(status.stale?' · overdue':'')],['Connection',status.connection],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unknown'],['Maintenance',status.maintenance?'Active':status.next?'Planned from '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Off':'Unknown'],['Running instances',running],['Stored instances',stored],['GPUs',box.lastSample?.gpuCount??'Unknown'],['Reliability',box.lastSample?.reliability==null?'Unavailable':(box.lastSample.reliability*100).toFixed(6)+'%'],['Verification',box.lastSample?.verification??'Unavailable'],['Occupancy',percent(stat.percent)],['Observed · selected period',stat.observed?duration(stat.observed):'None'],['Data coverage',stat.elapsed?coveragePercent(stat.coverage):'—'],['History through',box.dataThrough?fmt(Date.parse(box.dataThrough),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']];
   if(box.historyError)lines.push(['History refresh','Failed; previous data retained']);
   else if(box.dataThrough&&Date.now()-Date.parse(box.dataThrough)>2*3600000)lines.push(['History delay',duration((Date.now()-Date.parse(box.dataThrough))/1000)]);
   if(box.historyStart)lines.push(['History available from',fmt(Date.parse(box.historyStart),{dateStyle:'medium',timeStyle:'short'})]);
@@ -146,6 +146,10 @@ function render(){
     states.append(stateIcon(status.next&&!status.maintenance?'clock':'wrench',status.maintenance||status.next?'maintenance':'muted',status.maintenance?'Maintenance active'+when:status.next?'Maintenance planned: '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Maintenance off'+when:'Maintenance unknown'+when,status.maintenance===null&&!status.next?'?':null,status.maintenance===false&&!status.next));
     states.append(stateIcon('stored','muted','Stored instances: '+(box.lastSample?.storedInstances??'unknown')+when,box.lastSample?.storedInstances??'?'));
     states.append(stateIcon('gpu','muted','GPUs: '+(box.lastSample?.gpuCount??'unknown')+when,box.lastSample?.gpuCount??'?'));
+    const verification=box.lastSample?.verification;
+    states.append(stateIcon(verification==='verified'?'shield':verification==='deverified'?'deverified':'unverified',verification==='verified'?'verified':verification==='deverified'?'offline':'muted','Verification: '+(verification??'unavailable')+when,null));
+    const reliability=box.lastSample?.reliability;
+    const reliabilityIcon=stateIcon('gauge','muted','Reliability: '+(reliability==null?'unavailable':(reliability*100).toFixed(6)+'%')+when,reliabilityLabel(reliability));reliabilityIcon.classList.add('device-reliability');states.append(reliabilityIcon);
     title.append(states);const metric=element('div','box-percent',percent(stats[index].percent));metric.title='Occupancy in observed data for the selected period; see details for coverage';
     const actions=element('div','box-actions'),details=deviceDetails(box,stats[index],status);actions.append(metric,details);header.append(title,actions);card.append(header);
     const scroll=element('div','timeline-circles');for(const bin of bins)scroll.append(cell(box,bin));

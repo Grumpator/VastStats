@@ -5,8 +5,8 @@ import {machineState,sanitizeMachines,updateHistory,parseMap} from '../scripts/c
 import {midnight,addDays,aggregate,currentStatus} from '../public/model.js';
 test('exports only names and counts, even when response contains secrets',()=>{
   const result=sanitizeMachines({machines:[{id:123,name:'private',hostname:'private-host',api_key:'secret',public_ipaddr:'192.0.2.1',timeout:0,machine_maintenance:null,current_rentals_running:1,current_rentals_resident:2}]},{123:'Alpha'});
-  assert.deepEqual(result,[{name:'Alpha',running:true,runningInstances:1,storedInstances:2,allocatedStorageGb:null,gpuCount:null,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
-  assert.deepEqual(sanitizeMachines({machines:[]},{123:'Alpha'})[0],{name:'Alpha',running:null,runningInstances:null,storedInstances:null,allocatedStorageGb:null,gpuCount:null,connection:'unknown',maintenanceWindows:null,listed:null,listingEndsAt:null});
+  assert.deepEqual(result,[{name:'Alpha',running:true,runningInstances:1,storedInstances:2,allocatedStorageGb:null,gpuCount:null,reliability:null,verification:null,connection:'online',maintenanceWindows:[],listed:null,listingEndsAt:null}]);
+  assert.deepEqual(sanitizeMachines({machines:[]},{123:'Alpha'})[0],{name:'Alpha',running:null,runningInstances:null,storedInstances:null,allocatedStorageGb:null,gpuCount:null,reliability:null,verification:null,connection:'unknown',maintenanceWindows:null,listed:null,listingEndsAt:null});
   assert.throws(()=>parseMap('{"123":"Alpha","456":"Alpha"}'));
 });
 test('listing expires independently of running rentals and splits history between checks',()=>{

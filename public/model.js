@@ -1,4 +1,9 @@
 export const ZONE = 'Europe/London';
+export function reliabilityLabel(ratio){
+  if(!Number.isFinite(ratio)||ratio<0||ratio>1)return '—';
+  const n=ratio*100;
+  return ratio===1?'100%':n>=99.995?'<100%':n.toFixed(2)+'%';
+}
 const HOUR = 3600000;
 export function dayKey(date) { return new Intl.DateTimeFormat('en-CA', {timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).format(date); }
 export function addDays(key, count) { const d = new Date(key+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+count); return d.toISOString().slice(0,10); }
@@ -55,7 +60,7 @@ export function demoData(now=Date.now()) {
     }
     const stored=hours.at(-1)?.storedInstances??0;
     const daily=new Map();for(const row of hours){const key=dayKey(new Date(row.start)),d=daily.get(key)||{start:new Date(midnight(key)).toISOString(),observedSeconds:0,runningSessions:0};d.observedSeconds+=row.observedSeconds;d.runningSessions+=row.runningSessions;daily.set(key,d);}
-    return {name,hours,days:[...daily.values()],lastSample:{at:new Date(now).toISOString(),storedInstances:stored,gpuCount:index===2?2:1,runningInstances:index===1?0:stored?1:0,allocatedStorageGb:stored*(index+1)*40,connection:index===1?'offline':'online',listed:index!==1,maintenanceWindows:index===2?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:[]}};
+    return {name,hours,days:[...daily.values()],lastSample:{at:new Date(now).toISOString(),storedInstances:stored,gpuCount:index===2?2:1,reliability:[.9999,.975,.999999][index],verification:['verified','deverified','unverified'][index],runningInstances:index===1?0:stored?1:0,allocatedStorageGb:stored*(index+1)*40,connection:index===1?'offline':'online',listed:index!==1,maintenanceWindows:index===2?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:[]}};
   });return {version:1,updatedAt:new Date(now).toISOString(),boxes};
 }
 

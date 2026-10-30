@@ -239,7 +239,7 @@ h1{font-size:29px}
 .cell.measured:not(.complete-running){color:#203e2d;text-shadow:0 1px 1px #fff,1px 0 1px #fff,-1px 0 1px #fff,0 -1px 1px #fff}
 .cell.measured.complete-running{color:#fff;text-shadow:none}
 [hidden]{display:none!important}
-.timeline{--device-columns-width:314px;--device-name-width:90px;--device-meta-gap:6px;--device-percent-width:48px;--device-details-width:24px;--device-action-gap:3px;--table-gap:12px}
+.timeline{--device-columns-width:392px;--device-name-width:90px;--device-meta-gap:6px;--device-percent-width:48px;--device-details-width:24px;--device-action-gap:3px;--table-gap:12px}
 .device-table{display:block;background:#fff;border:1px solid var(--line);border-radius:11px}
 .device-table .box{display:grid;grid-template-columns:var(--device-columns-width) minmax(0,1fr);align-items:center;gap:12px;padding:8px 12px;margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
 .device-table .box:last-child{border-bottom:0}
@@ -261,7 +261,7 @@ h1{font-size:29px}
 .timeline-labels small{display:block;font-size:7px;white-space:nowrap;color:#929c8a}
 .view-picker{flex-wrap:wrap}
 @media(max-width:700px){
-.timeline{--device-columns-width:268px;--device-name-width:80px;--device-meta-gap:3px;--device-percent-width:40px;--device-action-gap:0px}
+.timeline{--device-columns-width:340px;--device-name-width:80px;--device-meta-gap:3px;--device-percent-width:40px;--device-action-gap:0px}
 
 .device-table .device-states{gap:3px}
 .device-table .device-state svg{width:12px;height:12px}
@@ -281,7 +281,7 @@ h1{font-size:29px}
 .device-table .box-details>summary{width:20px}
 }
 .cell.many-runs{font-size:7px}
-.device-states{--state-icon:16px;display:grid;grid-template-columns:calc(var(--state-icon) + 3px + var(--running-digits,1)*.65em) calc(var(--state-icon) + var(--listed-extra,0px)) calc(var(--state-icon) + var(--connection-extra,0px)) calc(var(--state-icon) + var(--maintenance-extra,0px)) calc(var(--state-icon) + 3px + var(--stored-digits,1)*.65em) calc(var(--state-icon) + 3px + var(--gpu-digits,1)*.65em);align-items:center;font-size:11px}
+.device-states{--state-icon:16px;display:grid;grid-template-columns:calc(var(--state-icon) + 3px + var(--running-digits,1)*.65em) calc(var(--state-icon) + var(--listed-extra,0px)) calc(var(--state-icon) + var(--connection-extra,0px)) calc(var(--state-icon) + var(--maintenance-extra,0px)) calc(var(--state-icon) + 3px + var(--stored-digits,1)*.65em) calc(var(--state-icon) + 3px + var(--gpu-digits,1)*.65em) var(--state-icon) calc(var(--state-icon) + 2px + var(--reliability-text-width,36px));align-items:center;font-size:11px}
 .device-state{min-width:0}
 .device-state svg{width:var(--state-icon);height:var(--state-icon)}
 .device-table .device-states{--state-icon:14px}
@@ -304,3 +304,29 @@ h1{font-size:29px}
 
 .section-head{display:grid;grid-template-columns:29px minmax(0,max-content) 29px minmax(max-content,1fr);align-items:center;justify-content:stretch;gap:10px;margin:0 0 10px}.section-head h2{min-width:0;line-height:1.45}.section-head .icon-button{flex-shrink:0}.section-head #today{justify-self:end;white-space:nowrap;border:1px solid var(--line);border-radius:6px;background:#fff;padding:6px 12px;font-weight:550}.section-head #today:hover{background:#edf3e8;border-color:#bdcfb5}
 @media(max-width:550px){.section-head{gap:6px}.section-head h2{font-size:13px}.section-head #today{padding:6px}}
+
+.device-reliability .device-count{font-weight:500}
+.device-state.verified{color:#3878ae}
+@media(max-width:700px){.device-states{--reliability-text-width:34px}}
+@media(max-width:450px){
+.timeline{--device-columns-width:294px;--device-name-width:64px}
+.device-table .device-states{--state-icon:10px;--reliability-text-width:30px;font-size:9px;gap:2px}
+.device-table .device-state svg{width:10px;height:10px}
+.device-table .device-count{font-size:8px}
+.device-table .box-title h3{font-size:9.5px}
+}
+@media(max-width:389px){
+.timeline{--device-columns-width:264px;--device-name-width:60px;--device-details-width:20px}
+.device-table .device-states{--state-icon:8px;--reliability-text-width:28px;font-size:8px;gap:1px}
+.device-table .device-state svg{width:8px;height:8px}
+.device-table .box-title h3{font-size:9px}
+}
+@media(max-width:340px){
+.timeline{--device-columns-width:224px;--device-name-width:52px;--device-percent-width:36px;--device-details-width:16px;--device-meta-gap:2px}
+.device-table .device-states{--state-icon:7px;--reliability-text-width:25px;font-size:7px}
+.device-table .device-state svg{width:7px;height:7px}
+.device-table .device-count{font-size:7px}
+.device-table .box-title h3{font-size:8px}
+.device-table .box-percent{font-size:10px}
+.device-table .box-details>summary{width:16px}
+}

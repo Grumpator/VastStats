@@ -39,7 +39,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
   for(const {id,name,deviceKey,storageKey,previous:old} of devices){
     let stage='metadata';
     const sample=current.find(b=>b.name===name);
-    const entry={name,months:[...(old?.months||[])],lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances,gpuCount:sample.gpuCount??null,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb,connection:sample.connection,maintenanceWindows:sample.maintenanceWindows,listed:sample.listed,listingEndsAt:sample.listingEndsAt},historyUpdatedAt:old?.historyUpdatedAt??null,dataThrough:old?.dataThrough??null};
+    const entry={name,months:[...(old?.months||[])],lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances,gpuCount:sample.gpuCount??null,reliability:sample.reliability??null,verification:sample.verification??null,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb,connection:sample.connection,maintenanceWindows:sample.maintenanceWindows,listed:sample.listed,listingEndsAt:sample.listingEndsAt},historyUpdatedAt:old?.historyUpdatedAt??null,dataThrough:old?.dataThrough??null};
     if(deviceKey){entry.deviceKey=deviceKey;entry.storageKey=storageKey;entry.lastSeenAt=stamp;}
     entry.historyStart=old?.historyStart??null;
     // A rename updates display metadata without moving or recomputing old history.
@@ -97,7 +97,6 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         summary.dataThrough=through.at(-1)??null;
         summary.month=m;summary.final=m<month&&!recent;
         summary.snapshots=cached?.snapshots||[];
-        if(m===month){const status={at:stamp,connection:sample.connection,listed:sample.listed,maintenance:sample.maintenanceWindows?.some(w=>Date.parse(w.start)<=now&&now<Date.parse(w.end))??null};summary.snapshots=[...summary.snapshots.filter(s=>s.at!==stamp),status];}
         stage='save-summary';
         await save(file,summary);
         if(!entry.months.includes(m))entry.months.push(m);
@@ -114,6 +113,14 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
       const reason=http?'HTTP '+http[1]:known.has(error.message)||shape?error.message:'unexpected response or storage failure';
       console.warn(name+': '+stage+' failed ('+reason+'); keeping existing summaries.');
     }
+    // Snapshot history is independent of delayed/failed occupancy imports.
+    const folder=new URL(encodeURIComponent(storageKey)+'/',root);await mkdir(folder,{recursive:true});
+    const file=new URL(month+'.json',folder),snapshotFile=await readJson(file,{version:2,aggregationVersion:5,name,month,hours:[],days:[],runCounts:[],snapshots:[]});
+    const status={at:stamp,connection:sample.connection,listed:sample.listed,maintenance:sample.maintenanceWindows?.some(w=>Date.parse(w.start)<=now&&now<Date.parse(w.end))??null,reliability:sample.reliability??null,verification:sample.verification??null};
+    snapshotFile.snapshots=[...(snapshotFile.snapshots||[]).filter(s=>s.at!==stamp),status];
+    await save(file,snapshotFile);
+    if(!entry.months.includes(month))entry.months.push(month);
+    entry.months.sort();
     boxes.push(entry);
   }
   if(!mapping)for(const old of previous.boxes){

@@ -33,7 +33,7 @@ The workflow commits only `public/data/` and uses GitHub's built-in job token. N
 
 The generated data files are intentionally public. They disclose fleet occupancy and instance counts. Never put raw responses or a private map in this repository.
 
-The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The final v3 dashboard and data are preserved in the [`v3` branch](https://github.com/Grumpator/VastStats/tree/v3) and immutable `v3.2.3` tag. The current release is v4.0.0.
+The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The final v3 dashboard and data are preserved in the [`v3` branch](https://github.com/Grumpator/VastStats/tree/v3) and immutable `v3.2.3` tag. The current release is v4.1.0.
 
 ## Reading the dashboard
 
@@ -54,7 +54,7 @@ Hardware sample presence is used only to identify reporting coverage, not GPU ut
 
 Vast uploads telemetry in batches. Current machine state and historical telemetry may have different timestamps; a successful refresh does not prove recent running history has arrived. Metadata `extent.end` may represent the query clock, so watermarks use actual reporting samples and are capped at the latest container observation while a container remains open. A trailing hardware bucket must not turn an unobserved running tail into idle time or erase its stored count. See [the API investigation](docs/telemetry-history-investigation.md).
 
-Each device row shows its name, current-state icons and selected-period occupancy on one line. Icons follow the Now summary order: running instances (play/pause plus count), listing (tag), connection (power), maintenance (spanner, or clock for planned maintenance), stored instances (layers plus count), then GPU count (chip). Green means active, red means offline and amber means maintenance; a slash marks an inactive state. Hover an icon for its label. The info button opens snapshot time, history watermark, observed time and coverage, and works by tap or keyboard too. These are latest machine-state snapshots, not live connections. With hourly collection, updates are flagged overdue after 90 minutes: icons fade, the info button turns amber and details show the overdue timestamp. Last known values remain visible. The page does not have a private live-status endpoint.
+Each device row shows its name, current-state icons and selected-period occupancy on one line. Icons follow the Now summary order: running instances (play/pause plus count), listing (tag), connection (power), maintenance (spanner, or clock for planned maintenance), stored instances (layers plus count), then GPU count (chip), current verification (shield) and reliability percentage (gauge). Green means active, red means offline and amber means maintenance; a slash marks an inactive state. Hover an icon for its label. The info button opens snapshot time, history watermark, observed time and coverage, and works by tap or keyboard too. These are latest machine-state snapshots, not live connections. With hourly collection, updates are flagged overdue after 90 minutes: icons fade, the info button turns amber and details show the overdue timestamp. Last known values remain visible. The page does not have a private live-status endpoint.
 
 A running machine snapshot does not establish occupancy throughout an hour or day. Grey circles mean historical coverage has not arrived; they can coexist with a running-instance icon. As new API history arrives, collection backfills those circles. Solid green requires complete coverage and running throughout the elapsed portion; partial coverage leaves a grey unknown sector and the amber marker.
 
@@ -81,7 +81,7 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v4.0.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v4.1.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Hours/Days/Weeks/Months opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 
@@ -104,3 +104,9 @@ The collector reads every machine returned by the owner-scoped Vast machines API
 An HMAC of the private machine ID and stable secret seed supplies the public `deviceKey`. This is not a plain hash of a guessable numeric ID and is independent of the Vast API credential. The public `storageKey` selects the history folder; existing Alpha/Beta/Gamma folders remain in place. A device rename changes display metadata across cached months and preserves its storage key and historical records. Previously collected devices absent from an API list keep their history, have unavailable current status, and show a discovery note in device details. Their absence is not treated as offline. When they return, collection continues on the same history.
 
 The public data schema remains version 2 with optional identity/storage fields, so v4 can read existing summaries during migration. A hostname change does not require a frontend deployment.
+
+## Reliability and verification (v4.1)
+
+The final device icon (gauge) is Vast reliability, from `reliability2` (a ratio between zero and one), displayed as a percentage. Two decimal places keep small differences visible; an imperfect score that would round to 100% is shown as <100%. Hover or open device details for six-decimal precision and the snapshot time. This is Vast’s latest score, independent of the selected occupancy period.
+
+The shield immediately before reliability shows current verification: blue check = verified, grey minus = unverified, red cross = deverified. Hover or device details provides the state and snapshot time. Both verification and reliability refer to the latest machine snapshot, independent of the selected period. The collector saves these fields with timestamped state snapshots going forward, including when an individual occupancy import fails. Historical verification has not been established through the API, so circle fills, borders and tooltips do not infer verification for past periods.
