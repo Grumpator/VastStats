@@ -27,7 +27,7 @@ export function aggregate(records,start,end,now=Date.now(),historyStart=-Infinit
     if(b>last){last=b;stored=r.storedInstances;}
   }
   const coverage=elapsed?Math.min(1,observed/elapsed):0;
-  const percent=observed?Math.min(100,occupied/observed*100):null;
+  const percent=observed&&elapsed?Math.min(100,occupied/elapsed*100):null;
   return {observed,occupied,elapsed,coverage,percent,stored,offline,maintenance,connectionObserved,maintenanceObserved,listed,unlisted,listingObserved,income:observed&&hasIncome?income:null,
     borderState:offline>0?'offline':maintenance>0?'maintenance':unlisted>0?'unlisted':listed>0?'listed':'unknown',
     state:end<=historyStart&&start<now?'not-tracked':!elapsed?'future':!observed?'unknown':percent>=99.999?'full':percent>0?'partial':'idle'};
@@ -67,7 +67,7 @@ export function fleetSnapshot(boxes,now=Date.now(),maxAgeSeconds=5400){
 }
 
 // Circle sectors describe confirmed running/idle time and unknown elapsed time.
-// Summary occupancy remains occupied / observed; future time is excluded from both.
+// All occupancy percentages use eligible elapsed tracking time.
 export function circleSegments(value){
   const elapsed=Math.max(0,value.elapsed||0),observed=Math.min(elapsed,Math.max(0,value.observed||0)),running=Math.min(observed,Math.max(0,value.occupied||0));
   if(!elapsed||!observed)return {running:null,idle:0,observed:0,unknown:elapsed?100:0};

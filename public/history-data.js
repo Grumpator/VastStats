@@ -52,5 +52,9 @@ export function applySnapshots(value,box,bin,now=Date.now(),maxAgeSeconds=5400){
   const current=isNow&&stamp>=bin.start&&stamp<bin.end&&now-stamp>=0&&now-stamp<=maxAgeSeconds*1000?latest:null;
   const observed=[...snapshots,...(current?[{...current,maintenance:current.maintenanceWindows?.some(w=>Date.parse(w.start)<=stamp&&stamp<Date.parse(w.end))??null}]:[])];
   const state=observed.some(s=>s.connection==='offline')?'offline':observed.some(s=>s.maintenance)?'maintenance':observed.some(s=>s.listed===false)?'unlisted':observed.some(s=>s.listed===true)?'listed':value.borderState;
-  return {...value,borderState:state,stored:current?.storedInstances??value.stored,isNow,snapshotAt:current?.at??snapshots.at(-1)?.at??null,currentSnapshot:current};
+  // These are sightings, never inferred durations between checks.
+  const latestAt=predicate=>observed.filter(predicate).map(s=>s.at).sort().at(-1)??null;
+  const statusEvidence={offline:latestAt(s=>s.connection==='offline'),maintenance:latestAt(s=>s.maintenance===true),unlisted:latestAt(s=>s.listed===false),listed:latestAt(s=>s.listed===true)};
+  const maintenanceSchedules=(latest?.maintenanceWindows||[]).filter(w=>Date.parse(w.start)<bin.end&&Date.parse(w.end)>bin.start);
+  return {...value,statusEvidence,maintenanceSchedules,borderState:state,stored:current?.storedInstances??value.stored,isNow,snapshotAt:current?.at??snapshots.at(-1)?.at??null,currentSnapshot:current};
 }

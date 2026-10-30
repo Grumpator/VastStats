@@ -92,7 +92,7 @@ test('square stored count is the last observed count, not the maximum within the
   data=updateHistory(data,sample(false,3),start+3600000);
   assert.equal(hour().stored,0);
 });
-test('selected-period occupancy excludes missing history and future time',()=>{
+test('selected-period occupancy includes gaps but excludes future time',()=>{
   const now=Date.parse('2026-10-27T12:00Z');
   const rows=[
     {start:'2026-10-20T10:00Z',end:'2026-10-20T13:00Z',observedSeconds:10800,occupiedSeconds:0},
@@ -102,9 +102,9 @@ test('selected-period occupancy excludes missing history and future time',()=>{
     const bins=timelineBins(windowEndForDate('2026-10-27',scale,now),scale,count);
     return aggregate(rows,bins[0].start,bins.at(-1).end,now);
   };
-  assert.equal(forWindow('days',2).percent,100);
-  assert.equal(forWindow('months',1).percent,40);
-  assert.equal(forWindow('weeks',2).percent,40);
+  assert.equal(forWindow('days',2).percent,7200/129600*100);
+  assert.equal(forWindow('months',1).percent,7200/forWindow('months',1).elapsed*100);
+  assert.equal(forWindow('weeks',2).percent,7200/forWindow('weeks',2).elapsed*100);
   assert.equal(forWindow('months',1).observed,18000);
   assert.equal(forWindow('months',1).occupied,7200);
   const future=aggregate(rows,midnight('2026-10-28'),midnight('2026-10-29'),now);
@@ -121,7 +121,7 @@ test('integrates sampled running state across hour boundaries without inventing 
   assert.equal(data.boxes[0].hours[1].occupiedSeconds,180);
   data=updateHistory(data,sample(false,2),Date.parse('2026-10-26T10:08Z'));
   const result=aggregate(data.boxes[0].hours,Date.parse('2026-10-26T10:00Z'),Date.parse('2026-10-26T11:00Z'),Date.parse('2026-10-26T11:00Z'));
-  assert.equal(result.percent,37.5);assert.equal(result.observed,480);assert.equal(result.stored,2);
+  assert.equal(result.percent,5);assert.equal(result.observed,480);assert.equal(result.stored,2);
   assert.equal(result.income,null);assert.equal(result.coverage,480/3600);
 });
 test('long gaps remain unknown and repeated collection does not double-count',()=>{

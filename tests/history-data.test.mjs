@@ -39,3 +39,19 @@ test('now cell shows a fresh snapshot without adding occupancy or observed durat
   assert.equal(result.currentSnapshot.running,true);assert.equal(result.state,'unknown');
   assert.equal(applySnapshots(value,box,{start,end:start+3600000},start+3*3600000).stored,null);
 });
+
+test('status sightings stay within the bin, keep latest evidence and never infer durations',()=>{
+ const start=Date.parse('2026-10-28T12:00Z'),end=start+3600000;
+ const box={snapshots:[
+  {at:'2026-10-28T11:59Z',connection:'offline',maintenance:true,listed:false},
+  {at:'2026-10-28T12:10Z',connection:'offline',maintenance:false,listed:false},
+  {at:'2026-10-28T12:20Z',connection:'online',maintenance:true,listed:true},
+  {at:'2026-10-28T12:30Z',connection:'offline',maintenance:false,listed:true},
+  {at:'2026-10-28T13:00Z',connection:'offline',maintenance:true,listed:false}
+ ],lastSample:{at:'2026-10-28T14:00Z',maintenanceWindows:[{start:'2026-10-28T12:15Z',end:'2026-10-28T12:45Z'},{start:'2026-10-29T12:00Z',end:'2026-10-29T13:00Z'}]}};
+ const result=applySnapshots({borderState:'unknown'},box,{start,end},end);
+ assert.deepEqual(result.statusEvidence,{offline:'2026-10-28T12:30Z',maintenance:'2026-10-28T12:20Z',unlisted:'2026-10-28T12:10Z',listed:'2026-10-28T12:30Z'});
+ assert.equal(result.maintenanceSchedules.length,1);assert.equal(result.offline,undefined);
+ const empty=applySnapshots({borderState:'unknown'},{snapshots:[]},{start,end},end);
+ assert.deepEqual(empty.statusEvidence,{offline:null,maintenance:null,unlisted:null,listed:null});assert.deepEqual(empty.maintenanceSchedules,[]);
+});
