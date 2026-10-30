@@ -1,7 +1,7 @@
 name: Collect API history
 on:
   push:
-    branches: [main, codex/api-history]
+    branches: [main, codex/api-history, codex/v4-discovery]
     paths:
       - 'scripts/history-*.mjs'
       - 'scripts/collect-history.mjs'
@@ -43,6 +43,7 @@ jobs:
         env:
           VAST_API_KEY: ${{ secrets.VAST_API_KEY }}
           VAST_BOX_MAP: ${{ secrets.VAST_BOX_MAP }}
+          VAST_IDENTITY_SEED: ${{ secrets.VAST_IDENTITY_SEED }}
           HISTORY_REBUILD: ${{ inputs.rebuild && '1' || '0' }}
         run: node scripts/collect-history.mjs
       - name: Save sanitized month summaries

@@ -239,7 +239,7 @@ h1{font-size:29px}
 .cell.measured:not(.complete-running){color:#203e2d;text-shadow:0 1px 1px #fff,1px 0 1px #fff,-1px 0 1px #fff,0 -1px 1px #fff}
 .cell.measured.complete-running{color:#fff;text-shadow:none}
 [hidden]{display:none!important}
-.timeline{--device-columns-width:300px;--device-name-width:76px;--device-meta-gap:6px;--device-percent-width:48px;--device-details-width:24px;--device-action-gap:3px;--table-gap:12px}
+.timeline{--device-columns-width:314px;--device-name-width:90px;--device-meta-gap:6px;--device-percent-width:48px;--device-details-width:24px;--device-action-gap:3px;--table-gap:12px}
 .device-table{display:block;background:#fff;border:1px solid var(--line);border-radius:11px}
 .device-table .box{display:grid;grid-template-columns:var(--device-columns-width) minmax(0,1fr);align-items:center;gap:12px;padding:8px 12px;margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
 .device-table .box:last-child{border-bottom:0}
@@ -261,7 +261,7 @@ h1{font-size:29px}
 .timeline-labels small{display:block;font-size:7px;white-space:nowrap;color:#929c8a}
 .view-picker{flex-wrap:wrap}
 @media(max-width:700px){
-.timeline{--device-columns-width:232px;--device-name-width:44px;--device-meta-gap:3px;--device-percent-width:40px;--device-action-gap:0px}
+.timeline{--device-columns-width:268px;--device-name-width:80px;--device-meta-gap:3px;--device-percent-width:40px;--device-action-gap:0px}
 
 .device-table .device-states{gap:3px}
 .device-table .device-state svg{width:12px;height:12px}
@@ -273,7 +273,7 @@ h1{font-size:29px}
 .timeline-axis-meta{font-size:9px}
 }
 @media(max-width:360px){
-.timeline{--device-columns-width:208px;--device-name-width:35px;--device-details-width:20px}
+.timeline{--device-columns-width:249px;--device-name-width:76px;--device-details-width:20px}
 
 .device-table .device-states{gap:2px}
 .device-table .device-state{gap:1px}
@@ -295,6 +295,10 @@ h1{font-size:29px}
 .device-table .device-states{--state-icon:10px}
 }
 .device-table{margin-bottom:var(--table-gap)}
+@media(max-width:340px){
+.timeline{--device-columns-width:224px;--device-name-width:61px}
+.device-table .box-title h3{font-size:9px}
+}
 .cell.not-tracked{background:transparent;border-color:transparent;color:#aeb7a8;border-radius:0;font-size:12px}
 .cell.not-tracked:hover,.cell.not-tracked:focus-visible{box-shadow:none;background:#f1f4ec}
 

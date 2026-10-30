@@ -1,4 +1,4 @@
-# VastStats v3
+# VastStats v4
 
 A public Vast fleet dashboard built from historical container-running intervals. The live Pages site deploys from `main`; the previous snapshot-based dashboard and its data are preserved on [`v1`](https://github.com/Grumpator/VastStats/tree/v1).
 
@@ -6,7 +6,7 @@ A public Vast fleet dashboard built from historical container-running intervals.
 
 1. GitHub Actions reads current machine state and obtains a short-lived telemetry token using a private Vast API key.
 2. It queries container history and reporting samples, unions simultaneous running intervals, and builds hourly summaries plus daily run counts. Missed collector runs can be backfilled from the API.
-3. Only public box names, timestamps, counts, durations and sanitized state snapshots are committed. Raw instance/machine IDs, tokens, API responses, hostnames and IPs stay private.
+3. Only public box names, timestamps, counts, durations and sanitized state snapshots are committed. Vast hostnames are intentionally public display names in v4. Raw instance/machine IDs, tokens, other API fields and IPs stay private.
 4. The page loads the index and the per-box/month files required by the visible date window. No API key reaches the browser.
 
 The current month is reconciled with a three-day overlap before the latest imported telemetry. Initial imports recover all available months, up to a ten-year safety limit. Completed months remain stored; the preceding month is also reconciled during the first seven days of the next month for late uploads. A manual full rebuild is available. Previously recovered hours are retained when a later response has less coverage, including after an upstream recording-format change.
@@ -18,7 +18,8 @@ This is the GitHub-only variant: it stores compact API-derived summaries and ref
 In GitHub **Settings → Secrets and variables → Actions**, set these **repository secrets**:
 
 - `VAST_API_KEY`: create a Vast key in Advanced mode using [config/vast-api-permissions.json](config/vast-api-permissions.json). Machines/read and User/read restricted to the telemetry-token GET route were verified on all three boxes. Billing and write permissions are not needed.
-- `VAST_BOX_MAP`: your private machine-ID to public-name map, such as `{"123":"Alpha","456":"Beta"}`. Public names must be unique ignoring case and contain only letters, numbers, spaces, underscores or hyphens, beginning with a letter (24 characters maximum). Keep real IDs in the secret.
+- Existing installation: keep `VAST_BOX_MAP` unchanged. In v4 it migrates the old aliases and supplies a stable private seed for anonymous device identities. It no longer filters the fleet and needs no entries added for new devices. JSON formatting/key order do not affect the seed; changing its entries does.
+- Fresh installation: set `VAST_IDENTITY_SEED` to a random secret of at least 32 characters instead of creating a map. Never change this identity seed after collecting data. API-key rotation is independent. An existing installation should continue using its existing map-derived seed, rather than switching seeds; the collector rejects a changed seed to prevent splitting history.
 
 Run **Actions → Collect API history → Run workflow**, choosing the appropriate branch. Select **rebuild** to reconcile every available month. The schedule requests one refresh per hour, at minute 17; GitHub may delay or skip triggers. Historical backfilling avoids the requirement to capture consecutive five-minute snapshots. This does not guarantee live freshness.
 
@@ -27,12 +28,12 @@ The workflow commits only `public/data/` and uses GitHub's built-in job token. N
 ## Files
 
 - `public/data/index.json`: fleet names, current snapshots, available month names, refresh/failure information and telemetry watermarks.
-- `public/data/Alpha/2026-10.json`: one box/month of hourly aggregates, daily run counts, hourly run-start/boundary counters and explicitly observed state snapshots. Other names/months follow the same layout.
+- `public/data/Alpha/2026-10.json` (migrated devices) or `public/data/device-<anonymous-key>/2026-10.json` (new devices): one box/month of hourly aggregates, daily run counts, hourly run-start/boundary counters and explicitly observed state snapshots. Other names/months follow the same layout.
 - `config/vast-api-permissions.json`: permission configuration only, never a credential.
 
 The generated data files are intentionally public. They disclose fleet occupancy and instance counts. Never put raw responses or a private map in this repository.
 
-The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.2.3).
+The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The final v3 dashboard and data are preserved in the [`v3` branch](https://github.com/Grumpator/VastStats/tree/v3) and immutable `v3.2.3` tag. The current release is v4.0.0.
 
 ## Reading the dashboard
 
@@ -80,7 +81,7 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v3.2.3** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v4.0.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Hours/Days/Weeks/Months opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 
@@ -95,3 +96,11 @@ The amber incomplete-data dot marks every observed circle below 100% coverage of
 For example, Beta 27 October at 18:00 has 1,888 observed seconds and 1,858 running seconds: the circle is 51.6% green, 0.8% amber and 47.6% grey. The tooltip shows 98.4% occupancy within observed time and 52.4% coverage. Unknown time is never presented as confirmed idle or running time.
 
 Circle tooltips show occupancy with running duration, runs and data coverage. Additional status rows show timestamped offline, maintenance and unlisted sightings. Listed sightings are omitted to keep the tooltip focused on exceptions. These are observations, not durations; the latest relevant sighting is shown. Known maintenance schedules are labelled separately when no active maintenance sighting exists. Unavailable state history is omitted rather than labelled Unknown or assumed zero.
+
+## Automatic device discovery (v4)
+
+The collector reads every machine returned by the owner-scoped Vast machines API, including offline machines. New additions appear after the next successful collection, without editing a device list or map. Display names come from `hostname`; they are published as requested, so do not put sensitive information in those names. Names are treated as text, never HTML or file paths. Missing names receive `Unnamed-<anonymous suffix>` and duplicate names receive anonymous suffixes.
+
+An HMAC of the private machine ID and stable secret seed supplies the public `deviceKey`. This is not a plain hash of a guessable numeric ID and is independent of the Vast API credential. The public `storageKey` selects the history folder; existing Alpha/Beta/Gamma folders remain in place. A device rename changes display metadata across cached months and preserves its storage key and historical records. Previously collected devices absent from an API list keep their history, have unavailable current status, and show a discovery note in device details. Their absence is not treated as offline. When they return, collection continues on the same history.
+
+The public data schema remains version 2 with optional identity/storage fields, so v4 can read existing summaries during migration. A hostname change does not require a frontend deployment.
