@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=3.2.3';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=3.2.3';
-import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=3.2.3';
+import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=4.0.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=4.0.0';
+import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=4.0.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -25,6 +25,7 @@ function selectedDays(){
   const bins=visibleBins(),days=[];for(let key=bins[0].key;key<=dayKey(new Date(bins.at(-1).end-1));key=addDays(key,1))days.push(key);return days;
 }
 let recordsByBox=new Map(),countsByBox=new Map(),snapshotsByBox=new Map(),activeCell=null;
+const boxKey=box=>box.deviceKey??box.storageKey??box.name;
 
 function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function icon(kind,disabled=false){
@@ -47,8 +48,9 @@ function deviceDetails(box,stat,status){
   if(box.historyError)lines.push(['History refresh','Failed; previous data retained']);
   else if(box.dataThrough&&Date.now()-Date.parse(box.dataThrough)>2*3600000)lines.push(['History delay',duration((Date.now()-Date.parse(box.dataThrough))/1000)]);
   if(box.historyStart)lines.push(['History available from',fmt(Date.parse(box.historyStart),{dateStyle:'medium',timeStyle:'short'})]);
+  if(box.discoveryMissing)lines.push(['Device discovery','Not returned by the latest machine list'],['Last seen',box.lastSeenAt?fmt(Date.parse(box.lastSeenAt),{dateStyle:'medium',timeStyle:'short'}):'Unavailable']);
   const dl=element('dl');for(const [label,value] of lines)dl.append(element('dt','',label),element('dd','',String(value)));panel.append(dl,element('p','','Icons describe the latest machine snapshot. Occupancy and observed time refer to the selected period.'));details.append(summary,panel);
-  details.dataset.box=box.name;
+  details.dataset.box=boxKey(box);
   details.addEventListener('toggle',()=>{if(details.open){panel.classList.remove('above');const bounds=panel.getBoundingClientRect();if(bounds.bottom>innerHeight-12&&summary.getBoundingClientRect().top>bounds.height+12)panel.classList.add('above');}});
   return details;
 }
@@ -88,11 +90,11 @@ function showTip(button,box,bin,value){
   if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=button;button.setAttribute('aria-describedby','tooltip');
 }
 function cell(box,bin){
-  const rows=recordsByBox.get(box.name);
+  const rows=recordsByBox.get(boxKey(box));
   const binRows=recordsForBin(rows,bin);
-  const source={...box,snapshots:recordsForBin(snapshotsByBox.get(box.name),bin)};
+  const source={...box,snapshots:recordsForBin(snapshotsByBox.get(boxKey(box)),bin)};
   const value=applySnapshots(aggregate(binRows,bin.start,bin.end,Date.now(),Date.parse(box.historyStart)),source,bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
-  value.runCount=value.state==='not-tracked'?null:periodRunCount(['weeks','months'].includes(scale)?{hours:binRows,runCounts:recordsForBin(countsByBox.get(box.name),bin)}:box,bin);
+  value.runCount=value.state==='not-tracked'?null:periodRunCount(['weeks','months'].includes(scale)?{hours:binRows,runCounts:recordsForBin(countsByBox.get(boxKey(box)),bin)}:box,bin);
   const b=element('button','cell '+value.state+' border-'+value.borderState+(incompleteCoverage(value)?' incomplete':'')+(value.isNow?' now':''),value.state==='not-tracked'?'–':value.runCount??'');
   const segments=circleSegments(value);
   if(segments.running!==null){b.classList.add('measured');if(segments.running>=100-1e-7)b.classList.add('complete-running');b.style.setProperty('--running',segments.running+'%');b.style.setProperty('--observed',segments.observed+'%');}
@@ -132,8 +134,8 @@ function render(){
     axis.append(labels);boxes.before(axis);
   }
   data.boxes.forEach((box,index)=>{
-    recordsByBox.set(box.name,box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));
-    countsByBox.set(box.name,(box.runCounts||[]).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));snapshotsByBox.set(box.name,(box.snapshots||[]).map(r=>({...r,startMs:Date.parse(r.at),endMs:Date.parse(r.at)+1})).sort((a,b)=>a.startMs-b.startMs));
+    recordsByBox.set(boxKey(box),box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));
+    countsByBox.set(boxKey(box),(box.runCounts||[]).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));snapshotsByBox.set(boxKey(box),(box.snapshots||[]).map(r=>({...r,startMs:Date.parse(r.at),endMs:Date.parse(r.at)+1})).sort((a,b)=>a.startMs-b.startMs));
     const card=element('article','box'),header=element('div','box-header'),title=element('div','box-title'),heading=element('h3','',box.name);heading.title=box.name;title.append(heading);
     const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),states=element('div','device-states'+(status.stale?' outdated':''));states.setAttribute('aria-label','Latest snapshot for '+box.name);
     const stamp=box.lastSample?.at,when=stamp?' · checked '+fmt(Date.parse(stamp),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
@@ -147,7 +149,7 @@ function render(){
     title.append(states);const metric=element('div','box-percent',percent(stats[index].percent));metric.title='Occupancy in observed data for the selected period; see details for coverage';
     const actions=element('div','box-actions'),details=deviceDetails(box,stats[index],status);actions.append(metric,details);header.append(title,actions);card.append(header);
     const scroll=element('div','timeline-circles');for(const bin of bins)scroll.append(cell(box,bin));
-    card.append(scroll);boxes.append(card);if(box.name===detailsOpenFor)details.open=true;
+    card.append(scroll);boxes.append(card);if(boxKey(box)===detailsOpenFor)details.open=true;
   });
   const updated=data.updatedAt?Date.parse(data.updatedAt):null,stale=updated&&Date.now()-updated>2*3600000;
   $('.freshness').classList.toggle('live',!!updated&&!stale&&!demo);$('#freshness').textContent=demo?'Sample data':updated?(stale?'Update overdue · ':'Updated ')+fmt(updated,{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}):'Waiting for API history';

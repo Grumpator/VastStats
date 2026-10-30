@@ -22,9 +22,11 @@ export async function loadHistoryData(base,days,{fetchImpl=fetch}={}){
   if(index.version!==2||!Array.isArray(index.boxes))throw Error('Unsupported history index');
   const months=new Set(days.map(d=>d.slice(0,7)));
   const boxes=await Promise.all(index.boxes.map(async entry=>{
-    if(!/^[A-Za-z][A-Za-z0-9 _-]{0,23}$/.test(entry.name)||!Array.isArray(entry.months)||entry.months.some(m=>!/^\d{4}-(0[1-9]|1[0-2])$/.test(m)))throw Error('Invalid public history index');
+    const storageKey=entry.storageKey??entry.name;
+    if(typeof entry.name!=='string'||!entry.name.trim()||entry.name.length>140||/[\p{Cc}\p{Cf}]/u.test(entry.name)||typeof storageKey!=='string'||!/^[A-Za-z][A-Za-z0-9 _-]{0,63}$/.test(storageKey)||!Array.isArray(entry.months)||entry.months.some(m=>!/^\d{4}-(0[1-9]|1[0-2])$/.test(m)))throw Error('Invalid public history index');
+    if(entry.deviceKey!==undefined&&!/^device-[a-f0-9]{32}$/.test(entry.deviceKey))throw Error('Invalid public device identity');
     const files=await Promise.all(entry.months.filter(m=>months.has(m)).map(async month=>{
-      const file=await get(encodeURIComponent(entry.name)+'/'+month+'.json');
+      const file=await get(encodeURIComponent(storageKey)+'/'+month+'.json');
       if(file.version!==2||file.name!==entry.name||file.month!==month||!Array.isArray(file.hours)||!Array.isArray(file.snapshots))throw Error('Invalid public month summary');
       return file;
     }));

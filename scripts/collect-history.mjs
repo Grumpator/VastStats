@@ -3,6 +3,7 @@ import {pathToFileURL} from 'node:url';
 import {HistoryApi} from './history-api.mjs';
 import {summarizeHistory} from './history-model.mjs';
 import {parseMap,sanitizeMachines} from './collect.mjs';
+import {discoverMachines,validStorageKey,identityNamespace} from './history-discovery.mjs';
 import {dayKey,midnight} from '../public/model.js';
 const DAY=86400;
 // Stay below Vast's 4,000-point cap and align with native power-of-two buckets.
@@ -21,27 +22,39 @@ export function mergeHours(previous,incoming){
 }
 async function readJson(file,fallback){try{return JSON.parse(await readFile(file,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}}
 async function save(file,value){const temp=new URL(file.href+'.tmp');await writeFile(temp,JSON.stringify(value)+'\n');await rename(temp,file);}
-export async function collectHistory({api,root=new URL('../public/data/',import.meta.url),now=Date.now(),mapping}={}){
-  mapping??=parseMap(process.env.VAST_BOX_MAP||'');
-  if(new Set(Object.values(mapping).map(n=>n.toLowerCase())).size!==Object.keys(mapping).length)throw Error('Public box names must be unique ignoring case');
+export async function collectHistory({api,root=new URL('../public/data/',import.meta.url),now=Date.now(),mapping,identitySeed,legacyMapping}={}){
   api??=new HistoryApi(process.env.VAST_API_KEY);
   await mkdir(root,{recursive:true});
   const previous=await readJson(new URL('index.json',root),{version:2,boxes:[]});
-  const current=sanitizeMachines(await api.machines(),mapping,now);
-  await api.connect();
+  const raw=await api.machines();
+  // Explicit maps remain available for old tooling/tests; production discovers all machines.
+  legacyMapping??=process.env.VAST_BOX_MAP?parseMap(process.env.VAST_BOX_MAP):{};
+  identitySeed??=process.env.VAST_IDENTITY_SEED||(Object.keys(legacyMapping).length?JSON.stringify(Object.entries(legacyMapping).sort()):null);
+  const namespace=mapping?null:identityNamespace(identitySeed);
+  if(previous.identityNamespace&&namespace!==previous.identityNamespace){console.error('Device identity seed changed; restore the original identity secret.');throw Error('Device identity seed changed');}
+  const devices=mapping?Object.entries(mapping).map(([id,name])=>({id,name,previous:previous.boxes.find(b=>b.name===name),storageKey:name})):discoverMachines(raw,{seed:identitySeed,legacyMap:legacyMapping,previous:previous.boxes});
+  const current=sanitizeMachines(raw,Object.fromEntries(devices.map(d=>[d.id,d.name])),now);
+  if(devices.length)await api.connect();
   const stamp=new Date(now).toISOString(),month=dayKey(new Date(now)).slice(0,7),boxes=[];
-  for(const [id,name] of Object.entries(mapping)){
+  for(const {id,name,deviceKey,storageKey,previous:old} of devices){
     let stage='metadata';
-    const old=previous.boxes.find(b=>b.name===name),sample=current.find(b=>b.name===name);
+    const sample=current.find(b=>b.name===name);
     const entry={name,months:[...(old?.months||[])],lastSample:{at:stamp,running:sample.running,runningInstances:sample.runningInstances,gpuCount:sample.gpuCount??null,storedInstances:sample.storedInstances,allocatedStorageGb:sample.allocatedStorageGb,connection:sample.connection,maintenanceWindows:sample.maintenanceWindows,listed:sample.listed,listingEndsAt:sample.listingEndsAt},historyUpdatedAt:old?.historyUpdatedAt??null,dataThrough:old?.dataThrough??null};
+    if(deviceKey){entry.deviceKey=deviceKey;entry.storageKey=storageKey;entry.lastSeenAt=stamp;}
     entry.historyStart=old?.historyStart??null;
+    // A rename updates display metadata without moving or recomputing old history.
+    if(old&&old.name!==name)for(const m of entry.months){
+      if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(m))throw Error('Invalid cached month');
+      const file=new URL(encodeURIComponent(storageKey)+'/'+m+'.json',root),cached=await readJson(file,null);
+      if(cached){cached.name=name;await save(file,cached);}
+    }
     try{
       const meta=await api.meta(id),first=meta.extent?.t0;
       if(!Number.isFinite(first)||first<=0||first>now/1000)throw Error('No history extent');
       // Keep the earliest boundary ever known: archive retention must not hide old gaps.
       const boundaries=[first*1000,Date.parse(entry.historyStart)].filter(Number.isFinite);
       if(old?.months?.length){
-        const earliest=await readJson(new URL(encodeURIComponent(name)+'/'+[...old.months].sort()[0]+'.json',root),null);
+        const earliest=await readJson(new URL(encodeURIComponent(storageKey)+'/'+[...old.months].sort()[0]+'.json',root),null);
         const prior=earliest?.hours?.find(r=>r.observedSeconds>0&&Date.parse(r.end)<=first*1000);
         if(prior)boundaries.push(Date.parse(prior.start));
       }
@@ -55,7 +68,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
       const keys=Object.keys(overview.sections?.metric?.channels||{}),series=keys.find(k=>/cpu|memory|mem_/i.test(k))??keys[0];
       if(!series)throw Error('Reporting coverage unavailable');
       for(const m of available){
-        const folder=new URL(encodeURIComponent(name)+'/',root);await mkdir(folder,{recursive:true});
+        const folder=new URL(encodeURIComponent(storageKey)+'/',root);await mkdir(folder,{recursive:true});
         const file=new URL(m+'.json',folder),cached=await readJson(file,null);
         const recent=m===month||(Number(dayKey(new Date(now)).slice(-2))<=7&&m===nextMonth(month,-1));
         const revisionNeeded=cached?.aggregationVersion!==5;
@@ -91,7 +104,7 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
         console.log(name+' '+m+': '+summary.hours.length+' hourly summaries.');
       }
       entry.months.sort();
-      const latest=await readJson(new URL(encodeURIComponent(name)+'/'+entry.months.at(-1)+'.json',root),null);
+      const latest=await readJson(new URL(encodeURIComponent(storageKey)+'/'+entry.months.at(-1)+'.json',root),null);
       entry.dataThrough=latest?.dataThrough??entry.dataThrough;entry.historyUpdatedAt=stamp;
     }catch(error){
       entry.historyError=true;
@@ -103,9 +116,16 @@ export async function collectHistory({api,root=new URL('../public/data/',import.
     }
     boxes.push(entry);
   }
+  if(!mapping)for(const old of previous.boxes){
+    if(boxes.some(b=>old.deviceKey?b.deviceKey===old.deviceKey:b.storageKey===old.name))continue;
+    if(!validStorageKey(old.storageKey??old.name))throw Error('Invalid cached device storage key');
+    boxes.push({...old,lastSeenAt:old.lastSeenAt??old.lastSample?.at??null,lastSample:null,discoveryMissing:true});
+  }
+  boxes.sort((a,b)=>a.name.localeCompare(b.name)||String(a.deviceKey).localeCompare(String(b.deviceKey)));
   const result={version:2,source:'telemetry',updatedAt:stamp,snapshotMaxAgeSeconds:5400,boxes};
+  if(namespace)result.identityNamespace=namespace;
   await save(new URL('index.json',root),result);
-  if(boxes.every(b=>b.historyError))throw Error('No box history could be refreshed');
+  if(devices.length&&boxes.filter(b=>!b.discoveryMissing).every(b=>b.historyError))throw Error('No box history could be refreshed');
   return result;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)collectHistory().catch(()=>{console.error('API history refresh failed. No credentials or raw API data were logged.');process.exitCode=1;});
