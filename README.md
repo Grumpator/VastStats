@@ -32,12 +32,12 @@ The workflow commits only `public/data/` and uses GitHub's built-in job token. N
 
 The generated data files are intentionally public. They disclose fleet occupancy and instance counts. Never put raw responses or a private map in this repository.
 
-The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.2.2).
+The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.2.3).
 
 ## Reading the dashboard
 
 - **Timeline:** one row per device, with as many circles as fit and no horizontal scrolling. Hours / Days / Weeks / Months select the duration of each circle; weeks start Monday and months follow the calendar. Previous/Next flank the range below the summaries and move by exactly one visible window, using the number of circles that fit the current screen. Today sits on the same row and returns to the current period; there is no separate date picker. Today includes the current hour/period. Summary and device statistics describe that window. Status icons use shared columns across devices, and weekly headers show ISO week numbers and week-years. The table has matching 12px gaps to the horizontal lines above and below.
-- **Circle sectors:** green = confirmed running time, amber = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the selected circle period, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Tooltip, summary and device occupancy percentages all use confirmed running / elapsed tracking time. Missing telemetry does not count as confirmed running; read occupancy alongside coverage.
+- **Circle sectors:** green = confirmed running time, amber = confirmed idle time, grey = unknown elapsed time, clockwise from noon. The denominator is elapsed time in the selected circle period, excluding future time. An amber dot marks any incomplete coverage (apart from floating-point noise). A full green circle requires both complete coverage and continuous running. Tooltip, summary and device occupancy percentages use running / observed time. Missing telemetry is excluded rather than treated as idle, so delayed data alone does not reduce occupancy. Circle sectors still use elapsed tracking time and retain a grey unknown sector; read occupancy alongside coverage.
 - **Number:** running sessions during the circle period. One instance stopping and restarting counts as two runs. A continuous run counts once in each circle it overlaps; daily counts are calculated from the intervals, not by summing hourly counts. Back-to-back runs can produce solid green with a count greater than one. Idle observed periods show zero; unavailable history is blank. Weekly/monthly counts use runs already active at the boundary plus new starts; a continuous run is counted once and stop/start episodes count separately. Stored counts remain in the Now summary.
 - **Ring:** the current hour/day/week/month. A fresh machine snapshot can show state before duration data arrives; it does not supply historical occupancy or the circle's run count.
 - **Border:** red offline, amber maintenance, grey unlisted, green listed, in that priority order. Borders indicate states explicitly captured in that period's snapshots. Unknown historical state is neutral. Container history alone does not establish historical listing/maintenance/offline duration.
@@ -80,7 +80,7 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v3.2.2** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v3.2.3** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Hours/Days/Weeks/Months opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 
@@ -92,6 +92,6 @@ Coverage calculation revision 4 aligns telemetry requests to a 32-second power-o
 
 The amber incomplete-data dot marks every observed circle below 100% coverage of its elapsed portion, with only a 1e-9 tolerance for floating-point noise. It no longer uses the former 95% threshold. Fully unknown grey circles and future periods do not need the dot. Coverage just below 100% displays <100% if one-decimal rounding would hide the gap.
 
-For example, Beta 27 October at 18:00 has 1,888 observed seconds and 1,858 running seconds: the circle is 51.6% green, 0.8% amber and 47.6% grey. The tooltip shows 51.6% occupancy (matching the green sector) and 52.4% coverage. Unknown time is never presented as confirmed idle or running time.
+For example, Beta 27 October at 18:00 has 1,888 observed seconds and 1,858 running seconds: the circle is 51.6% green, 0.8% amber and 47.6% grey. The tooltip shows 98.4% occupancy within observed time and 52.4% coverage. Unknown time is never presented as confirmed idle or running time.
 
 Circle tooltips show occupancy with running duration, runs and data coverage. Additional status rows show timestamped offline, maintenance and unlisted sightings. Listed sightings are omitted to keep the tooltip focused on exceptions. These are observations, not durations; the latest relevant sighting is shown. Known maintenance schedules are labelled separately when no active maintenance sighting exists. Unavailable state history is omitted rather than labelled Unknown or assumed zero.
