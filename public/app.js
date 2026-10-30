@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=3.2.0';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=3.2.0';
-import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=3.2.0';
+import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=3.2.1';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=3.2.1';
+import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=3.2.1';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -78,7 +78,6 @@ function showTip(button,box,bin,value){
     lines.push(['Maintenance scheduled',windows.join('; ')]);
   }
   if(evidence.unlisted)lines.push(['Unlisted',recorded(evidence.unlisted)]);
-  else if(evidence.listed)lines.push(['Listed',recorded(evidence.listed)]);
   for(const [name,value] of lines)dl.append(element('dt','',name),element('dd','',String(value)));tip.append(dl);
   if(value.state==='future')tip.append(element('p','','This period has not started.'));
   else if(!value.observed)tip.append(element('p','','No telemetry recorded for this period yet.'));

@@ -32,7 +32,7 @@ The workflow commits only `public/data/` and uses GitHub's built-in job token. N
 
 The generated data files are intentionally public. They disclose fleet occupancy and instance counts. Never put raw responses or a private map in this repository.
 
-The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.2.0).
+The previous calendar dashboard is preserved in the [`v2` branch](https://github.com/Grumpator/VastStats/tree/v2) and immutable `v2` tag. The single-layout timeline is released as `v3` (page version 3.2.1).
 
 ## Reading the dashboard
 
@@ -80,7 +80,7 @@ npm run preview
 
 Open http://127.0.0.1:4173/ after importing data, or use `?demo=1` for clearly labelled illustrative history. Demo data never overwrites real summaries. Local preview reads local files; the published page reads sanitized repository files.
 
-Version **v3.2.0** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
+Version **v3.2.1** appears in the footer. Keep package version, visible version and browser asset queries in sync when changing page code. Tests cover privacy, retry behavior, interval unions, missing/approximate data, failed refresh preservation, period selection and daylight-saving boundaries.
 
 The info button beside Hours/Days/Weeks/Months opens the dashboard guide, including the current circle resolution, occupancy and border legend, run counting and marker explanations. These stay hidden until requested.
 
@@ -94,4 +94,4 @@ The amber incomplete-data dot marks every observed circle below 100% coverage of
 
 For example, Beta 27 October at 18:00 has 1,888 observed seconds and 1,858 running seconds: the circle is 51.6% green, 0.8% amber and 47.6% grey. The tooltip shows 51.6% occupancy (matching the green sector) and 52.4% coverage. Unknown time is never presented as confirmed idle or running time.
 
-Circle tooltips show occupancy with running duration, runs and data coverage. Additional status rows show timestamped offline/maintenance/listing sightings, with unlisted taking precedence over listed when both were recorded in a period. These are observations, not durations; the latest relevant sighting is shown. Known maintenance schedules are labelled separately when no active maintenance sighting exists. Unavailable state history is omitted rather than labelled Unknown or assumed zero.
+Circle tooltips show occupancy with running duration, runs and data coverage. Additional status rows show timestamped offline, maintenance and unlisted sightings. Listed sightings are omitted to keep the tooltip focused on exceptions. These are observations, not durations; the latest relevant sighting is shown. Known maintenance schedules are labelled separately when no active maintenance sighting exists. Unavailable state history is omitted rather than labelled Unknown or assumed zero.
