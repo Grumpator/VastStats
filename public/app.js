@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=3.2.1';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=3.2.1';
-import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=3.2.1';
+import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments} from './model.js?v=3.2.2';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=3.2.2';
+import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=3.2.2';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -126,7 +126,7 @@ function render(){
   for(const [field,property] of [['listed','listed'],['online','connection'],['maintenance','maintenance']])boxes.style.setProperty('--'+property+'-extra',fleet[field]===null?'.7em':'0px');
   $('#timeline-axis')?.remove();
   {
-    const axis=element('div','timeline-axis');axis.id='timeline-axis';axis.setAttribute('aria-hidden','true');axis.append(element('span','timeline-axis-meta','Device · latest state · occupancy'));
+    const axis=element('div','timeline-axis');axis.id='timeline-axis';axis.setAttribute('aria-hidden','true');const meta=element('div','timeline-axis-meta');meta.append(element('span','','Device'),element('span','','Latest state'),element('span','timeline-axis-occupancy','Occupancy'));axis.append(meta);
     const labels=element('div','timeline-circles timeline-labels');
     for(const bin of bins){const week=scale==='weeks'?isoWeek(bin.key):null,label=element('span','',week?'W'+week.week:fmt(bin.start,scale==='hours'?{hour:'2-digit',hourCycle:'h23'}:scale==='months'?{month:'short'}:{day:'numeric'}));label.title=fmt(bin.start,{dateStyle:'full',...(scale==='hours'?{timeStyle:'short'}:{})});label.append(element('small','',week?String(week.year):fmt(bin.start,scale==='hours'?{day:'numeric',month:'short'}:scale==='months'?{year:'numeric'}:{month:'short'})));labels.append(label);}
     axis.append(labels);boxes.before(axis);
