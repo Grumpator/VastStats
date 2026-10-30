@@ -4,6 +4,23 @@ export function reliabilityLabel(ratio){
   const n=ratio*100;
   return ratio===1?'100%':n>=99.995?'<100%':n.toFixed(2)+'%';
 }
+export function primaryDeviceState(status){
+  if(status.connection==='offline')return 'offline';
+  if(status.running===true)return 'running';
+  if(status.listed===true)return 'listed';
+  return status.connection==='online'?'online':'unknown';
+}
+export function sortDevices(boxes,{key='name',direction='asc'}={}, {occupancy=()=>null,now=Date.now(),maxAgeSeconds=5400}={}){
+  const names=new Intl.Collator('en-GB',{numeric:true,sensitivity:'base'});
+  const rank={offline:0,running:1,listed:2,online:3};
+  const value=box=>key==='occupancy'?occupancy(box):key==='state'?rank[primaryDeviceState(currentStatus(box.lastSample,now,maxAgeSeconds))]??null:box.name;
+  return [...boxes].sort((a,b)=>{
+    const x=value(a),y=value(b);
+    if(x==null&&y!=null)return 1;if(y==null&&x!=null)return -1;
+    const order=x==null?0:key==='name'?names.compare(x,y):x-y;
+    return order*(direction==='desc'?-1:1)||names.compare(a.name,b.name)||String(a.deviceKey??'').localeCompare(String(b.deviceKey??''));
+  });
+}
 const HOUR = 3600000;
 export function dayKey(date) { return new Intl.DateTimeFormat('en-CA', {timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).format(date); }
 export function addDays(key, count) { const d = new Date(key+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+count); return d.toISOString().slice(0,10); }

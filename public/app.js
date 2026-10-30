@@ -1,6 +1,6 @@
-import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments,reliabilityLabel} from './model.js?v=4.1.0';
-import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=4.1.0';
-import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=4.1.0';
+import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,fleetSnapshot,circleSegments,reliabilityLabel,primaryDeviceState,sortDevices} from './model.js?v=4.2.0';
+import {loadHistoryData,applySnapshots,githubDataSource,periodRunCount} from './history-data.js?v=4.2.0';
+import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=4.2.0';
 const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
 // Live data comes from the repository; it does not require a Pages deployment.
 const local=['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -19,6 +19,7 @@ const duration=seconds=>{
 };
 let selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
 let scale='hours',windowEnd=null,displayedEnd=null,slotCount=1;
+let deviceSort={key:'name',direction:'asc'};
 function visibleBins(){return timelineBins(windowEnd??windowEndForDate(selected,scale),scale,slotCount);}
 function updateSlotCount(){slotCount=visibleSlotCount($('.timeline').clientWidth,parseFloat(getComputedStyle($('#boxes')).getPropertyValue('--device-columns-width'))||300);}
 function selectedDays(){
@@ -29,9 +30,11 @@ const boxKey=box=>box.deviceKey??box.storageKey??box.name;
 
 function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
 function icon(kind,disabled=false){
-  const paths={gauge:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 6v2','M6 12h2','M16 12h2','m12 12 4-5'],unverified:['M12 2l8 3v6c0 5-8 11-8 11S4 16 4 11V5Z','M8 11h8'],deverified:['M12 2l8 3v6c0 5-8 11-8 11S4 16 4 11V5Z','m9 8 6 6','m15 8-6 6'],shield:['M12 2l8 3v6c0 5-8 11-8 11S4 16 4 11V5Z','m8 11 3 3 5-6'],gpu:['M4 6h16v12H4Z','M8 10h8v4H8Z','M2 9h2','M2 15h2','M8 18v3','M12 18v3','M16 18v3','M20 10h2','M20 14h2'],power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
+  // Badge geometry follows Vast's mobile VerificationStatusIcon.
+  const paths={verifiedBadge:['M8.4619 23L6.47143 19.6476L2.7 18.8095L3.06667 14.9333L0.5 12L3.06667 9.06667L2.7 5.19048L6.47143 4.35238L8.4619 1L12.0238 2.51905L15.5857 1L17.5762 4.35238L21.3476 5.19048L20.981 9.06667L23.5476 12L20.981 14.9333L21.3476 18.8095L17.5762 19.6476L15.5857 23L12.0238 21.481L8.4619 23ZM9.35238 20.3286L12.0238 19.1762L14.7476 20.3286L16.2143 17.8143L19.0952 17.1333L18.8333 14.2L20.7714 12L18.8333 9.74762L19.0952 6.81429L16.2143 6.18571L14.6952 3.67143L12.0238 4.82381L9.3 3.67143L7.83333 6.18571L4.95238 6.81429L5.21429 9.74762L3.27619 12L5.21429 14.2L4.95238 17.1857L7.83333 17.8143L9.35238 20.3286ZM10.9238 15.719L16.8429 9.8L15.3762 8.28095L10.9238 12.7333L8.67143 10.5333L7.20476 12L10.9238 15.719Z'],deverifiedBadge:['M11.3838 2.90137L13.8984 3.45996L13.6543 6.04492L15.3652 8L13.6543 9.95508L13.8984 12.54L11.3838 13.0986L10.0576 15.333L7.68262 14.3203L5.30762 15.333L3.98047 13.0986L1.4668 12.54L1.71094 9.95508L0 8L1.71094 6.04492L1.4668 3.45996L3.98047 2.90137L5.30762 0.666992L7.68262 1.67969L10.0576 0.666992L11.3838 2.90137ZM7.68262 3.21582L5.86621 2.44727L4.88867 4.12402L2.96777 4.54297L3.14258 6.49805L1.85059 8L3.14258 9.4668L2.96777 11.457L4.88867 11.876L5.90137 13.5527L7.68262 12.7842L9.49805 13.5527L10.4766 11.876L12.3965 11.4219L12.2227 9.4668L13.5146 8L12.2227 6.49805L12.3965 4.54297L10.4766 4.12402L9.46387 2.44727L7.68262 3.21582ZM9.38867 5.50684C9.62011 5.27559 9.9952 5.27547 10.2266 5.50684C10.4579 5.7382 10.4578 6.1133 10.2266 6.34473L8.57129 8L10.2266 9.65527C10.4578 9.8867 10.4579 10.2618 10.2266 10.4932C9.9952 10.7245 9.62011 10.7244 9.38867 10.4932L7.7334 8.83789L6.07812 10.4932C5.8467 10.7245 5.47162 10.7245 5.24023 10.4932C5.00885 10.2618 5.00892 9.8867 5.24023 9.65527L6.89551 8L5.24023 6.34473C5.00892 6.1133 5.00885 5.73822 5.24023 5.50684C5.47162 5.27548 5.8467 5.27554 6.07812 5.50684L7.7334 7.16211L9.38867 5.50684Z'],gauge:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 6v2','M6 12h2','M16 12h2','m12 12 4-5'],gpu:['M4 6h16v12H4Z','M8 10h8v4H8Z','M2 9h2','M2 15h2','M8 18v3','M12 18v3','M16 18v3','M20 10h2','M20 14h2'],power:['M12 2v10','M7 5a8 8 0 1 0 10 0'],tag:['M3 3h7l11 11-7 7L3 10Z','M7 7h.01'],wrench:['M14 3a6 6 0 0 0-7 8l-4 4a3 3 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-3-3Z'],play:['M7 4l13 8-13 8Z'],pause:['M8 5v14','M16 5v14'],stored:['m12 3 10 5-10 5L2 8Z','m2 12 10 5 10-5','m2 16 10 5 10-5'],clock:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 7v5l3 2'],info:['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18','M12 11v6','M12 7h.01']};
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   for(const [key,value] of Object.entries({viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))svg.setAttribute(key,value);
+  if(kind.endsWith('Badge')){svg.setAttribute('fill','currentColor');svg.setAttribute('stroke','none');if(kind==='deverifiedBadge')svg.setAttribute('viewBox','0 0 16 16');}
   for(const d of [...paths[kind],...(disabled?['M3 3l18 18']:[])]){const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',d);svg.append(path);}return svg;
 }
 function stateIcon(kind,state,label,count=null,disabled=false){
@@ -111,7 +114,9 @@ function render(){
   if(scale==='weeks'){const first=isoWeek(bins[0].key),last=isoWeek(bins.at(-1).key);$('#period').textContent='Week '+first.week+'/'+first.year+(bins.length>1?' – Week '+last.week+'/'+last.year:'');}
   $('#previous').title='Previous '+slotCount+' '+scale;$('#next').title='Next '+slotCount+' '+scale;
   $('#resolution').textContent=('One circle = one '+({hours:'hour',days:'day',weeks:'week',months:'month'}[scale]))+' · Numbers = runs during period';
-  const stats=data.boxes.map(b=>aggregate(b.hours,start,end,Date.now(),Date.parse(b.historyStart)));let obs=0,occ=0,elapsed=0;
+  const now=Date.now(),statsByBox=new Map(data.boxes.map(b=>[boxKey(b),aggregate(b.hours,start,end,now,Date.parse(b.historyStart))]));
+  const visibleBoxes=sortDevices(data.boxes,deviceSort,{occupancy:b=>statsByBox.get(boxKey(b)).percent,now,maxAgeSeconds:data.snapshotMaxAgeSeconds??5400});
+  const stats=visibleBoxes.map(b=>statsByBox.get(boxKey(b)));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
   $('#occupancy').textContent=percent(obs?occ/obs*100:null);$('#coverage').textContent=elapsed?coveragePercent(obs/elapsed):'—';
   $('#hours').textContent=obs?duration(occ):'—';
@@ -125,29 +130,37 @@ function render(){
   const boxes=$('#boxes');boxes.replaceChildren();boxes.className='device-table';
   // Shared column widths use the largest count in the fleet, never the row's own count.
   for(const [field,property] of [['runningInstances','running'],['storedInstances','stored'],['gpuCount','gpu']])boxes.style.setProperty('--'+property+'-digits',Math.max(1,...data.boxes.map(b=>String(b.lastSample?.[field]??'?').length)));
-  for(const [field,property] of [['listed','listed'],['online','connection'],['maintenance','maintenance']])boxes.style.setProperty('--'+property+'-extra',fleet[field]===null?'.7em':'0px');
+  for(const [field,property] of [['maintenance','maintenance']])boxes.style.setProperty('--'+property+'-extra',fleet[field]===null?'.7em':'0px');
   $('#timeline-axis')?.remove();
   {
-    const axis=element('div','timeline-axis');axis.id='timeline-axis';axis.setAttribute('aria-hidden','true');const meta=element('div','timeline-axis-meta');meta.append(element('span','','Device'),element('span','','Latest state'),element('span','timeline-axis-occupancy','Occupancy'));axis.append(meta);
-    const labels=element('div','timeline-circles timeline-labels');
+    const axis=element('div','timeline-axis');axis.id='timeline-axis';const meta=element('div','timeline-axis-meta');meta.setAttribute('role','group');meta.setAttribute('aria-label','Sort devices');
+    for(const [key,label] of [['name','Device'],['state','State'],['occupancy','Occupancy']]){
+      const button=element('button','sort-heading'+(key==='occupancy'?' timeline-axis-occupancy':''),label),active=deviceSort.key===key;
+      button.type='button';button.dataset.sort=key;button.dataset.direction=active?deviceSort.direction:'none';button.setAttribute('aria-pressed',String(active));
+      button.setAttribute('aria-label','Sort by '+label+(active?', currently '+(deviceSort.direction==='asc'?'ascending':'descending'):''));
+      button.title=key==='state'?'Sort by offline, running, listed, online; click again to reverse':'Sort by '+label.toLowerCase()+'; click again to reverse';
+      button.onclick=()=>{deviceSort={key,direction:active?(deviceSort.direction==='asc'?'desc':'asc'):key==='occupancy'?'desc':'asc'};render();document.querySelector('[data-sort="'+key+'"]').focus();};
+      meta.append(button);
+    }
+    axis.append(meta);const labels=element('div','timeline-circles timeline-labels');labels.setAttribute('aria-hidden','true');
     for(const bin of bins){const week=scale==='weeks'?isoWeek(bin.key):null,label=element('span','',week?'W'+week.week:fmt(bin.start,scale==='hours'?{hour:'2-digit',hourCycle:'h23'}:scale==='months'?{month:'short'}:{day:'numeric'}));label.title=fmt(bin.start,{dateStyle:'full',...(scale==='hours'?{timeStyle:'short'}:{})});label.append(element('small','',week?String(week.year):fmt(bin.start,scale==='hours'?{day:'numeric',month:'short'}:scale==='months'?{year:'numeric'}:{month:'short'})));labels.append(label);}
     axis.append(labels);boxes.before(axis);
   }
-  data.boxes.forEach((box,index)=>{
+  visibleBoxes.forEach((box,index)=>{
     recordsByBox.set(boxKey(box),box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));
     countsByBox.set(boxKey(box),(box.runCounts||[]).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));snapshotsByBox.set(boxKey(box),(box.snapshots||[]).map(r=>({...r,startMs:Date.parse(r.at),endMs:Date.parse(r.at)+1})).sort((a,b)=>a.startMs-b.startMs));
-    const card=element('article','box'),header=element('div','box-header'),title=element('div','box-title'),heading=element('h3','',box.name);heading.title=box.name;title.append(heading);
+    const card=element('article','box'),header=element('div','box-header'),title=element('div','box-title'),heading=element('h3','',box.name);heading.title=box.name;const name=element('div','device-name');name.append(heading);title.append(name);
     const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),states=element('div','device-states'+(status.stale?' outdated':''));states.setAttribute('aria-label','Latest snapshot for '+box.name);
     const stamp=box.lastSample?.at,when=stamp?' · checked '+fmt(Date.parse(stamp),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
     const running=status.running===false?0:box.lastSample?.runningInstances??'?';
-    states.append(stateIcon(status.running===false?'pause':'play',status.running?'active':'muted','Running instances: '+running+when,running));
-    states.append(stateIcon('tag',status.listed===true?'active':'muted',status.listed===true?'Listed'+when:status.listed===false?'Unlisted'+when:'Listing unknown'+when,status.listed===null?'?':null,status.listed===false));
-    states.append(stateIcon('power',status.connection,'Connection: '+status.connection+when,status.connection==='unknown'?'?':null,status.connection==='offline'));
+    const primary=primaryDeviceState(status);
+    const primaryLabel=primary==='running'?'Running instances: '+running:primary==='listed'?'Listed':primary==='online'?'Online':primary==='offline'?'Offline':'Status unavailable';
+    states.append(stateIcon(primary==='running'?'play':primary==='listed'?'tag':'power',primary==='offline'?'offline':primary==='unknown'?'muted':'active',primaryLabel+when,primary==='running'?running:primary==='unknown'?'?':null,primary==='offline'));
     states.append(stateIcon(status.next&&!status.maintenance?'clock':'wrench',status.maintenance||status.next?'maintenance':'muted',status.maintenance?'Maintenance active'+when:status.next?'Maintenance planned: '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Maintenance off'+when:'Maintenance unknown'+when,status.maintenance===null&&!status.next?'?':null,status.maintenance===false&&!status.next));
     states.append(stateIcon('stored','muted','Stored instances: '+(box.lastSample?.storedInstances??'unknown')+when,box.lastSample?.storedInstances??'?'));
     states.append(stateIcon('gpu','muted','GPUs: '+(box.lastSample?.gpuCount??'unknown')+when,box.lastSample?.gpuCount??'?'));
     const verification=box.lastSample?.verification;
-    states.append(stateIcon(verification==='verified'?'shield':verification==='deverified'?'deverified':'unverified',verification==='verified'?'verified':verification==='deverified'?'offline':'muted','Verification: '+(verification??'unavailable')+when,null));
+    name.prepend(stateIcon(verification==='deverified'?'deverifiedBadge':'verifiedBadge',verification==='verified'?'verified':verification==='deverified'?'maintenance':'muted','Verification: '+(verification??'unavailable')+when,null));
     const reliability=box.lastSample?.reliability;
     const reliabilityIcon=stateIcon('gauge','muted','Reliability: '+(reliability==null?'unavailable':(reliability*100).toFixed(6)+'%')+when,reliabilityLabel(reliability));reliabilityIcon.classList.add('device-reliability');states.append(reliabilityIcon);
     title.append(states);const metric=element('div','box-percent',percent(stats[index].percent));metric.title='Occupancy in observed data for the selected period; see details for coverage';
