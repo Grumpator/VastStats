@@ -1,0 +1,31 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256
+
+Origin: VastStats
+Label: VastStats
+Suite: stable
+Codename: stable
+Date: Thu, 05 Nov 2026 19:10:19 GMT
+Architectures: amd64 arm64
+Components: main
+Acquire-By-Hash: yes
+Description: VastStats Debian and Ubuntu packages
+SHA256:
+ 6015346ec86c4de12e5894541fd55dc68b56ac9598dc04f1eaf8c8837f3a44e3 803 main/binary-amd64/Packages
+ e42804410644d7687fbeea206931eb29d103cc3d32b724acfe1a7cff0a26ee55 550 main/binary-amd64/Packages.gz
+ 6015346ec86c4de12e5894541fd55dc68b56ac9598dc04f1eaf8c8837f3a44e3 803 main/binary-arm64/Packages
+ e42804410644d7687fbeea206931eb29d103cc3d32b724acfe1a7cff0a26ee55 550 main/binary-arm64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQGzBAEBCAAdFiEEKxueSXplhVRkop1zkN1i2CxSVQIFAmrs1JsACgkQkN1i2CxS
+VQKMPwv+KyP3j+RhANMekjW2i5LljFHxn6O2rcn0NVJgp6Olg1x17difsUGJC4aJ
+/YzkXMXCfX9OBJjbuNj6xzPWJmsrFSAgJ9pHXveEw9GU3hGl2daza6r4vqR7siWk
+HxqKjFH6Nm/dojee9odrY+1HTpMdDoM7/0MZzkqcqmGBNorOmNvpfjWTamyGJEjC
+TEL2IAw4ANiqT7B1A7oxnvkUsfwcBlWTHp+2z2gVIyTmPEM7/jS/Y2/LCmopHNhA
+uVCOO/8Q/s7yCBUQsnVC2/aMMC8z5WY+DlcMj74Pb7NwIP3oACEoc5LtjS/agJ0F
+JEqx+8S+GMk9YyJNzlAtprCVQFZ27Awc/KxgoOHoYlTY/PIXiqDzuuudxzfAm2hk
+XhWht8DmcmWatW/JW/WHBArX/lm2PIyojenfDfJFC+p8JiYTCJDXUCU/7oGdCD+Y
+GsPbjGLYhPAXu9pFuifJC7fnmusOHFElq0/W3giQr3Dm6miwDsogis37Oiv7t/XO
+/mGe8GdL
+=Kube
+-----END PGP SIGNATURE-----
