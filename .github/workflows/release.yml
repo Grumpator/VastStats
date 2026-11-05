@@ -1,0 +1,181 @@
+name: Publish Debian package
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+concurrency:
+  group: vaststats-debian-release
+  cancel-in-progress: false
+jobs:
+  resolve:
+    if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      commit: ${{ steps.resolve.outputs.commit }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ github.event.release.tag_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - id: resolve
+        name: Resolve and validate the exact release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: node scripts/release/resolve.mjs "$RELEASE_TAG"
+  test:
+    needs: resolve
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm test
+  package:
+    needs: [resolve, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Recheck tag and build deterministic package
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.resolve.outputs.commit }}
+        run: |
+          node scripts/release/resolve.mjs "$RELEASE_TAG"
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          npm run build:deb
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb
+      - name: Sign a disposable APT repository for installation tests
+        run: bash packaging/apt/test-repository.sh
+      - name: Validate APT install, upgrade and preservation on Debian and Ubuntu
+        run: |
+          for image in debian:13-slim ubuntu:24.04 ubuntu:26.04; do
+            docker run --rm -v "$PWD/dist:/packages:ro" -v "$PWD/packaging/debian/smoke-test.sh:/smoke-test.sh:ro" "$image" sh /smoke-test.sh
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debian-package
+          path: |
+            dist/*.deb
+            dist/*.deb.sha256
+          if-no-files-found: error
+  publish-apt:
+    needs: [resolve, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: debian-package
+          path: dist
+      - name: Prepare the dedicated repository branch
+        run: |
+          status=0
+          git ls-remote --exit-code --heads origin apt >/dev/null || status=$?
+          repo="$RUNNER_TEMP/vaststats-apt"
+          if [ "$status" = 0 ]; then
+            git fetch origin refs/heads/apt
+            git worktree add --detach "$repo" FETCH_HEAD
+            test -f "$repo/.vaststats-apt" || { echo 'The apt branch is not a managed VastStats repository.' >&2; exit 1; }
+          elif [ "$status" = 2 ]; then
+            git worktree add --detach "$repo" HEAD
+            git -C "$repo" switch --orphan apt
+          else
+            exit "$status"
+          fi
+          echo "APT_OUTPUT=$repo" >> "$GITHUB_ENV"
+      - name: Load the repository signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          test -n "$APT_SIGNING_KEY" || { echo 'Configure the APT_SIGNING_KEY repository secret (see README).' >&2; exit 1; }
+          home="$(mktemp -d "$RUNNER_TEMP/vaststats-gpg.XXXXXXXX")"
+          chmod 700 "$home"
+          echo "GNUPGHOME=$home" >> "$GITHUB_ENV"
+          printf '%s' "$APT_SIGNING_KEY" | GNUPGHOME="$home" gpg --batch --import
+      - name: Build and verify signed APT metadata
+        env:
+          APT_SIGNING_FINGERPRINT: ${{ vars.APT_SIGNING_FINGERPRINT }}
+        run: |
+          (cd dist && sha256sum --check *.deb.sha256)
+          node scripts/apt/build.mjs
+          install -m 644 packaging/apt/install.sh "$APT_OUTPUT/install.sh"
+          gpg --batch --verify "$APT_OUTPUT/dists/stable/InRelease"
+      - name: Publish repository files atomically
+        run: |
+          git -C "$APT_OUTPUT" config user.name 'github-actions[bot]'
+          git -C "$APT_OUTPUT" config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C "$APT_OUTPUT" add --all
+          if ! git -C "$APT_OUTPUT" diff --cached --quiet; then
+            git -C "$APT_OUTPUT" commit -m 'Publish signed VastStats APT repository'
+            git -C "$APT_OUTPUT" push origin HEAD:refs/heads/apt
+          fi
+      - name: Remove the temporary private keyring
+        if: always()
+        run: |
+          if [ -n "${GNUPGHOME:-}" ]; then
+            gpgconf --kill gpg-agent || true
+            case "$GNUPGHOME" in "$RUNNER_TEMP"/vaststats-gpg.*) rm -rf -- "$GNUPGHOME" ;; esac
+          fi
+  publish:
+    needs: [resolve, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: debian-package
+          path: dist
+      - name: Attach the tested package to its GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null
+          # Existing assets are verified, never overwritten with different bytes.
+          mkdir existing
+          gh release download "$RELEASE_TAG" --pattern '*.deb' --pattern '*.deb.sha256' --dir existing || true
+          for file in dist/*.deb dist/*.deb.sha256; do
+            name="$(basename "$file")"
+            if [ -f "existing/$name" ]; then
+              cmp "$file" "existing/$name"
+            else
+              gh release upload "$RELEASE_TAG" "$file"
+            fi
+          done

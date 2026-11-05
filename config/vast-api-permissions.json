@@ -1,0 +1,10 @@
+{
+  "api": {
+    "machine_read": {},
+    "user_read": {
+      "api.telemetry.token": {
+        "GET": {}
+      }
+    }
+  }
+}

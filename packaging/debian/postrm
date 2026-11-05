@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+if [ -d /run/systemd/system ]; then systemctl --system daemon-reload; fi
+if [ "${1:-}" = remove ]; then
+    deb-systemd-helper mask vaststats.service >/dev/null || true
+fi
+if [ "${1:-}" = purge ]; then
+    deb-systemd-helper purge vaststats.service >/dev/null || true
+    deb-systemd-helper unmask vaststats.service >/dev/null || true
+    rm -f /etc/vaststats/vaststats.env
+    rmdir /etc/vaststats 2>/dev/null || true
+    if [ -f /usr/share/debconf/confmodule ]; then
+        . /usr/share/debconf/confmodule
+        db_purge
+    fi
+fi
+# Keep /var/lib/vaststats and its service user even on purge: history is not disposable.

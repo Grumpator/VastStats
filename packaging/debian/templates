@@ -1,0 +1,10 @@
+Template: vaststats/api-key
+Type: password
+Description: Vast API key:
+ Enter a restricted Vast API key for machine reads and telemetry access.
+ The key is stored locally in /etc/vaststats/vaststats.env and is never
+ included in the package or dashboard responses.
+ .
+ Leave blank to keep an existing key or configure it later with
+ "sudo dpkg-reconfigure vaststats". Without a key the dashboard runs
+ without collecting data.

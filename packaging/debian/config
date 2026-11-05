@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+. /usr/share/debconf/confmodule
+if [ "${1:-}" = reconfigure ]; then
+    db_fset vaststats/api-key seen false
+fi
+if [ "${1:-}" = reconfigure ] || ! grep -Eq '^[[:space:]]*VAST_API_KEY="?[^"[:space:]]+' /etc/vaststats/vaststats.env 2>/dev/null; then
+    db_input high vaststats/api-key || true
+    db_go || true
+fi

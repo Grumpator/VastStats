@@ -1,0 +1,40 @@
+name: Test Node app
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm test
+  debian-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        image: ['debian:13-slim', 'ubuntu:24.04', 'ubuntu:26.04']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm run build:deb
+      - run: dpkg-deb --info dist/*.deb
+      - run: bash packaging/apt/test-repository.sh
+      - name: Test APT dependency resolution and package lifecycle
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: docker run --rm -v "$PWD/dist:/packages:ro" -v "$PWD/packaging/debian/smoke-test.sh:/smoke-test.sh:ro" "$IMAGE" sh /smoke-test.sh

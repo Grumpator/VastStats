@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+if [ "${1:-}" != configure ]; then exit 0; fi
+. /usr/share/debconf/confmodule
+umask 077
+
+if ! getent group vaststats >/dev/null; then addgroup --system vaststats; fi
+if ! getent passwd vaststats >/dev/null; then
+    adduser --system --ingroup vaststats --home /var/lib/vaststats --no-create-home --shell /usr/sbin/nologin vaststats
+fi
+install -d -m 0755 /etc/vaststats
+install -d -m 0700 -o vaststats -g vaststats /var/lib/vaststats
+# A nonempty store owned by another user needs an explicit migration, not chown -R.
+if [ -d /var/lib/vaststats/data ] && [ "$(stat -c %U /var/lib/vaststats/data)" != vaststats ] &&
+   [ -n "$(find /var/lib/vaststats/data -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    echo 'Existing VastStats data belongs to another user. See the README migration instructions; data was retained.' >&2
+    exit 1
+fi
+install -d -m 0700 -o vaststats -g vaststats /var/lib/vaststats/data
+
+db_get vaststats/api-key
+key=$RET
+# Password answers must not linger in debconf's database.
+db_set vaststats/api-key ''
+printf '%s' "$key" | /usr/bin/node /usr/lib/vaststats/packaging/configure.mjs
+unset key RET
+db_stop
+
+deb-systemd-helper unmask vaststats.service >/dev/null || true
+if deb-systemd-helper --quiet was-enabled vaststats.service; then
+    deb-systemd-helper enable vaststats.service >/dev/null || true
+else
+    deb-systemd-helper update-state vaststats.service >/dev/null || true
+fi
+if [ -d /run/systemd/system ]; then
+    systemctl --system daemon-reload
+    if [ -z "${2:-}" ]; then action=start; else action=restart; fi
+    deb-systemd-invoke "$action" vaststats.service
+fi

@@ -1,0 +1,22 @@
+[Unit]
+Description=VastStats fleet dashboard and collectors
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vaststats
+Group=vaststats
+WorkingDirectory=/usr/lib/vaststats
+Environment=HOST=0.0.0.0
+Environment=PORT=3000
+Environment=DATA_DIR=/var/lib/vaststats/data
+EnvironmentFile=/etc/vaststats/vaststats.env
+ExecStart=/usr/bin/node /usr/lib/vaststats/server.mjs
+Restart=on-failure
+RestartSec=10
+UMask=0077
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

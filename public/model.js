@@ -1,0 +1,100 @@
+export const ZONE = 'Europe/London';
+export function reliabilityLabel(ratio){
+  if(!Number.isFinite(ratio)||ratio<0||ratio>1)return '—';
+  const n=ratio*100;
+  return ratio===1?'100%':n>=99.995?'<100%':n.toFixed(2)+'%';
+}
+export function primaryDeviceState(status){
+  if(status.connection==='offline')return 'offline';
+  if(status.running===true)return 'running';
+  if(status.listed===true)return 'listed';
+  return status.connection==='online'?'online':'unknown';
+}
+export function sortDevices(boxes,{key='order',direction='asc'}={}, {occupancy=()=>null,now=Date.now(),maxAgeSeconds=5400}={}){
+  const names=new Intl.Collator('en-GB',{numeric:true,sensitivity:'base'});
+  const orderIndex=new Map(boxes.map((box,index)=>[box,index]));
+  const rank={offline:0,running:1,listed:2,online:3};
+  const value=box=>key==='order'?orderIndex.get(box):key==='occupancy'?occupancy(box):key==='state'?rank[primaryDeviceState(currentStatus(box.lastSample,now,maxAgeSeconds))]??null:box.name;
+  return [...boxes].sort((a,b)=>{
+    const x=value(a),y=value(b);
+    if(x==null&&y!=null)return 1;if(y==null&&x!=null)return -1;
+    const order=x==null?0:key==='name'?names.compare(x,y):x-y;
+    return order*(direction==='desc'?-1:1)||orderIndex.get(a)-orderIndex.get(b);
+  });
+}
+const HOUR = 3600000;
+export function dayKey(date) { return new Intl.DateTimeFormat('en-CA', {timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).format(date); }
+export function addDays(key, count) { const d = new Date(key+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+count); return d.toISOString().slice(0,10); }
+export function midnight(key) {
+  const target = Date.parse(key+'T00:00:00Z'); let t = target;
+  for(let i=0;i<3;i++) {
+    const parts = new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(t);
+    const p = Object.fromEntries(parts.map(x=>[x.type,x.value]));
+    const wall = Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second);
+    t += target-wall;
+  }
+  return t;
+}
+export function aggregate(records,start,end,now=Date.now(),historyStart=-Infinity) {
+  if(!Number.isFinite(historyStart))historyStart=-Infinity;
+  const elapsed=Math.max(0,(Math.min(end,now)-Math.max(start,historyStart))/1000);let observed=0,occupied=0,income=0,hasIncome=true,stored=null,last=-Infinity,offline=0,maintenance=0,connectionObserved=0,maintenanceObserved=0,listed=0,unlisted=0,listingObserved=0;
+  for(const r of records) {
+    const a=r.startMs??Date.parse(r.start),b=r.endMs??Date.parse(r.end),overlap=Math.max(0,(Math.min(b,end,now)-Math.max(a,start))/1000);
+    if(!overlap||b<=a) continue;
+    const fraction=overlap/((b-a)/1000);
+    observed+=r.observedSeconds*fraction;occupied+=r.occupiedSeconds*fraction;
+    offline+=(r.offlineSeconds??0)*fraction;maintenance+=(r.maintenanceSeconds??0)*fraction;
+    connectionObserved+=(r.connectionObservedSeconds??0)*fraction;maintenanceObserved+=(r.maintenanceObservedSeconds??0)*fraction;
+    listed+=(r.listedSeconds??0)*fraction;unlisted+=(r.unlistedSeconds??0)*fraction;listingObserved+=(r.listingObservedSeconds??0)*fraction;
+    if(r.incomeUsd==null)hasIncome=false;else income+=r.incomeUsd*fraction;
+    if(b>last){last=b;stored=r.storedInstances;}
+  }
+  const coverage=elapsed?Math.min(1,observed/elapsed):0;
+  const percent=observed?Math.min(100,occupied/observed*100):null;
+  return {observed,occupied,elapsed,coverage,percent,stored,offline,maintenance,connectionObserved,maintenanceObserved,listed,unlisted,listingObserved,income:observed&&hasIncome?income:null,
+    borderState:offline>0?'offline':maintenance>0?'maintenance':unlisted>0?'unlisted':listed>0?'listed':'unknown',
+    state:end<=historyStart&&start<now?'not-tracked':!elapsed?'future':!observed?'unknown':percent>=99.999?'full':percent>0?'partial':'idle'};
+}
+export function currentStatus(sample,now=Date.now(),maxAgeSeconds=5400){
+  if(!sample||!Number.isFinite(Date.parse(sample.at))||now<Date.parse(sample.at))return {connection:'unknown',maintenance:null,next:null,listed:null,running:null,stale:true};
+  const stale=now-Date.parse(sample.at)>maxAgeSeconds*1000;
+  // An overdue snapshot describes the last known state, not an inferred new one.
+  const stateTime=stale?Date.parse(sample.at):now;
+  const windows=sample.maintenanceWindows;
+  const active=windows?.some(w=>Date.parse(w.start)<=stateTime&&stateTime<Date.parse(w.end))??null;
+  const next=windows?.find(w=>Date.parse(w.start)>stateTime)??null;
+  const listed=sample.listed===true&&sample.listingEndsAt&&Date.parse(sample.listingEndsAt)<=stateTime?false:sample.listed??null;
+  const running=sample.connection==='offline'?false:typeof sample.running==='boolean'?sample.running:Number.isFinite(sample.runningInstances)?sample.runningInstances>0:null;
+  return {connection:sample.connection??'unknown',maintenance:active,next,listed,running,stale};
+}
+export function demoData(now=Date.now()) {
+  const boxes=['Alpha','Beta','Gamma'].map((name,index)=>{
+    const hours=[];const first=midnight(new Date(now).getUTCFullYear()+'-01-01');
+    for(let t=first;t<now;t+=HOUR){
+      const n=Math.floor(t/HOUR),v=(Math.sin(n*.073+index*7)+Math.sin(n*.023+index*3)+2)/4;
+      if((n+index*31)%173<4)continue;
+      const end=Math.min(t+HOUR,now),observed=(end-t)/1000;
+      const occupancy=v>.35?(v>.47?1:.3+(v-.35)*4):0;
+      const offline=(n+index*13)%379<3,maintenance=(n+index*17)%421<2,listed=(n+index*19)%503>=10;
+      hours.push({start:new Date(t).toISOString(),end:new Date(end).toISOString(),observedSeconds:observed,occupiedSeconds:offline?0:observed*occupancy,storedInstances:occupancy>0?1+(v>.88?1:0):v>.22?1:0,runningSessions:offline||!occupancy?0:1+(v>.88?1:0),incomeUsd:null,connectionObservedSeconds:observed,offlineSeconds:offline?observed:0,maintenanceObservedSeconds:observed,maintenanceSeconds:maintenance?observed:0,listingObservedSeconds:observed,listedSeconds:listed?observed:0,unlistedSeconds:listed?0:observed});
+    }
+    const stored=hours.at(-1)?.storedInstances??0;
+    const daily=new Map();for(const row of hours){const key=dayKey(new Date(row.start)),d=daily.get(key)||{start:new Date(midnight(key)).toISOString(),observedSeconds:0,runningSessions:0};d.observedSeconds+=row.observedSeconds;d.runningSessions+=row.runningSessions;daily.set(key,d);}
+    return {name,hours,days:[...daily.values()],lastSample:{at:new Date(now).toISOString(),storedInstances:stored,gpuCount:index===2?2:1,reliability:[.9999,.975,.999999][index],verification:['verified','deverified','unverified'][index],runningInstances:index===1?0:stored?1:0,allocatedStorageGb:stored*(index+1)*40,connection:index===1?'offline':'online',listed:index!==1,maintenanceWindows:index===2?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:[]}};
+  });return {version:1,updatedAt:new Date(now).toISOString(),earnings:{computeUsdPerHour:.72,storageUsdPerHour:.08,totalUsdPerHour:.80,unavailableDevices:0},boxes};
+}
+
+export function fleetSnapshot(boxes,now=Date.now(),maxAgeSeconds=5400){
+  const states=boxes.map(box=>currentStatus(box.lastSample,now,maxAgeSeconds));
+  const count=read=>states.length&&states.every(state=>read(state)!==null)?states.filter(state=>read(state)).length:null;
+  const sum=read=>{const values=boxes.map((box,i)=>read(box.lastSample,states[i]));return values.length&&values.every(value=>Number.isFinite(value)&&value>=0)?values.reduce((a,b)=>a+b,0):null;};
+  return {total:boxes.length,online:count(s=>s.connection==='unknown'?null:s.connection==='online'),listed:count(s=>s.listed),maintenance:count(s=>s.maintenance),running:count(s=>s.running),runningInstances:sum((s,state)=>state.running===false?0:state.running===null?null:s?.runningInstances),stored:sum(s=>s?.storedInstances),storage:sum(s=>s?.allocatedStorageGb),overdue:states.filter(s=>s.stale).length};
+}
+
+// Circle sectors describe confirmed running/idle time and unknown elapsed time.
+// Occupancy percentages use observed time; sectors retain grey for unknown time.
+export function circleSegments(value){
+  const elapsed=Math.max(0,value.elapsed||0),observed=Math.min(elapsed,Math.max(0,value.observed||0)),running=Math.min(observed,Math.max(0,value.occupied||0));
+  if(!elapsed||!observed)return {running:null,idle:0,observed:0,unknown:elapsed?100:0};
+  return {running:running/elapsed*100,idle:(observed-running)/elapsed*100,observed:observed/elapsed*100,unknown:(elapsed-observed)/elapsed*100};
+}
