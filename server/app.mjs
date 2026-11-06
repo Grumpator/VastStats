@@ -4,6 +4,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {mergeStatus} from '../public/overview-model.js';
 import {occupancyPeriods,occupancyResult} from './occupancy.mjs';
+import {periods} from '../public/periods.js';
 
 export function dateWindow(url){
   const from=url.searchParams.get('from'),to=url.searchParams.get('to');
@@ -43,11 +44,12 @@ export async function createServer({runtime,publicDir,now=Date.now}){
         const status=runtime.store.status,index=await runtime.store.index();
         // Now has its own collection clock; history imports must not replace it.
         const snapshot=status??{...index,version:1,source:'telemetry'};
-        if(url.pathname==='/api/status'){send(200,{...snapshot,collection:runtime.health()});return;}
+        if(url.pathname==='/api/status'){send(200,{...snapshot,historyRevision:runtime.store.revision(),collection:runtime.health()});return;}
         const stats=await occupancySummary(),totals={};
         for(const period of occupancyPeriods){
           const fleet={occupied:0,observed:0,elapsed:0};
-          for(const box of snapshot.boxes){const value=stats.windows.get(box.deviceKey??box.storageKey??box.name)?.[period.key];if(value)for(const field of ['occupied','observed','elapsed'])fleet[field]+=value[field];}
+          // Match Details, including historical devices no longer in the latest snapshot.
+          for(const windows of stats.windows.values()){const value=windows[period.key];if(value)for(const field of ['occupied','observed','elapsed'])fleet[field]+=value[field];}
           totals[period.key]=occupancyResult(fleet);
         }
         const metadata=new Map(stats.index.boxes.map(box=>[box.deviceKey??box.storageKey??box.name,box]));
@@ -55,6 +57,14 @@ export async function createServer({runtime,publicDir,now=Date.now}){
           const key=box.deviceKey??box.storageKey??box.name;
           return {...metadata.get(key),...box,totalOccupancy:stats.devices.get(key)??null};
         }),collection:runtime.health()});return;
+      }
+      if(url.pathname==='/api/details'){
+        const period=url.searchParams.get('period'),at=url.searchParams.get('at');
+        const reference=at===null?now():Number(at);
+        if(!periods.some(p=>p.key===period)||!Number.isFinite(reference)||reference<Date.UTC(1970,0,1)||reference>Date.UTC(9999,11,31)){
+          send(400,{error:'Use a valid period and optional Unix-millisecond at timestamp'});return;
+        }
+        send(200,runtime.store.details(period,reference,now()));return;
       }
       if(url.pathname==='/api/history'){
         let window;try{window=dateWindow(url);}catch(e){send(400,{error:e.message});return;}

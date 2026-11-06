@@ -1,4 +1,5 @@
-export const occupancyPeriods=[{key:'day',hours:24},{key:'week',hours:168},{key:'month',hours:720}];
+import {periods} from '../public/periods.js';
+export const occupancyPeriods=periods.filter(period=>period.key!=='year');
 export function occupancyTotal(occupied=0,observed=0){
   return {percent:observed>0?Math.min(100,occupied/observed*100):null,occupiedSeconds:occupied,observedSeconds:observed};
 }

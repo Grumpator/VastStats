@@ -1,3 +1,6 @@
+import {periodWindow} from './periods.js?v=1.0.0';
+import {mergeStatus} from './overview-model.js?v=1.0.0';
+
 export function cachedAPI({fetchImpl=fetch,limit=6}={}){
   const entries=new Map(),pending=new Map();
   return async url=>{
@@ -19,6 +22,34 @@ export async function loadHistoryWindow(days,{get=historyAPI}={}){
   const value=await get('/api/history?'+new URLSearchParams({from:sorted[0],to:sorted.at(-1)}));
   if(value.version!==2||!Array.isArray(value.boxes)||value.boxes.some(b=>!Array.isArray(b.hours)||!Array.isArray(b.snapshots)))throw Error('Invalid history response');
   return value;
+}
+export function detailsClient({fetchImpl=fetch,now=Date.now,limit=24}={}){
+  const get=cachedAPI({fetchImpl,limit}),entries=new Map(),pending=new Map();let latest=null;
+  async function refresh(){latest=await get('/api/status');return latest;}
+  return {refresh,
+    async load(period,reference=null,{refreshStatus=false}={}){
+      if(!latest||refreshStatus)await refresh();
+      const time=now(),window=periodWindow(period,Math.min(reference??time,time));
+      const revision=latest.historyRevision,key=revision+':'+period+':'+window.start;
+      let value=entries.get(key);
+      if(!value){
+        if(!pending.has(key)){
+          const request=(async()=>{
+            const response=await get('/api/details?'+new URLSearchParams({period,at:String(reference??time)}));
+            if(response.version!==2||response.representation!=='summaries'||!Array.isArray(response.boxes)||response.boxes.some(box=>!Array.isArray(box.summaries)))throw Error('Invalid details summary');
+            // An import may finish between the status and details requests.
+            const actualKey=response.revision+':'+period+':'+window.start;
+            entries.set(actualKey,response);while(entries.size>limit)entries.delete(entries.keys().next().value);
+            if(latest.historyRevision===revision)latest={...latest,historyRevision:response.revision};
+            return response;
+          })();pending.set(key,request);
+          request.finally(()=>pending.delete(key)).catch(()=>{});
+        }
+        value=await pending.get(key);
+      }else{entries.delete(key);entries.set(key,value);}
+      return {...mergeStatus(value,latest),collection:latest.collection};
+    }
+  };
 }
 export function collectionNotice(data){
   const health=data.collection;

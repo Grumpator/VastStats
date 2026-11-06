@@ -39,9 +39,9 @@ To change the key, run `sudo dpkg-reconfigure vaststats`. To inspect the service
 
 **Overview** shows one adaptive square per device. Green means listed, amber maintenance and grey unlisted. Animated bars indicate running rentals. Offline devices flash red when listed, amber during maintenance and grey when unlisted. Unknown or overdue states are identified explicitly.
 
-The summary shows trailing **24-hour / week / month occupancy**, current **hourly earnings**, and fleet-wide running, listed, online, maintenance and stored counts. Earnings use running GPU contract prices and allocated storage, including stopped instances; bandwidth is excluded. Tap a summary for its explanation or breakdown.
+The summary shows **24h / Week / Month occupancy** matching the current Details periods, current **hourly earnings**, and fleet-wide running, listed, online, maintenance and stored counts. Earnings use running GPU contract prices and allocated storage, including stopped instances; bandwidth is excluded. Tap a summary for its explanation or breakdown.
 
-**Details** shows one row per device, with Hours / Days / Weeks / Months views. Click a day, week or month to drill down. The visible time range fits the screen, and navigation advances by that range. Device, state and occupancy columns can be sorted.
+**Details** shows one row per device. **24h** contains 24 hourly circles, including the current hour; **Week** contains the Monday–Sunday calendar week, including future days; **Month** shows the calendar month in daily circles; **Year** shows the calendar year in monthly circles. Arrows move by the selected period and cannot advance beyond the current period. Future time is excluded from statistics. On narrow screens the timeline scrolls horizontally with device columns fixed; statistics always cover the full selected period. Click a month or day to drill down. Select an occupancy reading on Overview to open the matching Details period. Device, state and occupancy columns can be sorted.
 
 Each circle represents one period: **green = observed running**, **amber = observed idle**, **grey = missing data**. Its number counts running episodes: stopping and restarting the same instance counts twice. An amber dot marks incomplete coverage. Occupancy percentages use observed time; missing telemetry is not treated as idle. Time before available history and future time are excluded from coverage.
 
@@ -56,6 +56,8 @@ One Node.js process serves the dashboard and collects data independently of brow
 - **On first setup:** automatic machine discovery using Vast hostnames, plus all historical telemetry still available from Vast.
 
 History is cached on disk and published atomically. Failed requests retain previously collected data. Current status and detailed history have separate freshness indicators; delays in Vast telemetry remain visible as missing coverage. Closing a browser does not stop collection; stopping the service does.
+
+Hourly, daily and monthly display summaries are precomputed before each history import is published and saved alongside that history. Existing installations build this derived cache once on startup; it can be rebuilt from the original history. Details loads only the summaries needed for its selected period. Recently visited periods stay in browser memory, so switching back needs no history request. A lightweight status check detects new history or recorded status evidence and refreshes affected cached views. Current status remains independent; elapsed-time coverage continues to update without inventing new observations.
 
 ## Configuration and data
 

@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os';
 import {DataStore,atomicJson} from '../server/store.mjs';
 import {createServer} from '../server/app.mjs';
 import {deviceInfoRows,everythingStats} from '../public/device-info.js';
-import {currentStatus} from '../public/model.js';
+import {currentStatus,aggregate,dayKey} from '../public/model.js';
+import {periodWindow} from '../public/periods.js';
 
 const now=Date.parse('2026-11-04T12:00:00Z'),hour=3600000,day=24*hour;
 const identity=letter=>'device-'+letter.repeat(32);
@@ -27,12 +28,20 @@ test('fleet windows use weighted observed time; Everything uses all history and 
     const base='http://127.0.0.1:'+server.address().port,response=await fetch(base+'/api/overview'),value=await response.json();
     assert.equal(response.status,200);assert.equal(value.boxes.length,2);
     assert.equal(value.source,'machines');assert.equal(value.updatedAt,sample.at); // History publication cannot replace the Now clock.
-    assert.ok(Math.abs(value.occupancy.day.percent-3600/5400*100)<1e-9);
-    assert.equal(value.occupancy.week.percent,40);assert.ok(Math.abs(value.occupancy.month.percent-5400/12600*100)<1e-9);
+    assert.equal(value.occupancy.day.percent,80);
+    assert.ok(Math.abs(value.occupancy.week.percent-7200/12600*100)<1e-9);
+    assert.equal(value.occupancy.month.percent,value.occupancy.week.percent); // October is not part of calendar November.
+    for(const key of ['day','week','month']){
+      const window=periodWindow(key,now),from=dayKey(new Date(window.start)),to=dayKey(new Date(now));
+      const details=await (await fetch(base+'/api/history?from='+from+'&to='+to)).json();
+      const stats=details.boxes.map(box=>aggregate(box.hours,window.start,window.end,now,Date.parse(box.historyStart)));
+      const occupied=stats.reduce((n,s)=>n+s.occupied,0),observed=stats.reduce((n,s)=>n+s.observed,0);
+      assert.ok(Math.abs(value.occupancy[key].percent-occupied/observed*100)<1e-9,key+' matches Details');
+    }
     assert.equal(value.boxes[0].totalOccupancy.percent,37.5);assert.equal(value.boxes[0].historyStart,boxes[0].historyStart);
     assert.equal('hours' in value.boxes[0],false); // Compact summary, not a history transfer.
     const next=await store.stage();await atomicJson(path.join(next,identity('a'),'2026-11.json'),{version:2,name:'a',month:'2026-11',hours:[row(2*hour,0),row(48*hour,0)],snapshots:[]});await store.publish(next);
-    const refreshed=await (await fetch(base+'/api/overview')).json();assert.equal(refreshed.occupancy.day.percent,0);assert.equal(refreshed.boxes[0].totalOccupancy.percent,12.5);
+    const refreshed=await (await fetch(base+'/api/overview')).json();assert.equal(refreshed.occupancy.day.percent,40);assert.equal(refreshed.boxes[0].totalOccupancy.percent,12.5);
   }finally{if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}await store?.close();await rm(root,{recursive:true,force:true});}
 });
 

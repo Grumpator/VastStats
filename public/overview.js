@@ -39,10 +39,10 @@ function hideTip(){hideDeviceTip();$('#tooltip').hidden=true;}
 function showTip(tile,box){showDeviceTip(tile,box,everythingStats(box),tileState(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),{period:'Everything'});}
 function render(){
   hideTip();renderNow(data);
-  for(const [key,label] of [['day','24 hours'],['week','7 days'],['month','30 days']]){
+  for(const [key,label] of [['day','24 hourly slots including the current hour'],['week','Current Monday–Sunday calendar week'],['month','Current calendar month']]){
     const value=data.occupancy?.[key];
     $('#fleet-occupancy-'+key).textContent=value?.percent==null?'—':value.percent.toFixed(1)+'%';
-    $('#occupancy-'+key+'-reading').title='Last '+label+' · '+(value?.percent==null?'No observed telemetry':value.percent.toFixed(1)+'% occupancy in observed time'+(value.coverage==null?'':' · '+(value.coverage*100).toFixed(1)+'% data coverage'));
+    $('#occupancy-'+key+'-reading').title=label+' · '+(value?.percent==null?'No observed telemetry':value.percent.toFixed(1)+'% occupancy in observed time'+(value.coverage==null?'':' · '+(value.coverage*100).toFixed(1)+'% data coverage'));
   }
   const query=$('#search').value.trim().toLocaleLowerCase(),boxes=data.boxes.filter(b=>b.name.toLocaleLowerCase().includes(query)),grid=$('#estate-grid');
   grid.replaceChildren();$('#device-total').textContent=boxes.length===data.boxes.length?String(boxes.length):boxes.length+'/'+data.boxes.length;
@@ -89,7 +89,7 @@ guide.addEventListener('toggle',()=>{
 });
 bindMetricPills();
 document.querySelectorAll('[data-icon]').forEach(item=>item.append(icon(item.dataset.icon)));
-const help=element('p','metric-details','Occupancy covers the trailing 24 hours, 7 days and 30 days. It is running box-time divided by observed box-time; missing telemetry is excluded. Counts use the latest machine snapshot. All values refer to the entire fleet, regardless of search. Square tooltips use Everything: each device’s full available history. Stored includes running instances. GB is allocated space. Checks run every five minutes; collection continues while the app is running.');help.id='metric-details';help.hidden=true;$('.overview-summary').after(help);
+const help=element('p','metric-details','Occupancy matches the current 24h, Week and Month periods on Details: 24 hourly slots including the current hour; the Monday–Sunday calendar week; and the current calendar month. Future time is excluded. Select a reading to open that period on Details. It is running box-time divided by observed box-time; missing telemetry is excluded. Counts use the latest machine snapshot. All values refer to the entire fleet, regardless of search. Square tooltips use Everything: each device’s full available history. Stored includes running instances. GB is allocated space. Checks run every five minutes; collection continues while the app is running.');help.id='metric-details';help.hidden=true;$('.overview-summary').after(help);
 const helpButton=$('[data-info="now"]');helpButton.onclick=()=>{help.hidden=!help.hidden;helpButton.setAttribute('aria-expanded',String(!help.hidden));};
 $('#search').addEventListener('input',render);$('#refresh').onclick=()=>load(true);
 $('#demo').onclick=()=>{const url=new URL(location);if(demo){url.searchParams.delete('demo');url.searchParams.delete('count');}else url.searchParams.set('demo','1');location.href=url;};

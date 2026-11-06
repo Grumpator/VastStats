@@ -21,7 +21,7 @@ export function renderNow(data){
 // Keep labels available to touch and keyboard users when narrow layouts hide them.
 export function bindMetricPills(){
   const definitions={
-    occupancy:['Occupancy','Running box-time divided by observed box-time for the trailing 24 hours, 7 days and 30 days. Missing telemetry is excluded.'],
+    occupancy:['Occupancy','Running box-time divided by observed box-time for the same 24h, Week and calendar Month periods shown on Details. Future time is excluded. Missing telemetry is excluded.'],
     earnings:['Hourly earnings','Current contract rates for running GPUs and allocated storage, including stopped instances. Bandwidth is excluded. Prices are used directly without a commission adjustment. Updated every five minutes.'],
     running:['Running','Boxes with at least one running rental, out of the whole fleet. The smaller count is the total running instances; multiple instances can run on one box.'],
     listed:['Listed','Boxes listed for rental on Vast, out of the whole fleet. This is the latest recorded listing state.'],
@@ -38,7 +38,7 @@ export function bindMetricPills(){
     if(active===pill){close(true);return;}close();active=pill;
     const [label,description]=definitions[pill.dataset.metric];title.textContent=label;copy.textContent=description;breakdown.textContent=pill.dataset.detail??'';breakdown.hidden=!breakdown.textContent;
     const note=pill.querySelector('.metric-note').textContent;
-    value.textContent=pill.dataset.metric==='occupancy'?[...pill.querySelectorAll('.occupancy-values>div')].map(item=>item.querySelector('.metric-note').textContent+': '+item.querySelector('strong').textContent).join(' · '):pill.querySelector('strong').textContent+(note==='boxes'?' ':' · ')+note;
+    value.textContent=pill.dataset.metric==='occupancy'?[...pill.querySelectorAll('.occupancy-values>a')].map(item=>item.querySelector('.metric-note').textContent+': '+item.querySelector('strong').textContent).join(' · '):pill.querySelector('strong').textContent+(note==='boxes'?' ':' · ')+note;
     if(pill.dataset.metric==='earnings')value.textContent=pill.querySelector('strong').textContent+(pill.querySelector('strong').textContent==='\u2014'?'':'/h');
     panel.hidden=false;pill.setAttribute('aria-expanded','true');
     const anchor=pill.getBoundingClientRect();panel.style.left=Math.max(10,Math.min(innerWidth-panel.offsetWidth-10,anchor.left+anchor.width/2-panel.offsetWidth/2))+'px';
@@ -46,7 +46,7 @@ export function bindMetricPills(){
   }
   for(const pill of document.querySelectorAll('.now-summary .now-metric[data-metric]')){
     pill.setAttribute('role','button');pill.tabIndex=0;pill.setAttribute('aria-controls',panel.id);pill.setAttribute('aria-expanded','false');pill.setAttribute('aria-haspopup','dialog');
-    pill.addEventListener('click',()=>toggle(pill));pill.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();toggle(pill);}});
+    pill.addEventListener('click',event=>{if(!event.target.closest('a'))toggle(pill);});pill.addEventListener('keydown',event=>{if(!event.target.closest('a')&&(event.key==='Enter'||event.key===' ')){event.preventDefault();toggle(pill);}});
   }
   closeButton.onclick=()=>close(true);
   document.addEventListener('click',event=>{if(active&&!active.contains(event.target)&&!panel.contains(event.target))close();});

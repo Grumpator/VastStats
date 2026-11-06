@@ -1,11 +1,15 @@
 import {deviceInfoList,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.0.0';
-import {loadHistoryWindow,collectionNotice} from './api.js?v=1.0.0';
+import {detailsClient,collectionNotice} from './api.js?v=1.0.0';
 import {element,icon} from './ui.js?v=1.0.0';
 import {renderNow,bindMetricPills} from './now.js?v=1.0.0';
-import {ZONE,dayKey,addDays,aggregate,currentStatus,demoData,circleSegments,reliabilityLabel,primaryDeviceState,sortDevices} from './model.js?v=1.0.0';
+import {ZONE,aggregate,currentStatus,demoData,circleSegments,reliabilityLabel,primaryDeviceState,sortDevices} from './model.js?v=1.0.0';
 import {applySnapshots,periodRunCount} from './history-data.js?v=1.0.0';
-import {windowEndForDate,timelineBins,moveWindow,visibleSlotCount,recordsForBin,isoWeek} from './timeline.js?v=1.0.0';
-const $=s=>document.querySelector(s),fmt=(t,options)=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}).format(t);
+import {recordsForBin} from './timeline.js?v=1.0.0';
+import {periods,periodWindow,periodBins,movePeriod} from './periods.js?v=1.0.0';
+import {summaryValue,combineSummaries} from './summary-model.js?v=1.0.0';
+const $=s=>document.querySelector(s),formatters=new Map();
+const fmt=(t,options)=>{const key=JSON.stringify(options);if(!formatters.has(key))formatters.set(key,new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}));return formatters.get(key).format(t);};
+const source=detailsClient();
 let loadGeneration=0;
 const percent=n=>n==null?'—':n.toFixed(1)+'%';
 // Ignore only floating-point noise, not genuine gaps below the displayed precision.
@@ -18,16 +22,14 @@ const duration=seconds=>{
   const hours=Math.floor(totalMinutes/60),minutes=totalMinutes%60;
   return hours+' h'+(minutes?' '+minutes+' min':'');
 };
-let selected=dayKey(new Date()),data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
-let scale='hours',windowEnd=null,displayedEnd=null,slotCount=1;
+let data={boxes:[]},demo=new URLSearchParams(location.search).has('demo');
+let period=periods.some(p=>p.key===new URLSearchParams(location.search).get('period'))?new URLSearchParams(location.search).get('period'):'day';
+let reference=null,scale='hours',slotCount=24;
 let initialDeviceLocated=false;
 let deviceSort={key:'order',direction:'asc'};
-function visibleBins(){return timelineBins(windowEnd??windowEndForDate(selected,scale),scale,slotCount);}
-function updateSlotCount(){slotCount=visibleSlotCount($('.timeline').clientWidth,parseFloat(getComputedStyle($('#boxes')).getPropertyValue('--device-columns-width'))||300);}
-function selectedDays(){
-  const bins=visibleBins(),days=[];for(let key=bins[0].key;key<=dayKey(new Date(bins.at(-1).end-1));key=addDays(key,1))days.push(key);return days;
-}
-let recordsByBox=new Map(),countsByBox=new Map(),snapshotsByBox=new Map(),activeCell=null;
+function visibleBins(){return periodBins(periodWindow(period,reference??Date.now()));}
+function updatePeriod(){scale=periodWindow(period,reference??Date.now()).scale;slotCount=visibleBins().length;}
+let recordsByBox=new Map(),countsByBox=new Map(),snapshotsByBox=new Map(),summariesByBox=new Map(),activeCell=null;
 const boxKey=box=>box.deviceKey??box.storageKey??box.name;
 
 function stateIcon(kind,state,label,count=null,disabled=false){
@@ -53,17 +55,15 @@ function deviceDetails(box,stat,status){
 }
 function hideTip(){ hideDeviceTip();$('#tooltip').hidden=true;if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=null; }
 function drillInto(bin){
-  const next={months:'weeks',weeks:'days',days:'hours'}[scale];if(!next)return false;
-  selected=bin.key;scale=next;
-  // End at the selected period's latest elapsed part, keeping its recent detail visible.
-  const last=bin.start>Date.now()?bin.end-1:Math.min(bin.end-1,Date.now());
-  windowEnd=windowEndForDate(dayKey(new Date(last)),scale);
+  if(bin.start>Date.now()||scale==='hours')return false;
+  period=scale==='months'?'month':'day';
+  reference=Math.min(bin.end-1,Date.now());
   hideTip();load();return true;
 }
 function showTip(button,box,bin,value){
   hideDeviceTip();const tip=$('#tooltip');tip.classList.remove('device-tooltip');tip.replaceChildren();
   const hourly=scale==='hours';
-  const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(hourly?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):['weeks','months'].includes(scale)?' – '+fmt(bin.end-1,{day:'numeric',month:'short',year:'numeric'}):'');
+  const title=fmt(bin.start,{day:'numeric',month:'short',year:'numeric'})+(hourly?' · '+fmt(bin.start,{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}):scale==='months'?' – '+fmt(bin.end-1,{day:'numeric',month:'short',year:'numeric'}):'');
   tip.append(element('h4','',box.name+' · '+title));const dl=element('dl');
   if(value.state==='not-tracked')tip.append(element('p','','Before available history. Tracking begins '+fmt(Date.parse(box.historyStart),{dateStyle:'medium',timeStyle:'short'})+'. This time is excluded from data coverage; the API does not establish the box’s first boot.'));
   else{
@@ -87,11 +87,16 @@ function showTip(button,box,bin,value){
   if(activeCell)activeCell.removeAttribute('aria-describedby');activeCell=button;button.setAttribute('aria-describedby','tooltip');
 }
 function cell(box,bin){
-  const rows=recordsByBox.get(boxKey(box));
-  const binRows=recordsForBin(rows,bin);
-  const source={...box,snapshots:recordsForBin(snapshotsByBox.get(boxKey(box)),bin)};
-  const value=applySnapshots(aggregate(binRows,bin.start,bin.end,Date.now(),Date.parse(box.historyStart)),source,bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
-  value.runCount=value.state==='not-tracked'?null:periodRunCount(['weeks','months'].includes(scale)?{hours:binRows,runCounts:recordsForBin(countsByBox.get(boxKey(box)),bin)}:box,bin);
+  let value;
+  if(data.representation==='summaries'){
+    const row=summariesByBox.get(boxKey(box))?.get(bin.start),stats=summaryValue(row?.value,bin,Date.now(),Date.parse(box.historyStart));
+    value=applySnapshots(stats,{...box,snapshots:row?.snapshots||[]},bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
+    value.runCount=value.state==='not-tracked'?null:row?.runCount??null;
+  }else{
+    const binRows=recordsForBin(recordsByBox.get(boxKey(box)),bin);
+    value=applySnapshots(aggregate(binRows,bin.start,bin.end,Date.now(),Date.parse(box.historyStart)),{...box,snapshots:recordsForBin(snapshotsByBox.get(boxKey(box)),bin)},bin,Date.now(),data.snapshotMaxAgeSeconds??5400);
+    value.runCount=value.state==='not-tracked'?null:periodRunCount(scale==='months'?{hours:binRows,runCounts:recordsForBin(countsByBox.get(boxKey(box)),bin)}:box,bin);
+  }
   const b=element('button','cell '+value.state+' border-'+value.borderState+(incompleteCoverage(value)?' incomplete':'')+(value.isNow?' now':''),value.state==='not-tracked'?'–':value.runCount??'');
   const segments=circleSegments(value);
   if(segments.running!==null){b.classList.add('measured');if(segments.running>=100-1e-7)b.classList.add('complete-running');b.style.setProperty('--running',segments.running+'%');b.style.setProperty('--observed',segments.observed+'%');}
@@ -102,13 +107,17 @@ function cell(box,bin){
 }
 function render(){
   const detailsOpenFor=document.querySelector('.box-details[open]')?.dataset.box;
-  hideTip();updateSlotCount();const bins=visibleBins(),start=bins[0].start,end=bins.at(-1).end;displayedEnd=end;
-  document.querySelectorAll('[data-scale]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scale===scale)));
+  hideTip();updatePeriod();const bins=visibleBins(),start=bins[0].start,end=bins.at(-1).end;
+  document.querySelectorAll('[data-period]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.period===period)));
+  const url=new URL(location);url.searchParams.set('period',period);history.replaceState(null,'',url);
   $('#period').textContent=fmt(start,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit'}:{})})+' – '+fmt(end-1,{day:'numeric',month:'short',year:'numeric',...(scale==='hours'?{hour:'2-digit',minute:'2-digit',timeZoneName:'short'}:{})});
-  if(scale==='weeks'){const first=isoWeek(bins[0].key),last=isoWeek(bins.at(-1).key);$('#period').textContent='Week '+first.week+'/'+first.year+(bins.length>1?' – Week '+last.week+'/'+last.year:'');}
-  $('#previous').title='Previous '+slotCount+' '+scale;$('#next').title='Next '+slotCount+' '+scale;
-  $('#resolution').textContent=('One circle = one '+({hours:'hour',days:'day',weeks:'week',months:'month'}[scale]))+' · Numbers = runs during period';
-  const now=Date.now(),statsByBox=new Map(data.boxes.map(b=>[boxKey(b),aggregate(b.hours,start,end,now,Date.parse(b.historyStart))]));
+  const label=periods.find(p=>p.key===period).label;
+  $('#previous').title='Previous '+label;$('#next').title='Next '+label;
+  $('#previous').setAttribute('aria-label','Previous '+label);$('#next').setAttribute('aria-label','Next '+label);
+  $('#next').disabled=end>=periodWindow(period,Date.now()).end;
+  $('.timeline').style.setProperty('--period-slots',slotCount);
+  $('#resolution').textContent=('One circle = one '+({hours:'hour',days:'day',months:'month'}[scale]))+' · Numbers = runs during period';
+  const now=Date.now(),statsByBox=new Map(data.boxes.map(b=>[boxKey(b),data.representation==='summaries'?combineSummaries((b.summaries||[]).map(row=>row.value).filter(Boolean),{start,end},now,Date.parse(b.historyStart)):aggregate(b.hours,start,end,now,Date.parse(b.historyStart))]));
   const visibleBoxes=sortDevices(data.boxes,deviceSort,{occupancy:b=>statsByBox.get(boxKey(b)).percent,now,maxAgeSeconds:data.snapshotMaxAgeSeconds??5400});
   const stats=visibleBoxes.map(b=>statsByBox.get(boxKey(b)));let obs=0,occ=0,elapsed=0;
   stats.forEach(s=>{obs+=s.observed;occ+=s.occupied;elapsed+=s.elapsed;});
@@ -131,11 +140,12 @@ function render(){
       meta.append(button);
     }
     axis.append(meta);const labels=element('div','timeline-circles timeline-labels');labels.setAttribute('aria-hidden','true');
-    for(const bin of bins){const week=scale==='weeks'?isoWeek(bin.key):null,label=element('span','',week?'W'+week.week:fmt(bin.start,scale==='hours'?{hour:'2-digit',hourCycle:'h23'}:scale==='months'?{month:'short'}:{day:'numeric'}));label.title=fmt(bin.start,{dateStyle:'full',...(scale==='hours'?{timeStyle:'short'}:{})});label.append(element('small','',week?String(week.year):fmt(bin.start,scale==='hours'?{day:'numeric',month:'short'}:scale==='months'?{year:'numeric'}:{month:'short'})));labels.append(label);}
+    for(const bin of bins){const label=element('span','',fmt(bin.start,scale==='hours'?{hour:'2-digit',hourCycle:'h23'}:scale==='months'?{month:'short'}:{day:'numeric'}));label.title=fmt(bin.start,{dateStyle:'full',...(scale==='hours'?{timeStyle:'short'}:{})});label.append(element('small','',fmt(bin.start,scale==='hours'?{day:'numeric',month:'short'}:scale==='months'?{year:'numeric'}:{month:'short'})));labels.append(label);}
     axis.append(labels);boxes.before(axis);
   }
   visibleBoxes.forEach((box,index)=>{
-    recordsByBox.set(boxKey(box),box.hours.filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));
+    summariesByBox.set(boxKey(box),new Map((box.summaries||[]).map(row=>[row.start,row])));
+    recordsByBox.set(boxKey(box),(box.hours||[]).filter(r=>Date.parse(r.end)>start&&Date.parse(r.start)<end).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));
     countsByBox.set(boxKey(box),(box.runCounts||[]).map(r=>({...r,startMs:Date.parse(r.start),endMs:Date.parse(r.end)})).sort((a,b)=>a.startMs-b.startMs));snapshotsByBox.set(boxKey(box),(box.snapshots||[]).map(r=>({...r,startMs:Date.parse(r.at),endMs:Date.parse(r.at)+1})).sort((a,b)=>a.startMs-b.startMs));
     const card=element('article','box');card.dataset.device=boxKey(box);if(new URLSearchParams(location.search).get('device')===boxKey(box))card.classList.add('device-highlight');const header=element('div','box-header'),title=element('div','box-title'),name=element('div','device-name');title.append(name);
     const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),states=element('div','device-states'+(status.stale?' outdated':''));states.setAttribute('aria-label','Latest snapshot for '+box.name);
@@ -164,20 +174,20 @@ function render(){
   if(!demo){const message=collectionNotice(data);if(message)$('#notice').textContent=message;}
   $('#demo').textContent=demo?'Return to recorded data ↗':'Explore sample data ↗';
 }
-async function load(){
+async function load({refreshStatus=false}={}){
   const generation=++loadGeneration;
   if(demo){data=demoData();render();return;}
-  try{updateSlotCount();const next=await loadHistoryWindow(selectedDays());if(generation!==loadGeneration)return;data=next;render();}
+  try{updatePeriod();const next=await source.load(period,reference,{refreshStatus});if(generation!==loadGeneration)return;data=next;render();}
   catch{if(generation===loadGeneration)$('#notice').textContent='Could not load the API history summaries. The last loaded view is retained.';}
 }
 
-document.querySelectorAll('[data-scale]').forEach(b=>b.addEventListener('click',()=>{scale=b.dataset.scale;windowEnd=windowEndForDate(selected,scale);load();}));
-function move(direction){updateSlotCount();windowEnd=moveWindow(windowEnd??displayedEnd??windowEndForDate(selected,scale),scale,slotCount,direction);selected=dayKey(new Date(windowEnd-1));load();}
-$('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{selected=dayKey(new Date());windowEnd=null;load();};
+document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.period;reference=null;load();}));
+function move(direction){reference=movePeriod(period,reference??Date.now(),direction);load();}
+$('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{reference=null;load();};
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
 const metricHelp={
-  occupancy:['Fleet occupancy','Running box-time divided by observed box-time in the visible period. Missing telemetry is excluded, so a delay alone does not lower occupancy. For example, 30 minutes running and 30 minutes missing means 100% occupancy with 50% coverage. Circle sectors still show confirmed time across the elapsed tracking period, leaving missing time grey. Read occupancy alongside coverage. This measures box-time with any rental running, not GPU capacity.'],
-  hours:['Hours','Confirmed running box-hours across all boxes in the visible period. One box with at least one running rental for one hour contributes one box-hour; two boxes running for three hours each contribute six. Multiple simultaneous rentals on one box do not multiply its time. Missing telemetry adds no confirmed time; later API history can backfill it.'],
+  occupancy:['Fleet occupancy','Running box-time divided by observed box-time in the selected period. Missing telemetry is excluded, so a delay alone does not lower occupancy. For example, 30 minutes running and 30 minutes missing means 100% occupancy with 50% coverage. Circle sectors still show confirmed time across the elapsed tracking period, leaving missing time grey. Read occupancy alongside coverage. This measures box-time with any rental running, not GPU capacity.'],
+  hours:['Hours','Confirmed running box-hours across all boxes in the selected period. One box with at least one running rental for one hour contributes one box-hour; two boxes running for three hours each contribute six. Multiple simultaneous rentals on one box do not multiply its time. Missing telemetry adds no confirmed time; later API history can backfill it.'],
   now:['Now · latest fleet snapshot','Running, Listed, Online and Maintenance count boxes in that state out of the entire fleet. Running also shows the total running instances. Stored totals retained instances, including running ones; do not add running and stored counts. GB allocated is allocated disk space, not measured file usage. These figures use the latest machine snapshots and do not change with the selected period. They are not live: current-state collection runs every five minutes and snapshots become overdue after 15 minutes. History is collected separately every thirty minutes while the app is running. If any box has an unknown state or count, its fleet total shows a dash rather than assuming zero.'],
   coverage:['Data coverage','The proportion of elapsed box-time in the selected period with reporting coverage from the telemetry API. Native API buckets up to five minutes are accepted; raw samples contribute one second each. It excludes future time and time before each device’s earliest known history boundary. This boundary comes from the telemetry archive, not a proven first boot; it is kept when the archive later advances. A dash marks periods before tracking. Gaps in telemetry are unknown, not idle. Occupancy uses only observed time; missing telemetry reduces coverage without being counted as idle.']
 };
@@ -194,6 +204,5 @@ document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMetricH
 document.addEventListener('click',event=>{hideTip();document.querySelectorAll('.box-details[open]').forEach(details=>{if(!details.contains(event.target))details.open=false;});});document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideTip();closeBoxDetails(true);}});window.addEventListener('resize',()=>{hideTip();closeBoxDetails();});window.addEventListener('scroll',event=>{hideTip();if(!event.target.closest?.('.box-details-body'))closeBoxDetails();},true);
 bindMetricPills();
 document.querySelectorAll('[data-icon]').forEach(item=>item.append(icon(item.dataset.icon)));
-let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{const previous=slotCount;updateSlotCount();if(previous!==slotCount)load();},150);});
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
-updateSlotCount();load();setInterval(()=>{if(!document.hidden)load();},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load({refreshStatus:true});});
+updatePeriod();load();setInterval(()=>{if(!document.hidden)load({refreshStatus:true});},60000);

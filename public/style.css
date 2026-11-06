@@ -252,6 +252,14 @@ h1{font-size:29px}
 .device-table .box-actions{gap:var(--device-action-gap)}
 .device-table .box-percent{font-size:11px;width:var(--device-percent-width);min-width:var(--device-percent-width);text-align:right}
 .timeline-circles{display:flex;align-items:center;gap:4px;min-width:0}
+.timeline-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;padding-bottom:var(--table-gap)}
+.timeline-scroll .device-table,.timeline-scroll .timeline-axis{min-width:calc(var(--device-columns-width) + var(--period-slots)*28px + 36px)}
+.timeline-scroll .box-header,.timeline-scroll .timeline-axis-meta{position:sticky;left:12px;z-index:6;align-self:stretch;background:#fff;box-shadow:12px 0 #fff,-12px 0 #fff}
+.timeline-scroll .timeline-axis-meta{background:var(--bg);box-shadow:12px 0 var(--bg),-12px 0 var(--bg)}
+.timeline-scroll .box:hover .box-header{background:#f7f9f4;box-shadow:12px 0 #f7f9f4,-12px 0 #f7f9f4}
+.icon-button:disabled{opacity:.3;cursor:default}
+.occupancy-values a{display:flex;flex-direction:column;align-items:center;color:inherit;text-decoration:none;border-radius:5px}
+.occupancy-values a:hover,.occupancy-values a:focus-visible{background:#e9f0e3;outline:2px solid #adc09c;outline-offset:3px}
 .timeline-circles .cell{--cell:24px;width:24px;height:24px;flex:0 0 24px;font-size:9px}
 .timeline-axis{display:grid;grid-template-columns:var(--device-columns-width) minmax(0,1fr);gap:12px;padding:8px 13px;position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-bottom:var(--table-gap);color:#788178;font-size:10px}
 .timeline-axis-meta{align-self:center;white-space:nowrap}.timeline-axis-occupancy{width:var(--device-percent-width);text-align:right}
@@ -382,7 +390,7 @@ h1{font-size:29px}
 /* Overview history composite stays together; current counts retain their order. */
 .overview-summary .now-summary{grid-template-columns:minmax(230px,1.7fr) repeat(6,minmax(0,1fr))}
 .occupancy-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.occupancy-values>div{display:flex;flex-direction:column;min-width:0}
+.occupancy-values>a{display:flex;flex-direction:column;min-width:0}
 .overview-summary .occupancy-values strong{font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.7px}
 .occupancy-values .metric-note{font-size:9px}
 .occupancy-metric .metric-label{margin-bottom:2px}
@@ -400,7 +408,7 @@ h1{font-size:29px}
 .now-summary .metric-label-text{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .now-summary .fleet-icon svg{width:15px;height:15px}
 .overview-summary .occupancy-values{width:100%;max-width:360px;margin-inline:auto;text-align:center}
-.occupancy-values>div{align-items:center}
+.occupancy-values>a{align-items:center}
 }
 
 /* Running uses activity bars on a steady tile, rather than whole-tile flashing. */

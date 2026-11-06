@@ -23,12 +23,14 @@ export function sortDevices(boxes,{key='order',direction='asc'}={}, {occupancy=(
   });
 }
 const HOUR = 3600000;
-export function dayKey(date) { return new Intl.DateTimeFormat('en-CA', {timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit'}).format(date); }
+const dayFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit'});
+const wallFormatter=new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
+export function dayKey(date) { return dayFormatter.format(date); }
 export function addDays(key, count) { const d = new Date(key+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+count); return d.toISOString().slice(0,10); }
 export function midnight(key) {
   const target = Date.parse(key+'T00:00:00Z'); let t = target;
   for(let i=0;i<3;i++) {
-    const parts = new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(t);
+    const parts = wallFormatter.formatToParts(t);
     const p = Object.fromEntries(parts.map(x=>[x.type,x.value]));
     const wall = Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second);
     t += target-wall;
