@@ -3,7 +3,7 @@ import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.
 import {collectionNotice} from './api.js?v=1.0.0';
 import {element,icon} from './ui.js?v=1.0.0';
 import {renderNow,bindMetricPills} from './now.js?v=1.0.0';
-import {reliabilityLabel,ZONE} from './model.js?v=1.0.0';
+import {percentLabel,coverageLabel,ZONE} from './model.js?v=1.0.0';
 import {tileState,tileLayout} from './overview-model.js?v=1.0.0';
 import {statusSource} from './status-data.js?v=1.0.0';
 const $=s=>document.querySelector(s),params=new URLSearchParams(location.search);
@@ -42,8 +42,8 @@ function render(){
   hideTip();renderNow(data);
   for(const [key,label] of [['day','24 hourly slots including the current hour'],['week','Current Monday–Sunday calendar week'],['month','Current calendar month']]){
     const value=data.occupancy?.[key];
-    $('#fleet-occupancy-'+key).textContent=value?.percent==null?'—':value.percent.toFixed(1)+'%';
-    $('#occupancy-'+key+'-reading').title=label+' · '+(value?.percent==null?'No observed telemetry':value.percent.toFixed(1)+'% occupancy in observed time'+(value.coverage==null?'':' · '+(value.coverage*100).toFixed(1)+'% data coverage'));
+    $('#fleet-occupancy-'+key).textContent=percentLabel(value?.percent);
+    $('#occupancy-'+key+'-reading').title=label+' · '+(value?.percent==null?'No observed telemetry':percentLabel(value.percent)+' occupancy in observed time'+(value.coverage==null?'':' · '+coverageLabel(value.coverage)+' data coverage'));
   }
   const query=$('#search').value.trim().toLocaleLowerCase(),boxes=data.boxes.filter(b=>b.name.toLocaleLowerCase().includes(query)),grid=$('#estate-grid');
   grid.replaceChildren();$('#device-total').textContent=boxes.length===data.boxes.length?String(boxes.length):boxes.length+'/'+data.boxes.length;

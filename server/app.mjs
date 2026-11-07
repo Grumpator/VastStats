@@ -13,6 +13,12 @@ export function dateWindow(url){
   return {from,to};
 }
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.ico':'image/x-icon'};
+function localMarketRequest(req){
+  return ['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)
+    && /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(req.headers.host??'')
+    && req.headers['sec-fetch-site']!=='cross-site'
+    && !Object.keys(req.headers).some(name=>name==='forwarded'||name.startsWith('x-forwarded-'));
+}
 export async function createServer({runtime,publicDir,now=Date.now}){
   // Only top-level application assets are public; data directories and config are not.
   const assets=new Set((await readdir(publicDir,{withFileTypes:true})).filter(f=>f.isFile()&&mime[path.extname(f.name)]).map(f=>f.name));
@@ -30,7 +36,7 @@ export async function createServer({runtime,publicDir,now=Date.now}){
     res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'");
     const send=(code,value,type='application/json; charset=utf-8')=>{
       const body=Buffer.isBuffer(value)?value:Buffer.from(typeof value==='string'?value:JSON.stringify(value)),etag='"'+createHash('sha256').update(body).digest('hex').slice(0,24)+'"';
-      res.setHeader('Content-Type',type);res.setHeader('Cache-Control','no-cache');res.setHeader('ETag',etag);
+      res.setHeader('Content-Type',type);if(!res.hasHeader('Cache-Control'))res.setHeader('Cache-Control','no-cache');res.setHeader('ETag',etag);
       if(code===200&&req.headers['if-none-match']===etag){res.writeHead(304);res.end();return;}
       res.writeHead(code);res.end(req.method==='HEAD'?undefined:body);
     };
@@ -38,6 +44,11 @@ export async function createServer({runtime,publicDir,now=Date.now}){
     try{
       const url=new URL(req.url,'http://localhost');
       if(url.pathname==='/details.html'){res.writeHead(302,{Location:'/occupancy.html'+url.search});res.end();return;}
+      if(url.pathname==='/api/market'){
+        res.setHeader('Cache-Control','private, no-store');
+        const enabled=!!runtime.market&&localMarketRequest(req);
+        send(200,enabled?{enabled,...runtime.market.read()}:{enabled:false});return;
+      }
       if(url.pathname==='/api/earnings'){
         const status=runtime.store.status,report=runtime.store.earningsReport;
         const currentDevices=(status?.boxes??[]).map(({deviceKey,name,lastSample})=>({deviceKey,name,gpuModel:lastSample?.gpuModel??null,rate:lastSample?.earnings??null}));

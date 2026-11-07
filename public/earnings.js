@@ -11,7 +11,7 @@ const stamp=value=>value?new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',dateSty
 let data=null;
 const chart=createEarningsChart({get});
 const demo=new URLSearchParams(location.search).has('demo');
-const periods={today:'Today',week:'Week',month:'Month',total:'Total'};
+const periods={today:'Today',week:'This week',month:'This month',total:'Total'};
 const figure=(report,key,now)=>key==='total'?recordedTotal(report):recordedPeriod(report,key,now);
 function earningsHelp(key){
   const value=figure(data?.report?.version===2?data.report:null,key);

@@ -4,6 +4,7 @@ import {atomicJson,readJson} from './store.mjs';
 import {dailyEarnings,earningsRange} from './earnings.mjs';
 import {chartDays,gpuGroups,reportedDayHours} from '../public/earnings-chart-model.js';
 const DAY=86400000,valid=n=>typeof n==='number'&&Number.isFinite(n);
+const knownGpuCount=n=>Number.isSafeInteger(n)&&n>0?n:null;
 export function machineDay(raw,day,devices,now=Date.now()){
   const start=Date.parse(day+'T00:00Z'),range={start,end:start+DAY};
   const fleet=dailyEarnings(raw,range);if(!Array.isArray(raw.per_machine))throw Error('Missing device breakdown');
@@ -20,7 +21,15 @@ export function machineDay(raw,day,devices,now=Date.now()){
 export class EarningsSeries {
   constructor({root,apiFactory,now=Date.now,signal,enabled=true,wait=ms=>pause(ms,undefined,{signal})}){Object.assign(this,{root:path.join(root,'earnings-series'),apiFactory,now,signal,enabled,wait});this.devices=new Map();this.cache=new Map();this.pending=new Map();this.failures=new Map();this.chain=Promise.resolve();this.lastRequest=-Infinity;this.closed=false;}
   async open(){const saved=await readJson(path.join(this.root,'registry.json'));if(saved?.version===1)for(const d of saved.devices||[])if(/^device-[a-f0-9]{32}$/.test(d.deviceKey)&&/^\d+$/.test(d.id))this.devices.set(d.deviceKey,d);return this;}
-  async setDevices(devices){this.devices=new Map(devices.map(d=>[d.deviceKey,{id:String(d.id),deviceKey:d.deviceKey,name:d.name,gpuModel:d.gpuModel??this.devices.get(d.deviceKey)?.gpuModel??null}]));await atomicJson(path.join(this.root,'registry.json'),{version:1,devices:[...this.devices.values()]});}
+  async setDevices(devices){
+    this.devices=new Map(devices.map(d=>{
+      const previous=this.devices.get(d.deviceKey);
+      return [d.deviceKey,{id:String(d.id),deviceKey:d.deviceKey,name:d.name,
+        gpuModel:d.gpuModel??previous?.gpuModel??null,
+        gpuCount:knownGpuCount(d.gpuCount)??knownGpuCount(previous?.gpuCount)}];
+    }));
+    await atomicJson(path.join(this.root,'registry.json'),{version:1,devices:[...this.devices.values()]});
+  }
   publicDevices(){return [...this.devices.values()].map(({deviceKey,name,gpuModel})=>({deviceKey,name,gpuModel:gpuModel??null}));}
   fresh(value){const age=Math.floor(this.now()/DAY)-Date.parse(value.day+'T00:00Z')/DAY,ttl=age===0?1800000:age<=3?6*3600000:7*DAY;return this.now()-Date.parse(value.updatedAt)<ttl;}
   schedule(day){
@@ -33,7 +42,7 @@ export class EarningsSeries {
   }
   async selected(keys,range,group='machine'){
     if(!['machine','gpu'].includes(group))throw Error('Invalid grouping');
-    const devices=this.publicDevices(),groups=group==='gpu'?gpuGroups(devices):devices.map(device=>({...device,members:[device]}));
+    const devices=[...this.devices.values()],groups=group==='gpu'?gpuGroups(devices):devices.map(device=>({...device,members:[device]}));
     const byKey=new Map(groups.map(item=>[item.deviceKey,item]));
     if(!Array.isArray(keys)||keys.length>8||new Set(keys).size!==keys.length||keys.some(key=>!byKey.has(key)))throw Error('Select up to eight known series');
     const bounds=earningsRange(this.now()),validDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')&&Number.isFinite(Date.parse(v+'T00:00Z'))&&new Date(v+'T00:00Z').toISOString().slice(0,10)===v;
@@ -43,23 +52,33 @@ export class EarningsSeries {
     const stale=days.some(day=>this.cache.has(day)&&!this.fresh(this.cache.get(day)));
     if(groups.length)for(const day of [...days].reverse())if(!this.cache.has(day)||!this.fresh(this.cache.get(day)))this.schedule(day);
     const loaded=days.filter(day=>this.cache.has(day)),pending=days.filter(day=>this.pending.has(day)).length,failed=days.filter(day=>this.failures.has(day)||(!this.enabled&&!this.cache.has(day))).length;
-    const selected=new Set(keys),totals={},hours={},series=[],updatedAt=loaded.length?loaded.map(day=>this.cache.get(day).updatedAt).sort()[0]:null;
+    const selected=new Set(keys),totals={},hours={},gpuHours={},series=[],updatedAt=loaded.length?loaded.map(day=>this.cache.get(day).updatedAt).sort()[0]:null;
     for(const {deviceKey,name,members} of groups){
-      let total=null,reportedHours=0;const daily=[];
+      let total=null,reportedHours=0,reportedGpuHours=0,countsKnown=true;
+      const daily=[];
       for(const day of loaded){
         const value=this.cache.get(day);if(!value.reported)continue;
+        const dayHours=reportedDayHours(day,value.updatedAt);
         let amount=null;
-        for(const device of members){const row=value.byDevice[device.deviceKey];if(row)amount=(amount??0)+row.totalUsd;}
+        for(const device of members){
+          const row=value.byDevice[device.deviceKey];
+          if(!row)continue;
+          amount=(amount??0)+row.totalUsd;
+          const gpuCount=knownGpuCount(device.gpuCount);
+          if(gpuCount===null)countsKnown=false;
+          else reportedGpuHours+=dayHours*gpuCount;
+        }
         if(amount===null)continue;
         total=(total??0)+amount;
-        reportedHours+=reportedDayHours(day,value.updatedAt);
+        reportedHours+=dayHours;
         if(selected.has(deviceKey))daily.push({day,totalUsd:amount});
       }
       totals[deviceKey]=total;
       hours[deviceKey]=reportedHours;
+      gpuHours[deviceKey]=countsKnown&&reportedGpuHours>0?reportedGpuHours:null;
       if(selected.has(deviceKey))series.push({deviceKey,name,daily,updatedAt,stale});
     }
-    return {version:3,series,totals,hours,pending:pending>0,progress:{loaded:loaded.length,total:days.length,pending,failed}};
+    return {version:3,series,totals,hours,gpuHours,pending:pending>0,progress:{loaded:loaded.length,total:days.length,pending,failed}};
   }
   async close(){this.closed=true;await this.chain;}
 }

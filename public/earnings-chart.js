@@ -9,7 +9,7 @@ const shortDate=new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',mo
 function svgElement(tag,attributes={},text){const node=document.createElementNS(svgNS,tag);for(const [key,value] of Object.entries(attributes))node.setAttribute(key,String(value));if(text!==undefined)node.textContent=text;return node;}
 
 export function createEarningsChart({get}){
-  const host=$('#earnings-chart'),legend=$('#chart-legend'),status=$('#chart-status');
+  const host=$('#earnings-chart'),legend=$('#chart-legend'),status=$('#chart-status'),averageHeading=$('#chart-average-heading');
   let report=null,mode='source',range=null,revision=null,roster=[],groups=[];
   const selections={source:new Set(earningsSources.map(d=>d.key)),machine:new Set(['totalUsd']),gpu:new Set(['totalUsd'])};
   const initialized=new Set(),windows=new Map();
@@ -23,12 +23,13 @@ export function createEarningsChart({get}){
     for(const {label,value} of rankedPoints(activeSeries,index))content.append(element('dt','',label),element('dd','',value==null?'No report':hourlyUsd(value)));
     return {title:day?dateLabel(day)+(day===new Date().toISOString().slice(0,10)?' · so far':' · earnings'):'Daily earnings',content};
   }
-  bindPopover($('#chart-info'),()=>({title:'Daily earnings',copy:'Period totals sum the reported UTC days in the selected range. Average $/h divides each total by its reported hours. Past reported days count as 24 hours, today counts up to the report check, and days without a report are skipped. By GPU groups machine earnings, including storage and bandwidth, by the last known GPU model. Older hardware changes may not be reflected. The fleet total always includes every machine. Vast reports fleet and machine amounts separately, so their totals can differ slightly. Select up to eight machines or GPU groups to plot. An unavailable value is shown as a dash.'}));
+  bindPopover($('#chart-info'),()=>({title:'Daily earnings',copy:'Period totals sum the reported UTC days in the selected range. Average $/h divides earnings by reported clock hours. By GPU estimates dollars per GPU-hour using each reporting machine’s last known GPU model and count. This includes idle time and assumes the hardware count stayed the same. Days with no report are skipped. Today counts up to the report check. A GPU estimate needs a known count for every included machine. For the combined fleet hourly rate, use By source. Vast reports fleet and machine amounts separately, so their totals can differ slightly. Select up to eight machines or GPU groups to plot.'}));
   function updateTable(){
     const focus=legend.contains(document.activeElement)?document.activeElement.value:null;
     legend.replaceChildren();
     const state=windows.get(windowKey()),selection=selections[mode];
     const daily=range?(report?.daily||[]).filter(row=>row.day>=range.from&&row.day<=range.to):[];
+    averageHeading.textContent=mode==='gpu'?'Est. $/GPU-h':'Average $/h';
     for(const definition of earningsDefinitions(mode,devices())){
       const {key}=definition,row=element('tr'),heading=element('th'),label=element('label','chart-series-toggle'),input=element('input');heading.scope='row';
       input.type='checkbox';input.value=key;input.checked=selection.has(key);input.setAttribute('aria-label','Plot '+definition.label);
@@ -37,7 +38,9 @@ export function createEarningsChart({get}){
       label.append(input,dot,element('span','chart-series-name',definition.label));heading.append(label);
       const fleetSeries=mode==='source'||key==='totalUsd';
       const total=fleetSeries&&range?rangeTotal(daily,key,range):state?.totals?.[key];
-      const hours=fleetSeries?daily.reduce((sum,row)=>Number.isFinite(row[key])?sum+reportedDayHours(row.day,report.updatedAt):sum,0):state?.hours?.[key];
+      let hours=state?.hours?.[key];
+      if(mode==='gpu')hours=state?.gpuHours?.[key];
+      else if(fleetSeries)hours=daily.reduce((sum,row)=>Number.isFinite(row[key])?sum+reportedDayHours(row.day,report.updatedAt):sum,0);
       const average=Number.isFinite(total)&&hours>0?total/hours:null;
       row.append(heading,element('td','',hourlyUsd(total)),element('td','',hourlyUsd(average)));
       input.addEventListener('change',()=>{input.checked?selection.add(key):selection.delete(key);changeView();});
@@ -46,13 +49,21 @@ export function createEarningsChart({get}){
     }
   }
   function demoSeries(keys,requested,group){
-    const result={series:[],totals:{},hours:{}};
+    const result={series:[],totals:{},hours:{},gpuHours:{}};
     for(const device of group==='gpu'?groups:roster){
       const totals=new Map();
-      for(const member of device.members||[device])for(const row of member.daily||[])if(row.day>=requested.from&&row.day<=requested.to)totals.set(row.day,(totals.get(row.day)??0)+row.totalUsd);
+      let gpuHours=0;
+      for(const member of device.members||[device]){
+        for(const row of member.daily||[]){
+          if(row.day<requested.from||row.day>requested.to)continue;
+          totals.set(row.day,(totals.get(row.day)??0)+row.totalUsd);
+          gpuHours+=reportedDayHours(row.day,report.updatedAt)*member.gpuCount;
+        }
+      }
       const daily=[...totals].map(([day,totalUsd])=>({day,totalUsd}));
       result.totals[device.deviceKey]=rangeTotal(daily,'totalUsd',requested);
       result.hours[device.deviceKey]=daily.reduce((sum,row)=>sum+reportedDayHours(row.day,report.updatedAt),0);
+      result.gpuHours[device.deviceKey]=gpuHours;
       if(keys.includes(device.deviceKey))result.series.push({deviceKey:device.deviceKey,daily});
     }
     return result;
@@ -73,7 +84,7 @@ export function createEarningsChart({get}){
       for(const item of result.series||[])series.set(item.deviceKey,item.daily);
       const failed=!!result.progress?.failed;
       const message=result.pending?'Loading history · '+result.progress.loaded+'/'+result.progress.total+' days':failed?'Some days are stale or unavailable':'';
-      windows.set(key,{series,totals:result.totals,hours:result.hours,complete:!result.pending&&!failed,message});
+      windows.set(key,{series,totals:result.totals,hours:result.hours,gpuHours:result.gpuHours,complete:!result.pending&&!failed,message});
       if(windows.size>32)windows.delete(windows.keys().next().value);
       status.textContent=message;
       if(result.pending)pollAfter(3500);

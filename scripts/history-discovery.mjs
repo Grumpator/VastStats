@@ -23,7 +23,8 @@ export function discoverMachines(raw,{seed,previous=[]}={}){
     if(!validStorageKey(storageKey))throw Error('Invalid device storage key');
     const hostname=typeof row.hostname==='string'?row.hostname.normalize('NFC').replace(/[\p{Cc}\p{Cf}]/gu,' ').replace(/\s+/g,' ').trim().slice(0,96):'';
     const gpuModel=typeof row.gpu_name==='string'?row.gpu_name.replace(/[\p{Cc}\p{Cf}]/gu,' ').replace(/\s+/g,' ').trim().slice(0,96)||null:null;
-    return {id,deviceKey,storageKey,name:hostname||'Unnamed-'+deviceKey.slice(-8),gpuModel,previous:old??null};
+    const gpuCount=Number.isSafeInteger(row.num_gpus)&&row.num_gpus>0?row.num_gpus:null;
+    return {id,deviceKey,storageKey,name:hostname||'Unnamed-'+deviceKey.slice(-8),gpuModel,gpuCount,previous:old??null};
   });
   const counts=new Map();
   for(const d of devices){const key=d.name.toLowerCase();counts.set(key,(counts.get(key)||0)+1);}

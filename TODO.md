@@ -1,6 +1,6 @@
 # Later
 
-- Market page: implement read-only comparisons by GPU type, normalised prices and shared cached market snapshots; consider pricing suggestions afterwards.
+- Market page: validate the pricing range across more GPU models, regions and larger bundles.
 - Settings page: implement protected device visibility/retirement/exclusion controls with persistent data and consistent historical treatment.
 
 - Separate fast fleet-status publication from slower earnings collection.

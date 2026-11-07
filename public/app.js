@@ -3,7 +3,7 @@ import {deviceInfoList,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.0
 import {detailsClient,collectionNotice} from './api.js?v=1.0.0';
 import {element,icon} from './ui.js?v=1.0.0';
 import {renderNow,bindMetricPills} from './now.js?v=1.0.0';
-import {ZONE,aggregate,currentStatus,demoData,circleSegments,reliabilityLabel,primaryDeviceState,sortDevices} from './model.js?v=1.0.0';
+import {ZONE,aggregate,currentStatus,demoData,circleSegments,reliabilityLabel,percentLabel as percent,coverageLabel as coveragePercent,primaryDeviceState,sortDevices} from './model.js?v=1.0.0';
 import {applySnapshots,periodRunCount} from './history-data.js?v=1.0.0';
 import {recordsForBin} from './timeline.js?v=1.0.0';
 import {periods,periodWindow,periodBins,movePeriod} from './periods.js?v=1.0.0';
@@ -12,10 +12,8 @@ const $=s=>document.querySelector(s),formatters=new Map();
 const fmt=(t,options)=>{const key=JSON.stringify(options);if(!formatters.has(key))formatters.set(key,new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,...options}));return formatters.get(key).format(t);};
 const source=detailsClient();
 let loadGeneration=0;
-const percent=n=>n==null?'—':n.toFixed(1)+'%';
 // Ignore only floating-point noise, not genuine gaps below the displayed precision.
 const incompleteCoverage=value=>value.observed>0&&value.coverage<1-1e-9;
-const coveragePercent=ratio=>ratio>=.9995&&ratio<1-1e-9?'<100%':percent(ratio*100);
 const duration=seconds=>{
   if(seconds>0&&seconds<60)return '<1 min';
   const totalMinutes=Math.round(Math.max(0,seconds)/60);
@@ -160,8 +158,8 @@ function render(){
     const gpuIcon=stateIcon('gpu','muted','GPUs: '+(box.lastSample?.gpuCount??'unknown')+when,box.lastSample?.gpuCount??'?');gpuIcon.classList.add('device-gpu');states.append(gpuIcon);
     const verification=box.lastSample?.verification;
     name.prepend(stateIcon(verification==='deverified'?'deverifiedBadge':'verifiedBadge',verification==='verified'?'verified':verification==='deverified'?'maintenance':'muted','Verification: '+(verification??'unavailable')+when,null));
-    const reliability=box.lastSample?.reliability;
-    const reliabilityIcon=stateIcon('gauge','muted','Reliability: '+(reliability==null?'unavailable':(reliability*100).toFixed(6)+'%')+when,reliabilityLabel(reliability));reliabilityIcon.classList.add('device-reliability');states.append(reliabilityIcon);
+    const reliability=reliabilityLabel(box.lastSample?.reliability);
+    const reliabilityIcon=stateIcon('gauge','muted','Reliability: '+(reliability==='—'?'unavailable':reliability)+when,reliability);reliabilityIcon.classList.add('device-reliability');states.append(reliabilityIcon);
     title.append(states);const metric=element('div','box-percent',percent(stats[index].percent));metric.title='Occupancy in observed data for the selected period; see details for coverage';
     const actions=element('div','box-actions'),details=deviceDetails(box,stats[index],status);name.append(details);actions.append(metric);header.append(title,actions);card.append(header);
     const scroll=element('div','timeline-circles');for(const bin of bins)scroll.append(cell(box,bin));
@@ -187,7 +185,7 @@ function move(direction){reference=movePeriod(period,reference??Date.now(),direc
 $('#previous').onclick=()=>move(-1);$('#next').onclick=()=>move(1);$('#today').onclick=()=>{reference=null;load();};
 $('#demo').onclick=()=>{demo=!demo;const url=new URL(location);demo?url.searchParams.set('demo','1'):url.searchParams.delete('demo');history.replaceState(null,'',url);load();};
 const metricHelp={
-  occupancy:['Fleet occupancy','Running box-time divided by observed box-time in the selected period. Missing telemetry is excluded, so a delay alone does not lower occupancy. For example, 30 minutes running and 30 minutes missing means 100% occupancy with 50% coverage. Circle sectors still show confirmed time across the elapsed tracking period, leaving missing time grey. Read occupancy alongside coverage. This measures box-time with any rental running, not GPU capacity.'],
+  occupancy:['Fleet occupancy','Running box-time divided by observed box-time in the selected period. Missing telemetry is excluded, so a delay alone does not lower occupancy. For example, 30 minutes running and 30 minutes missing means 100.0% occupancy with 50.0% coverage. Circle sectors still show confirmed time across the elapsed tracking period, leaving missing time grey. Read occupancy alongside coverage. This measures box-time with any rental running, not GPU capacity.'],
   hours:['Hours','Confirmed running box-hours across all boxes in the selected period. One box with at least one running rental for one hour contributes one box-hour; two boxes running for three hours each contribute six. Multiple simultaneous rentals on one box do not multiply its time. Missing telemetry adds no confirmed time; later API history can backfill it.'],
   now:['Now · latest fleet snapshot','Running, Listed, Online and Maintenance count boxes in that state out of the entire fleet. Running also shows the total running instances. Stored totals retained instances, including running ones; do not add running and stored counts. GB allocated is allocated disk space, not measured file usage. These figures use the latest machine snapshots and do not change with the selected period. They are not live: current-state collection runs every five minutes and snapshots become overdue after 15 minutes. History is collected separately every thirty minutes while the app is running. If any box has an unknown state or count, its fleet total shows a dash rather than assuming zero.'],
   coverage:['Data coverage','The proportion of elapsed box-time in the selected period with reporting coverage from the telemetry API. Native API buckets up to five minutes are accepted; raw samples contribute one second each. It excludes future time and time before each device’s earliest known history boundary. This boundary comes from the telemetry archive, not a proven first boot; it is kept when the archive later advances. A dash marks periods before tracking. Gaps in telemetry are unknown, not idle. Occupancy uses only observed time; missing telemetry reduces coverage without being counted as idle.']

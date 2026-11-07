@@ -1,8 +1,16 @@
 export const ZONE = 'Europe/London';
+export function percentLabel(value){
+  return Number.isFinite(value)?value.toFixed(1)+'%':'—';
+}
 export function reliabilityLabel(ratio){
   if(!Number.isFinite(ratio)||ratio<0||ratio>1)return '—';
-  const n=ratio*100;
-  return ratio===1?'100%':n>=99.995?'<100%':n.toFixed(2)+'%';
+  const label=percentLabel(ratio*100);
+  return ratio<1&&label==='100.0%'?'<'+label:label;
+}
+export function coverageLabel(ratio){
+  if(!Number.isFinite(ratio))return '—';
+  const label=percentLabel(ratio*100);
+  return ratio<1-1e-9&&label==='100.0%'?'<'+label:label;
 }
 export function primaryDeviceState(status){
   if(status.connection==='offline')return 'offline';

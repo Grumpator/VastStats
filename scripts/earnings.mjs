@@ -1,9 +1,9 @@
 // Vast contract storage prices are USD/GB/month, using a 30-day billing month.
 const HOURS_PER_MONTH=30*24;
 const valid=value=>Number.isFinite(value)&&value>=0;
-export function contractEarnings(response){
+export function contractEarnings(response,{includeGpuCount=false}={}){
   if(!Array.isArray(response?.contracts)||response.truncated||response.omitted_count>0||response.billing_degraded||response.aggregation_degraded)throw Error('Incomplete contract rates');
-  let compute=0,storage=0;
+  let compute=0,storage=0,runningGpuCount=0;
   const seen=new Set();
   for(const contract of response.contracts){
     if(contract.contract_id!=null){const id=String(contract.contract_id);if(seen.has(id))throw Error('Duplicate contract');seen.add(id);}
@@ -13,6 +13,7 @@ export function contractEarnings(response){
     if(state==='running'&&types.includes('gpu')){
       if(!Number.isInteger(contract.num_gpus)||contract.num_gpus<0||!valid(contract.gpu_price_dph))throw Error('Invalid GPU rate');
       compute+=contract.num_gpus*contract.gpu_price_dph;
+      runningGpuCount+=contract.num_gpus;
     }
     for(const [type,size,price] of [['disk','disk_size_gb','disk_price_dpgbm'],['volume','vol_size_gb','vol_price_dpgbm']])if(types.includes(type)){
       if(!valid(contract[size])||(contract[size]>0&&!valid(contract[price])))throw Error('Invalid storage rate');
@@ -20,7 +21,9 @@ export function contractEarnings(response){
     }
   }
   if(!valid(compute+storage))throw Error('Invalid contract total');
-  return {computeUsdPerHour:compute,storageUsdPerHour:storage,totalUsdPerHour:compute+storage};
+  const earnings={computeUsdPerHour:compute,storageUsdPerHour:storage,totalUsdPerHour:compute+storage};
+  if(includeGpuCount)earnings.runningGpuCount=runningGpuCount;
+  return earnings;
 }
 export function fleetEarnings(boxes){
   const unavailableDevices=boxes.filter(box=>!box.lastSample?.earnings).length;

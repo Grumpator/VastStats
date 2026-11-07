@@ -9,6 +9,7 @@ import {ScheduledJob} from './scheduler.mjs';
 import {collectHistoricalEarnings} from './earnings.mjs';
 import {EarningsSeries} from './earnings-series.mjs';
 import {discoverMachines} from '../scripts/history-discovery.mjs';
+import {createMarket} from './market.mjs';
 
 export async function createRuntime({config,now=Date.now,timers=globalThis,statusCollector=collectStatus,historyCollector=collectHistory,apiFactory}={}){
   const abort=new AbortController();apiFactory??=()=>new HistoryApi(config.key,{signal:abort.signal});
@@ -22,6 +23,9 @@ export async function createRuntime({config,now=Date.now,timers=globalThis,statu
     fleetPending=(async()=>{const raw=await apiFactory().machines();cachedFleet=raw;fleetTime=now();return raw;})();
     try{return await fleetPending;}finally{fleetPending=null;}
   };
+  const market=config.key&&config.marketEnabled
+    ?createMarket({api:apiFactory(),machines,status:()=>store.status,seed:store.identitySeed,now})
+    :null;
   const statusTask=async()=>{
     const work=path.join(store.root,'status-stage-'+randomUUID());await mkdir(work,{recursive:true});
     try{
@@ -58,14 +62,17 @@ export async function createRuntime({config,now=Date.now,timers=globalThis,statu
       const raw=await machines(),current=Array.isArray(raw)?raw:raw.machines,all=new Map(current.map(row=>[String(row.id),row]));
       for(const row of rows){const id=String(row.machine_id);if(!/^\d+$/.test(id))throw Error('Invalid earnings device');if(!all.has(id))all.set(id,{id});}
       const previous=[...(await store.index()).boxes,...(store.status?.boxes||[])];
-      const devices=discoverMachines({machines:[...all.values()]},{seed:store.identitySeed,previous}).map(d=>({...d,name:d.name.startsWith('Unnamed-')?d.previous?.name??d.name:d.name}));
+      const devices=discoverMachines({machines:[...all.values()]},{seed:store.identitySeed,previous}).map(d=>({
+        ...d,name:d.name.startsWith('Unnamed-')?d.previous?.name??d.name:d.name,
+        gpuCount:d.gpuCount??d.previous?.lastSample?.gpuCount??null
+      }));
       await earningsSeries.setDevices(devices);return earningsSeries.publicDevices();
     }});await store.publishEarnings(report);
   },now,timers});
   const health=()=>({ok:true,version:config.version??null,release:config.release??null,configured:!!config.key,mode:config.key?'collecting':'cache-only',status:{...statusJob.state,updatedAt:store.status?.updatedAt??null},history:{...historyJob.state,updatedAt:historyUpdatedAt},earnings:{...earningsJob.state,updatedAt:store.earningsReport?.updatedAt??null}});
   let startup=null;
-  return {store,statusJob,historyJob,earningsJob,health,machineEarnings:(keys,range,group)=>earningsSeries.selected(keys,range,group),
+  return {store,statusJob,historyJob,earningsJob,health,market,machineEarnings:(keys,range,group)=>earningsSeries.selected(keys,range,group),
     start(){if(startup||!config.key)return startup;startup=(async()=>{statusJob.start();await statusJob.run();if(stopping)return;historyJob.start();earningsJob.start();await Promise.all([historyJob.run(),earningsJob.run()]);})();return startup;},
-    async close(){stopping=true;abort.abort();await Promise.all([statusJob.stop(),historyJob.stop(),earningsJob.stop(),earningsSeries.close()]);await startup;await store.close();cachedFleet=null;}
+    async close(){stopping=true;abort.abort();await Promise.all([statusJob.stop(),historyJob.stop(),earningsJob.stop(),earningsSeries.close(),market?.close()]);await startup;await store.close();cachedFleet=null;}
   };
 }

@@ -47,15 +47,17 @@ test('one daily backfill serves every device, coalesces requests, paces dates an
     await Promise.all([series.selected([a],range),series.selected([a,b],range)]);await series.chain;
     const values=await series.selected([a,b],range);assert.equal(calls,1);assert.equal(values.progress.loaded,1);assert.ok(Math.abs(values.series[0].daily[0].totalUsd-9.6)<1e-9);assert.ok(Math.abs(values.series[1].daily[0].totalUsd-6.4)<1e-9);
     assert.equal(JSON.stringify(values).includes('machine_id'),false);assert.equal(JSON.stringify(values).includes('PRIVATE'),false);
-    await series.setDevices(devices.map(device=>({...device,gpuModel:device.deviceKey===a?'GB10':null})));
+    await series.setDevices(devices.map(device=>({...device,gpuModel:device.deviceKey===a?'GB10':null,gpuCount:device.deviceKey===a?1:null})));
     const grouped=await series.selected(['gpu:GB10'],range,'gpu');
     assert.equal(grouped.series.length,1);assert.ok(Math.abs(grouped.series[0].daily[0].totalUsd-9.6)<1e-9);
     assert.ok(Math.abs(grouped.totals['gpu-unknown']-6.4)<1e-9);assert.equal(calls,1);
     assert.deepEqual(grouped.hours,{'gpu:GB10':24,'gpu-unknown':24});
-    await series.setDevices(devices.map(device=>({...device,gpuModel:'GB10'})));
-    await series.setDevices(devices); // A retired device keeps its last known GPU model.
+    assert.deepEqual(grouped.gpuHours,{'gpu:GB10':24,'gpu-unknown':null});
+    await series.setDevices(devices.map(device=>({...device,gpuModel:'GB10',gpuCount:device.deviceKey===a?1:2})));
+    await series.setDevices(devices); // A retired device keeps its last known GPU model and count.
     const combined=await series.selected(['gpu:GB10'],range,'gpu');
     assert.equal(combined.series[0].daily[0].totalUsd,16);assert.deepEqual(combined.totals,{'gpu:GB10':16});assert.equal(calls,1);
+    assert.deepEqual(combined.gpuHours,{'gpu:GB10':72});
     await series.selected([a,b],{from:'2026-11-05',to:'2026-11-06'});await series.chain;assert.equal(calls,2);assert.equal(time,now+2500);
     await series.close();series=await new EarningsSeries(settings).open();await series.selected([b],range);assert.equal(calls,2);
     const today={from:'2026-11-07',to:'2026-11-07'};
