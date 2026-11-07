@@ -4,7 +4,7 @@ A self-hosted dashboard for Vast.ai hosts. See the current state of your fleet, 
 
 ![Fleet overview](docs/screenshots/overview.jpg)
 
-![Occupancy details](docs/screenshots/details.jpg)
+![Occupancy history](docs/screenshots/details.jpg)
 
 *Screenshots use illustrative demo data.*
 
@@ -19,7 +19,7 @@ sudo sh ./vaststats-install.sh
 
 The installer verifies and adds the signed VastStats APT source. If the configured sources cannot supply Node.js 24+, it also enables the signed NodeSource 24 repository; APT then installs the dependency. Use `sudo sh ./vaststats-install.sh --no-node-source` to require your own Node source instead.
 
-Installation asks for your **restricted Vast API key** using a hidden-input prompt. Use the permissions in [vast-api-permissions.json](config/vast-api-permissions.json). The key stays on the server. The package creates a non-login Linux service account named `vaststats`, prepares its directories and starts the service.
+Installation asks for your **restricted Vast API key** using a hidden-input prompt. Use the permissions in [vast-api-permissions.json](config/vast-api-permissions.json). The key stays on the server. Historical earnings additionally require the included `billing_read` permission; machine status and occupancy can work without that permission. The package creates a non-login Linux service account named `vaststats`, prepares its directories and starts the service.
 
 Open **http://YOUR_SERVER_IP:3000/**. The first history import may take a little while; current status continues to refresh during it.
 
@@ -39,25 +39,35 @@ To change the key, run `sudo dpkg-reconfigure vaststats`. To inspect the service
 
 **Overview** shows one adaptive square per device. Green means listed, amber maintenance and grey unlisted. Animated bars indicate running rentals. Offline devices flash red when listed, amber during maintenance and grey when unlisted. Unknown or overdue states are identified explicitly.
 
-The summary shows **24h / Week / Month occupancy** matching the current Details periods, current **hourly earnings**, and fleet-wide running, listed, online, maintenance and stored counts. Earnings use running GPU contract prices and allocated storage, including stopped instances; bandwidth is excluded. Tap a summary for its explanation or breakdown.
+The summary shows **24h / Week / Month occupancy** matching the current Occupancy periods, current **hourly earnings**, and fleet-wide running, listed, online, maintenance and stored counts. Earnings use running GPU contract prices and allocated storage, including stopped instances; bandwidth is excluded. Tap a summary for its explanation or breakdown.
 
-**Details** shows one row per device. **24h** contains 24 hourly circles, including the current hour; **Week** contains the Monday–Sunday calendar week, including future days; **Month** shows the calendar month in daily circles; **Year** shows the calendar year in monthly circles. Arrows move by the selected period and cannot advance beyond the current period. Future time is excluded from statistics. On narrow screens the timeline scrolls horizontally with device columns fixed; statistics always cover the full selected period. Click a month or day to drill down. Select an occupancy reading on Overview to open the matching Details period. Device, state and occupancy columns can be sorted.
+**Occupancy** shows one row per device. **24h** contains 24 hourly circles, including the current hour; **Week** contains the Monday–Sunday calendar week, including future days; **Month** shows the calendar month in daily circles; **Year** shows the calendar year in monthly circles. Arrows move by the selected period and cannot advance beyond the current period. Future time is excluded from statistics. On narrow screens the timeline scrolls horizontally with device columns fixed; statistics always cover the full selected period. Click a month or day to drill down. Select an occupancy reading on Overview to open the matching Occupancy period. Device, state and occupancy columns can be sorted.
 
 Each circle represents one period: **green = observed running**, **amber = observed idle**, **grey = missing data**. Its number counts running episodes: stopping and restarting the same instance counts twice. An amber dot marks incomplete coverage. Occupancy percentages use observed time; missing telemetry is not treated as idle. Time before available history and future time are excluded from coverage.
 
 Hover or tap a device for current state, verification, reliability, GPUs, instances, utilisation and freshness details. Historical borders use actual recorded status sightings, rather than inventing offline or maintenance intervals between checks.
+
+**Earnings** shows recorded **Today / Week / Month / Total** amounts in USD, including GPU, bandwidth and storage. Total covers the available daily report (up to 366 UTC dates). Reports may lag: an unreported day shows an amber waiting icon. No extra commission adjustment is applied.
+
+The daily graph supports 7/30/90 days, this year and custom UTC date ranges. Group by source, machine or GPU model. The table shows each series' period total and average earnings per reported hour, and lets you choose which lines to plot. The hourly average skips missing days and uses the elapsed UTC hours for partial days. By GPU groups each host's earnings using its last known model, so older hardware changes may not be reflected. Hover or tap a day for a breakdown ranked highest first.
+
+Machine and GPU history share the same daily device cache. Vast's machine filter leaves daily rows fleet-wide, so the app requests one account-wide breakdown per day and reuses it across machines, GPU groups, ranges and restarts. Initial backfill runs in the background, with progress visible and requests paced at least 2.5 seconds apart. Plot up to eight machines or GPU groups plus the fleet total. Current-day matrices refresh on demand after 30 minutes, recent closed days after six hours, and older days after seven days. Failed days keep saved data and back off before retrying; missing reports remain gaps.
+
+Market and Settings currently have navigation-linked placeholders; their full implementations are tracked in TODO.md.
+
+All pages share the same **Fleet: Overview / Occupancy / Earnings / Market / Settings** navigation. A shallow row below the header shows **running boxes**, **current earnings/hour** and **earned today** on every page. Historical metrics remain page-specific; Occupancy's period selector sits below its summary pills. Info controls open one consistent popover with a close button, Escape and outside-click dismissal; routine timestamps and explanations are kept inside it. Unreported earnings use an amber waiting icon that opens an explanation. Old `details.html` links redirect to `occupancy.html`, preserving query parameters.
 
 ## How it works
 
 One Node.js process serves the dashboard and collects data independently of browser activity:
 
 - **Every 5 minutes:** owner-scoped machine states and current contract rates.
-- **Every 30 minutes:** detailed telemetry, with overlap and periodic reconciliation for late data.
+- **Every 30 minutes:** detailed telemetry, with overlap and periodic reconciliation for late data; independently, one account-wide earnings report supplies Today/Week/Month/Total amounts. Earnings failures retain the last successful report and do not block occupancy/status updates.
 - **On first setup:** automatic machine discovery using Vast hostnames, plus all historical telemetry still available from Vast.
 
-History is cached on disk and published atomically. Failed requests retain previously collected data. Current status and detailed history have separate freshness indicators; delays in Vast telemetry remain visible as missing coverage. Closing a browser does not stop collection; stopping the service does.
+History is cached on disk and published atomically. Failed requests retain previously collected data. Current status, detailed history and recorded earnings have separate freshness indicators; delays in Vast telemetry remain visible as missing coverage. Closing a browser does not stop collection; stopping the service does.
 
-Hourly, daily and monthly display summaries are precomputed before each history import is published and saved alongside that history. Existing installations build this derived cache once on startup; it can be rebuilt from the original history. Details loads only the summaries needed for its selected period. Recently visited periods stay in browser memory, so switching back needs no history request. A lightweight status check detects new history or recorded status evidence and refreshes affected cached views. Current status remains independent; elapsed-time coverage continues to update without inventing new observations.
+Hourly, daily and monthly display summaries are precomputed before each history import is published and saved alongside that history. Existing installations build this derived cache once on startup; it can be rebuilt from the original history. Occupancy loads only the summaries needed for its selected period. Recently visited periods stay in browser memory, so switching back needs no history request. A lightweight status check detects new history or recorded status evidence and refreshes affected cached views. Current status remains independent; elapsed-time coverage continues to update without inventing new observations.
 
 ## Configuration and data
 

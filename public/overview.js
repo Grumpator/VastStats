@@ -1,3 +1,4 @@
+import {bindPopover} from './popover.js?v=1.0.0';
 import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.0.0';
 import {collectionNotice} from './api.js?v=1.0.0';
 import {element,icon} from './ui.js?v=1.0.0';
@@ -48,7 +49,7 @@ function render(){
   grid.replaceChildren();$('#device-total').textContent=boxes.length===data.boxes.length?String(boxes.length):boxes.length+'/'+data.boxes.length;
   for(const box of boxes){
     const status=tileState(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),tile=element('a','estate-tile state-'+status.state+(status.stale?' stale':''));
-    const url=new URL('details.html',location);url.searchParams.set('device',box.deviceKey??box.storageKey??box.name);if(demo)url.searchParams.set('demo','1');tile.href=url;
+    const url=new URL('occupancy.html',location);url.searchParams.set('device',box.deviceKey??box.storageKey??box.name);if(demo)url.searchParams.set('demo','1');tile.href=url;
     tile.setAttribute('aria-label',box.name+', '+labels[status.state]+(status.stale?', snapshot overdue':'')+', open details');
     addStateMarker(tile,status.state,status.stale,Number.isFinite(Date.parse(box.lastSample?.at)));
     tile.addEventListener('mouseenter',()=>showTip(tile,box));tile.addEventListener('focus',()=>showTip(tile,box));tile.addEventListener('mouseleave',hideTip);tile.addEventListener('blur',hideTip);grid.append(tile);
@@ -81,20 +82,12 @@ for(const [category,states] of [['Listed',['listed','running','offline']],['Main
 }
 legend.append(body);$('#tile-legend').append(legend);
 const unknownLegend=element('div','tile-legend-row'),unknownSwatch=element('span','estate-tile state-unknown','?');unknownLegend.append(unknownSwatch,element('span','','Unknown state'));$('#tile-legend').append(unknownLegend);
-const guide=$('#overview-help'),guidePanel=guide.querySelector('.view-help-panel');
-guide.addEventListener('toggle',()=>{
-  if(!guide.open)return;const anchor=guide.querySelector('summary').getBoundingClientRect();
-  guidePanel.style.left=Math.max(12,Math.min(innerWidth-guidePanel.offsetWidth-12,anchor.right-guidePanel.offsetWidth))+'px';
-  guidePanel.style.top=Math.max(12,Math.min(innerHeight-guidePanel.offsetHeight-12,anchor.bottom+8))+'px';
-});
 bindMetricPills();
 document.querySelectorAll('[data-icon]').forEach(item=>item.append(icon(item.dataset.icon)));
-const help=element('p','metric-details','Occupancy matches the current 24h, Week and Month periods on Details: 24 hourly slots including the current hour; the Monday–Sunday calendar week; and the current calendar month. Future time is excluded. Select a reading to open that period on Details. It is running box-time divided by observed box-time; missing telemetry is excluded. Counts use the latest machine snapshot. All values refer to the entire fleet, regardless of search. Square tooltips use Everything: each device’s full available history. Stored includes running instances. GB is allocated space. Checks run every five minutes; collection continues while the app is running.');help.id='metric-details';help.hidden=true;$('.overview-summary').after(help);
-const helpButton=$('[data-info="now"]');helpButton.onclick=()=>{help.hidden=!help.hidden;helpButton.setAttribute('aria-expanded',String(!help.hidden));};
+const helpButton=$('[data-info="now"]');bindPopover(helpButton,()=>({title:'Fleet summary',copy:'Occupancy readings cover the current 24h, calendar Week and Month periods on Occupancy. Running time is divided by observed time; missing telemetry and future time are excluded. Other figures use the latest machine snapshot. Stored includes running instances; GB is allocated space. All figures cover the whole fleet, regardless of search.'}));
 $('#search').addEventListener('input',render);$('#refresh').onclick=()=>load(true);
 $('#demo').onclick=()=>{const url=new URL(location);if(demo){url.searchParams.delete('demo');url.searchParams.delete('count');}else url.searchParams.set('demo','1');location.href=url;};
-window.addEventListener('resize',()=>{hideTip();guide.open=false;sizeGrid();});window.addEventListener('scroll',hideTip,true);
-document.addEventListener('keydown',event=>{if(event.key==='Escape'){hideTip();$('#overview-help').open=false;help.hidden=true;helpButton.setAttribute('aria-expanded','false');}});
-document.addEventListener('click',event=>{if(!$('#overview-help').contains(event.target))$('#overview-help').open=false;});
+window.addEventListener('resize',()=>{hideTip();sizeGrid();});window.addEventListener('scroll',hideTip,true);
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){hideTip();}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
 load();setInterval(()=>{if(!document.hidden)load();},60000);

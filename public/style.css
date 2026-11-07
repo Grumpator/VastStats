@@ -435,3 +435,75 @@ h1{font-size:29px}
 #overview-help .view-help-panel{position:fixed;right:auto;left:auto;top:auto;max-height:calc(100dvh - 24px)}
 
 .earnings-metric>strong{white-space:nowrap}.earnings-metric .fleet-icon{color:#497a55}
+
+/* One stable Fleet navigation on every page. */
+.topbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:24px;row-gap:10px}
+.header-identity[data-navigation]{display:contents}
+.fleet-navigation{display:flex;align-items:center;gap:10px;min-width:0}
+.fleet-label{font-size:12px;color:var(--muted);flex-shrink:0}
+.fleet-navigation .page-nav{margin:0;min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;gap:2px}
+.fleet-navigation .page-nav a{flex:0 0 auto;white-space:nowrap;font-weight:650;padding:6px 10px}
+.topbar .freshness{min-width:0;max-width:100%}.topbar #freshness{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fleet-page{padding-top:22px;min-height:260px}
+.earnings-heading{align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.earnings-heading h1,.page-placeholder h1{font-size:24px;letter-spacing:-.7px}
+.earnings-heading>span{color:var(--muted);font-size:11px}
+.earnings-summary{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);margin-bottom:20px}
+.earnings-summary>div{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;min-width:0}
+.earnings-values{width:100%;max-width:480px;gap:12px}
+.earned-reading{display:flex;flex-direction:column;align-items:center;gap:5px;border-radius:6px;padding:4px;min-width:0}
+.earned-reading:hover{background:#f0f5eb}.earnings-summary .earned-reading strong{font-size:26px;letter-spacing:-.8px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.earnings-summary .current-earnings>strong{font-size:30px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.earnings-summary #report-note,.earnings-summary #rate-checked{font-size:9px;color:var(--muted)}
+.page-placeholder{padding:32px;border:1px solid var(--line);border-radius:12px;background:#fff;margin:6px 0 24px;max-width:720px}
+.page-placeholder h1{margin:10px 0}.page-placeholder p{font-size:13px;color:var(--muted);line-height:1.6;margin:0}.placeholder-label{font-size:10px;color:#738168;text-transform:uppercase;letter-spacing:.08em}
+@media(max-width:1200px){.topbar{grid-template-columns:auto minmax(0,1fr);padding:12px 0}.topbar .brand{grid-column:1;grid-row:1}.topbar .freshness{grid-column:2;grid-row:1;justify-self:end}.fleet-navigation{grid-column:1/-1;grid-row:2}}
+@media(max-width:700px){.topbar{column-gap:12px}.fleet-navigation{gap:7px}.fleet-label{font-size:10px}.fleet-navigation .page-nav a{font-size:11px;padding:5px 6px}.topbar .freshness{font-size:9px}.fleet-page{padding-top:18px}.earnings-heading{margin-bottom:13px}}
+@media(max-width:360px){.fleet-navigation .page-nav a{font-size:10px;padding:5px 4px}.fleet-navigation .page-nav{gap:1px}.fleet-label{font-size:9px}}
+@media(max-width:560px){.earnings-summary{grid-template-columns:1fr}.earnings-summary>.recorded-earnings{border-right:0;border-bottom:1px solid var(--line);padding-bottom:16px}.earnings-summary>.current-earnings{padding-top:16px}.earnings-summary .earned-reading strong{font-size:23px}}
+
+/* Shared current figures stay compact and in the same place on every page. */
+.fleet-now{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 18px}
+.live-pill{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;text-align:left}
+.live-pill-label{display:flex;align-items:center;gap:7px;min-width:0;font-size:11px;color:#73816d;white-space:nowrap}
+.live-pill-label svg{width:15px;height:15px;flex-shrink:0;color:#508262}
+.live-pill strong{margin-left:auto;font-size:16px;font-weight:650;letter-spacing:-.3px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.live-pill-info{font-size:9px;color:#87927f;border:1px solid #d8dfd0;border-radius:50%;display:inline-grid;place-items:center;width:12px;height:12px;flex-shrink:0}
+.header-status{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);padding:4px 0}
+.fleet-now+main.fleet-page{padding-top:0}
+.info-popover{width:370px;max-width:calc(100vw - 20px);z-index:150;max-height:calc(100dvh - 20px)}
+.info-popover-body{max-height:calc(100dvh - 100px);overflow:auto;overscroll-behavior:contain;padding-right:2px}
+.info-popover-body p{line-height:1.65}.popover-guide{font-size:11px;line-height:1.65}.popover-guide .legend{color:#d2ddce;margin:13px 0}.popover-guide .state-matrix{color:#d2ddce}
+.earnings-summary{grid-template-columns:1fr;max-width:780px}
+.earnings-summary>.recorded-earnings{border:0;padding-top:0;padding-bottom:0}
+.waiting-value{display:grid;place-items:center;min-height:36px;color:#bd8b2c}.waiting-value svg{width:23px;height:23px}
+.overview-summary .now-summary{grid-template-columns:minmax(180px,1.8fr) repeat(4,minmax(0,1fr))}
+.now-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:900px){.overview-summary .now-summary{grid-template-columns:repeat(4,minmax(0,1fr))}.overview-summary .now-summary>.occupancy-metric{grid-column:1/-1}}
+@media(max-width:600px){.fleet-now{gap:7px;margin:10px 0 15px}.live-pill{gap:7px;padding:9px 10px}.live-pill-label>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.live-pill strong{font-size:16px}.header-status{font-size:9px}.earnings-summary{margin-top:0}}
+@media(max-width:360px){.live-pill{padding:8px 7px;gap:5px}.live-pill strong{font-size:14px}.live-pill-info{width:10px;height:10px;font-size:8px}}
+@media(max-width:900px){.live-pill-label>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
+@media(max-width:360px){.live-pill>.live-pill-info{display:none}}
+.fleet-now.overdue .live-pill-info{color:#b48531;border-color:#d5b573}
+
+.summary-groups.occupancy-summary{display:block}.occupancy-summary>.summary-group{width:100%}
+
+.earnings-summary,.earnings-values{max-width:none;width:100%}.earnings-summary .earnings-values{max-width:none}.earnings-breakdown{display:flex;flex-direction:column;gap:5px;max-width:200px;width:100%;margin-top:10px}.earnings-breakdown>span{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--muted)}.earnings-breakdown b{font-size:11px;color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}.fleet-now .waiting-value{min-height:0}.fleet-now .waiting-value svg{width:17px;height:17px}.summary-groups.occupancy-summary .summary{height:auto}.earnings-heading,.occupancy-summary .summary-heading,.overview-summary>.summary-group>.summary-heading{height:28px;margin:0 0 12px;align-items:center}.fleet-now+main>.overview-summary{margin-top:0}
+
+.earnings-chart-panel{margin:24px 0;border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px 20px}
+.chart-toolbar,.chart-controls,.chart-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.chart-toolbar{justify-content:space-between}.chart-heading h2{font-size:16px}.chart-heading .metric-info{position:static}.chart-controls{gap:8px}.chart-controls .segments button{font-size:11px;padding:5px 12px}
+.chart-range-label select,.chart-custom-range input{border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);padding:7px 9px;font:inherit;font-size:11px}
+.chart-custom-range{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}.chart-custom-range label{font-size:11px;color:var(--muted);display:flex;gap:7px;align-items:center}
+.chart-subhead{display:flex;justify-content:space-between;gap:12px;margin:14px 0 10px;min-height:14px;font-size:10px;color:var(--muted);flex-wrap:wrap}
+.chart-series-toggle{display:flex;align-items:center;gap:7px;font-size:11px;cursor:pointer}.chart-series-toggle input{accent-color:#34845c;margin:0;width:12px;height:12px;flex:none}.chart-series-color{width:12px;height:3px;border-radius:2px;flex:none}.chart-series-name{overflow-wrap:anywhere}
+.earnings-chart{min-height:300px;width:100%;position:relative}.earnings-chart svg{display:block;touch-action:pan-y}.chart-axis-label{font-family:'DM Sans',sans-serif;font-size:10px;fill:#87917e}.chart-empty{min-height:280px;display:grid;place-content:center;color:var(--muted);font-size:12px;margin:0}
+.earnings-chart-tooltip{position:fixed;z-index:140;background:#20392b;color:#f4f8ef;padding:13px 15px;width:260px;max-width:calc(100vw - 20px);border-radius:9px;box-shadow:0 8px 26px #18312230;font-size:11px;pointer-events:none}.earnings-chart-tooltip>strong{font-size:12px}.chart-point-details{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:11px;margin:10px 0 0}.chart-point-details dt{color:#b6c9ac}.chart-point-details dd{margin:0;font-variant-numeric:tabular-nums}
+@media(max-width:700px){.earnings-chart-panel{padding:14px 12px}.chart-controls{width:100%;justify-content:space-between}.chart-legend{gap:9px 12px}.chart-custom-range{gap:8px}.chart-custom-range input{max-width:135px}.earnings-breakdown .bandwidth-label{font-size:0}.earnings-breakdown .bandwidth-label::after{content:'BW';font-size:9px}.earnings-breakdown>span{font-size:9px}.earnings-breakdown b{font-size:10px}}
+.earnings-values{grid-template-columns:repeat(4,minmax(0,1fr))}
+.chart-series-table{max-height:230px;overflow:auto}
+.chart-series-table table{width:100%;border-collapse:separate;border-spacing:0;font-size:11px}
+.chart-series-table th,.chart-series-table td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+.chart-series-table th:first-child{text-align:left}.chart-series-table td{white-space:nowrap}
+.chart-series-table thead th{position:sticky;top:0;background:#fff;color:var(--muted);font-weight:600;white-space:nowrap}
+.chart-series-table tbody th{font-weight:500}.chart-series-table tbody tr:last-child{font-weight:700}
+@media(max-width:560px){.earnings-values{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-controls .segments button{padding-inline:8px}}

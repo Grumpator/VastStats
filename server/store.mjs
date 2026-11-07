@@ -49,6 +49,7 @@ export class DataStore {
       if(pointer){if(!/^gen-[a-f0-9-]+$/.test(pointer.generation))throw Error('Invalid history generation');this.generation=pointer.generation;validateIndex(await readJson(path.join(this.historyPath(),'index.json')));}
       else{const stage=await this.stage(false);await atomicJson(path.join(stage,'index.json'),{version:2,source:'telemetry',identityNamespace:namespace,updatedAt:null,boxes:[]});await this.publish(stage);}
       this.status=await readJson(path.join(this.root,'status.json'));
+      this.earningsReport=await readJson(path.join(this.root,'earnings.json'));
       if([await this.index(),this.status].some(value=>value&&value.identityNamespace!==namespace))throw Error('Local identity does not match stored data');
       await this.loadViews();await this.loadObservations();
       for(const base of [this.root,path.join(this.root,'history')])for(const entry of await readdir(base,{withFileTypes:true}))if(entry.isDirectory()&&/^(status-stage-|stage-)/.test(entry.name))await rm(path.join(base,entry.name),{recursive:true,force:true});
@@ -177,5 +178,6 @@ export class DataStore {
     }finally{const remaining=this.leases.get(generation)-1;if(remaining)this.leases.set(generation,remaining);else this.leases.delete(generation);}
   }
   async close(){await this.writer;if(this.lockHandle){await this.lockHandle.close();this.lockHandle=null;await rm(this.lock,{force:true});}}
+  async publishEarnings(report){await atomicJson(path.join(this.root,'earnings.json'),report);this.earningsReport=report;}
 }
 export const folderURL=folder=>pathToFileURL(folder+path.sep);

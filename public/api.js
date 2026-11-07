@@ -57,7 +57,7 @@ export function collectionNotice(data){
   if(!health.configured)return 'Collection is not configured. Set VAST_API_KEY to start.';
   const messages=[];
   if(health.status.failed)messages.push('The latest status check failed; last known states are retained.');
-  if(health.history.failed)messages.push('The latest history import failed; saved history is retained.');
+  if(health.history.failed)messages.push('Couldn’t refresh Occupancy from Vast. Showing saved history until the next successful refresh.');
   else if(health.history.partial)messages.push('Some device history could not be refreshed; saved history is retained.');
   return messages.join(' ');
 }

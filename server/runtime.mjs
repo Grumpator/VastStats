@@ -6,10 +6,14 @@ import {collectStatus} from '../scripts/collect-status.mjs';
 import {collectHistory} from '../scripts/collect-history.mjs';
 import {DataStore,atomicJson,folderURL} from './store.mjs';
 import {ScheduledJob} from './scheduler.mjs';
+import {collectHistoricalEarnings} from './earnings.mjs';
+import {EarningsSeries} from './earnings-series.mjs';
+import {discoverMachines} from '../scripts/history-discovery.mjs';
 
 export async function createRuntime({config,now=Date.now,timers=globalThis,statusCollector=collectStatus,historyCollector=collectHistory,apiFactory}={}){
   const abort=new AbortController();apiFactory??=()=>new HistoryApi(config.key,{signal:abort.signal});
   const store=await new DataStore(config.dataDir).open();
+  const earningsSeries=await new EarningsSeries({root:store.root,apiFactory,now,enabled:!!config.key,signal:abort.signal}).open();
   const index=await store.index();
   let cachedFleet=null,fleetTime=-Infinity,fleetPending=null,stopping=false,historyUpdatedAt=index.updatedAt??null;
   const machines=async(force=false)=>{
@@ -28,22 +32,40 @@ export async function createRuntime({config,now=Date.now,timers=globalThis,statu
     }finally{await rm(work,{recursive:true,force:true});}
   };
   const historyTask=async()=>{
-    const stage=await store.stage();
+    let stage,phase='prepare saved history';
     try{
+      stage=await store.stage();
       const old=await store.index(),wide=!old.wideReconciledAt||now()-Date.parse(old.wideReconciledAt)>=86400000;
       const api=apiFactory();api.machines=()=>machines();
+      phase='fetch and process Vast telemetry';
       const collected=await historyCollector({api,root:folderURL(stage),now:now(),identitySeed:store.identitySeed,overlapSeconds:(wide?72:6)*3600,rebuild:false});
       const result={...collected,wideReconciledAt:wide?new Date(now()).toISOString():old.wideReconciledAt};
       // The machine snapshot cadence comes from the independent status feed.
+      phase='publish refreshed history';
       await atomicJson(path.join(stage,'index.json'),result);await store.publish(stage);historyUpdatedAt=result.updatedAt??null;
       return {partial:result.boxes.some(b=>b.historyError)};
-    }finally{await rm(stage,{recursive:true,force:true});}
+    }catch(error){
+      if(!stopping){
+        const message=error?.message??'',reason=/^Vast request failed \(HTTP \d{3}\)$/.test(message)||['Vast connection failed','Invalid Vast JSON response','No box history could be refreshed','Invalid history index','Invalid history month'].includes(message)?message:'unexpected error';
+        console.warn('Occupancy history refresh could not '+phase+': '+reason+'.');
+      }
+      throw error;
+    }finally{if(stage)await rm(stage,{recursive:true,force:true});}
   };
   const statusJob=new ScheduledJob({interval:config.statusInterval,task:statusTask,now,timers}),historyJob=new ScheduledJob({interval:config.historyInterval,task:historyTask,now,timers});
-  const health=()=>({ok:true,version:config.version??null,release:config.release??null,configured:!!config.key,mode:config.key?'collecting':'cache-only',status:{...statusJob.state,updatedAt:store.status?.updatedAt??null},history:{...historyJob.state,updatedAt:historyUpdatedAt}});
+  const earningsJob=new ScheduledJob({interval:1800000,task:async()=>{
+    const report=await collectHistoricalEarnings({api:apiFactory(),now:now(),onMachines:async rows=>{
+      const raw=await machines(),current=Array.isArray(raw)?raw:raw.machines,all=new Map(current.map(row=>[String(row.id),row]));
+      for(const row of rows){const id=String(row.machine_id);if(!/^\d+$/.test(id))throw Error('Invalid earnings device');if(!all.has(id))all.set(id,{id});}
+      const previous=[...(await store.index()).boxes,...(store.status?.boxes||[])];
+      const devices=discoverMachines({machines:[...all.values()]},{seed:store.identitySeed,previous}).map(d=>({...d,name:d.name.startsWith('Unnamed-')?d.previous?.name??d.name:d.name}));
+      await earningsSeries.setDevices(devices);return earningsSeries.publicDevices();
+    }});await store.publishEarnings(report);
+  },now,timers});
+  const health=()=>({ok:true,version:config.version??null,release:config.release??null,configured:!!config.key,mode:config.key?'collecting':'cache-only',status:{...statusJob.state,updatedAt:store.status?.updatedAt??null},history:{...historyJob.state,updatedAt:historyUpdatedAt},earnings:{...earningsJob.state,updatedAt:store.earningsReport?.updatedAt??null}});
   let startup=null;
-  return {store,statusJob,historyJob,health,
-    start(){if(startup||!config.key)return startup;startup=(async()=>{statusJob.start();await statusJob.run();if(stopping)return;historyJob.start();await historyJob.run();})();return startup;},
-    async close(){stopping=true;abort.abort();await Promise.all([statusJob.stop(),historyJob.stop()]);await startup;await store.close();cachedFleet=null;}
+  return {store,statusJob,historyJob,earningsJob,health,machineEarnings:(keys,range,group)=>earningsSeries.selected(keys,range,group),
+    start(){if(startup||!config.key)return startup;startup=(async()=>{statusJob.start();await statusJob.run();if(stopping)return;historyJob.start();earningsJob.start();await Promise.all([historyJob.run(),earningsJob.run()]);})();return startup;},
+    async close(){stopping=true;abort.abort();await Promise.all([statusJob.stop(),historyJob.stop(),earningsJob.stop(),earningsSeries.close()]);await startup;await store.close();cachedFleet=null;}
   };
 }

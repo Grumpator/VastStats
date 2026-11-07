@@ -22,7 +22,7 @@ export async function collectStatus({api,root,now=Date.now(),identitySeed}={}){
     let earnings=null;
     try{earnings=sample.connection==='offline'?{computeUsdPerHour:0,storageUsdPerHour:0,totalUsdPerHour:0}:sample.connection==='online'?contractEarnings(await api.contracts(device.id)):null;}catch{/* Rate failure must not discard a successful machine-state check. */}
     const {name:unused,...fields}=sample;
-    boxes.push({name,deviceKey,storageKey,firstSeenAt:old?.firstSeenAt??old?.historyStart??stamp,lastSample:{at:stamp,...fields,earnings}});
+    boxes.push({name,deviceKey,storageKey,firstSeenAt:old?.firstSeenAt??old?.historyStart??stamp,lastSample:{at:stamp,...fields,gpuModel:device.gpuModel,earnings}});
   }
   const result={version:1,source:'machines',identityNamespace:namespace,updatedAt:stamp,snapshotMaxAgeSeconds:900,refreshIntervalSeconds:300,earnings:fleetEarnings(boxes),boxes};
   await mkdir(root,{recursive:true});

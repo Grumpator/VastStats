@@ -1,3 +1,4 @@
+import {bindPopover} from './popover.js?v=1.0.0';
 import {deviceInfoList,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.0.0';
 import {detailsClient,collectionNotice} from './api.js?v=1.0.0';
 import {element,icon} from './ui.js?v=1.0.0';
@@ -191,16 +192,7 @@ const metricHelp={
   now:['Now · latest fleet snapshot','Running, Listed, Online and Maintenance count boxes in that state out of the entire fleet. Running also shows the total running instances. Stored totals retained instances, including running ones; do not add running and stored counts. GB allocated is allocated disk space, not measured file usage. These figures use the latest machine snapshots and do not change with the selected period. They are not live: current-state collection runs every five minutes and snapshots become overdue after 15 minutes. History is collected separately every thirty minutes while the app is running. If any box has an unknown state or count, its fleet total shows a dash rather than assuming zero.'],
   coverage:['Data coverage','The proportion of elapsed box-time in the selected period with reporting coverage from the telemetry API. Native API buckets up to five minutes are accepted; raw samples contribute one second each. It excludes future time and time before each device’s earliest known history boundary. This boundary comes from the telemetry archive, not a proven first boot; it is kept when the archive later advances. A dash marks periods before tracking. Gaps in telemetry are unknown, not idle. Occupancy uses only observed time; missing telemetry reduces coverage without being counted as idle.']
 };
-function closeMetricHelp(){ $('#metric-details').hidden=true;document.querySelectorAll('[data-info]').forEach(b=>b.setAttribute('aria-expanded','false')); }
-document.querySelectorAll('[data-info]').forEach(button=>button.addEventListener('click',()=>{
-  const wasOpen=button.getAttribute('aria-expanded')==='true';closeMetricHelp();if(wasOpen)return;
-  const [title,copy]=metricHelp[button.dataset.info];$('#metric-details-title').textContent=title;$('#metric-details-copy').textContent=copy;$('#metric-details').hidden=false;button.setAttribute('aria-expanded','true');
-}));
-$('#close-metric-details').onclick=closeMetricHelp;
-$('#close-view-help').onclick=()=>{$('#view-help').open=false;$('#view-help>summary').focus();};
-document.addEventListener('click',event=>{if(!$('#view-help').contains(event.target))$('#view-help').open=false;});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('#view-help').open){$('#view-help').open=false;$('#view-help>summary').focus();}});
-document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMetricHelp();});
+for(const button of document.querySelectorAll('[data-info]'))bindPopover(button,()=>{const [title,copy]=metricHelp[button.dataset.info];return {title,copy};});
 document.addEventListener('click',event=>{hideTip();document.querySelectorAll('.box-details[open]').forEach(details=>{if(!details.contains(event.target))details.open=false;});});document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideTip();closeBoxDetails(true);}});window.addEventListener('resize',()=>{hideTip();closeBoxDetails();});window.addEventListener('scroll',event=>{hideTip();if(!event.target.closest?.('.box-details-body'))closeBoxDetails();},true);
 bindMetricPills();
 document.querySelectorAll('[data-icon]').forEach(item=>item.append(icon(item.dataset.icon)));

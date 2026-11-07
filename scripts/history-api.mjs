@@ -20,6 +20,12 @@ export class HistoryApi {
   }
   machines(){return this.request('https://console.vast.ai/api/v0/machines/?owner=me&include_offline=1',this.key);}
   contracts(id){return this.request('https://console.vast.ai/api/v0/machines/'+encodeURIComponent(id)+'/contracts/',this.key);}
+  earnings(start,end,machineId=null){
+    // Application windows are end-exclusive; Vast's whole UTC day range is inclusive.
+    const query=new URLSearchParams({owner:'me',sday:String(start/86400000),eday:String(end/86400000-1)});
+    if(machineId!==null)query.set('machid',String(machineId));
+    return this.request('https://console.vast.ai/api/v0/users/me/machine-earnings/?'+query,this.key);
+  }
   async connect(){
     const auth=await this.request('https://cloud.vast.ai/api/v0/telemetry/token/',this.key);
     let url;try{url=new URL(auth.telemetry_url||'https://telemetry.vast.ai');}catch{throw Error('Invalid telemetry origin');}

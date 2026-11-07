@@ -5,6 +5,7 @@
       "api.telemetry.token": {
         "GET": {}
       }
-    }
+    },
+    "billing_read": {}
   }
 }

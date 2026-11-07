@@ -37,6 +37,16 @@ export async function createServer({runtime,publicDir,now=Date.now}){
     if(!['GET','HEAD'].includes(req.method)){res.setHeader('Allow','GET, HEAD');send(405,{error:'Read-only endpoint'});return;}
     try{
       const url=new URL(req.url,'http://localhost');
+      if(url.pathname==='/details.html'){res.writeHead(302,{Location:'/occupancy.html'+url.search});res.end();return;}
+      if(url.pathname==='/api/earnings'){
+        const status=runtime.store.status,report=runtime.store.earningsReport;
+        const currentDevices=(status?.boxes??[]).map(({deviceKey,name,lastSample})=>({deviceKey,name,gpuModel:lastSample?.gpuModel??null,rate:lastSample?.earnings??null}));
+        send(200,{version:1,report:report??null,currentRate:status?.earnings??null,currentDevices,statusUpdatedAt:status?.updatedAt??null,collection:runtime.health()});return;
+      }
+      if(url.pathname==='/api/earnings/series'){
+        const keys=url.searchParams.has('series')?url.searchParams.getAll('series'):(url.searchParams.get('machines')||'').split(',').filter(Boolean);
+        try{send(200,await runtime.machineEarnings(keys,{from:url.searchParams.get('from'),to:url.searchParams.get('to')},url.searchParams.get('group')||'machine'));}catch{send(400,{error:'Select up to eight known series and a valid date range'});}return;
+      }
       if(url.pathname==='/healthz'){
         const health=runtime.health(),index=await runtime.store.index();health.history.updatedAt=index.updatedAt??null;send(200,health);return;
       }
@@ -44,7 +54,7 @@ export async function createServer({runtime,publicDir,now=Date.now}){
         const status=runtime.store.status,index=await runtime.store.index();
         // Now has its own collection clock; history imports must not replace it.
         const snapshot=status??{...index,version:1,source:'telemetry'};
-        if(url.pathname==='/api/status'){send(200,{...snapshot,historyRevision:runtime.store.revision(),collection:runtime.health()});return;}
+        if(url.pathname==='/api/status'){send(200,{...snapshot,earnedToday:runtime.store.earningsReport?.version===2?runtime.store.earningsReport.periods.today:null,earningsUpdatedAt:runtime.store.earningsReport?.updatedAt??null,historyRevision:runtime.store.revision(),collection:runtime.health()});return;}
         const stats=await occupancySummary(),totals={};
         for(const period of occupancyPeriods){
           const fleet={occupied:0,observed:0,elapsed:0};
