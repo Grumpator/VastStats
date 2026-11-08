@@ -1,4 +1,4 @@
-import {element} from './ui.js?v=1.0.0';
+import {element} from './ui.js?v=1.1.0';
 
 let panel,body,title,closeButton,active;
 export function closePopover(restore=false){const previous=active;active=null;if(panel)panel.hidden=true;previous?.setAttribute('aria-expanded','false');if(restore)previous?.focus({preventScroll:true});}
