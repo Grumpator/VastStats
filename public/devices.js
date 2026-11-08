@@ -1,10 +1,10 @@
-import {cachedAPI} from './api.js?v=1.1.0';
-import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.1.0';
-import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.1.0';
-import {duration} from './device-info.js?v=1.1.0';
-import {hourlyUsd} from './now.js?v=1.1.0';
-import {bindPopover,closePopover} from './popover.js?v=1.1.0';
-import {element,icon} from './ui.js?v=1.1.0';
+import {cachedAPI} from './api.js?v=1.1.1';
+import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.1.1';
+import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.1.1';
+import {duration} from './device-info.js?v=1.1.1';
+import {hourlyUsd} from './now.js?v=1.1.1';
+import {bindPopover,closePopover} from './popover.js?v=1.1.1';
+import {element,icon} from './ui.js?v=1.1.1';
 
 const $=selector=>document.querySelector(selector);
 const get=cachedAPI();

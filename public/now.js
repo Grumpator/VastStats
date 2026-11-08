@@ -1,5 +1,5 @@
-import {fleetSnapshot} from './model.js?v=1.1.0';
-import {bindPopover} from './popover.js?v=1.1.0';
+import {fleetSnapshot} from './model.js?v=1.1.1';
+import {bindPopover} from './popover.js?v=1.1.1';
 const $=s=>document.querySelector(s);
 export const hourlyUsd=value=>Number.isFinite(value)?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:value>0&&value<.01?4:2}).format(value):'\u2014';
 export function renderNow(data){

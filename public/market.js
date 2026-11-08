@@ -1,6 +1,6 @@
-import {element} from './ui.js?v=1.1.0';
-import {bindPopover,closePopover} from './popover.js?v=1.1.0';
-import {percentLabel,reliabilityLabel} from './model.js?v=1.1.0';
+import {element} from './ui.js?v=1.1.1';
+import {bindPopover,closePopover} from './popover.js?v=1.1.1';
+import {percentLabel,reliabilityLabel} from './model.js?v=1.1.1';
 
 const $=selector=>document.querySelector(selector);
 const decimal=new Intl.NumberFormat('en-GB',{maximumFractionDigits:1});
@@ -331,7 +331,7 @@ function render(data){
   addGpu.disabled=!data.enabled||watchModels.length>=watchLimit||!selectableModels().length;
   addGpu.title=watchModels.length>=watchLimit?'Watchlist is full':'Choose a GPU model to watch';
   if(!data.enabled){
-    notice.textContent='Market is available in the local operator view. Start VastStats on localhost with MARKET_ENABLED=1.';
+    notice.textContent='Market needs a configured Vast API key and the Market setting enabled.';
     freshness.textContent='Market collection is disabled.';host.replaceChildren();lastDraw='';return;
   }
   if(!snapshot){

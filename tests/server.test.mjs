@@ -129,7 +129,7 @@ test('routine history uses a smaller overlap, daily reconciliation persists, and
 test('read-only API serves bounded coherent history and never exposes disk/config or calls collectors',async()=>{
   const f=await fixture();let runtime,server;
   try{
-    runtime=await createRuntime({config:readConfig({DATA_DIR:f.dataDir})});
+    runtime=await createRuntime({config:readConfig({DATA_DIR:f.dataDir,DEVICES_PRIVATE:'0'})});
     server=await createServer({runtime,publicDir:path.resolve('public')});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const base='http://127.0.0.1:'+server.address().port;
     const response=await fetch(base+'/api/status'),body=await response.json();assert.equal(body.boxes.length,1);assert.equal(body.collection.configured,false);
@@ -149,10 +149,14 @@ test('read-only API serves bounded coherent history and never exposes disk/confi
     assert.equal(localDevices.boxes[0].workedSeconds,3600);
     runtime.store.earningsReport={...runtime.store.earningsReport,updatedAt:'2026-11-04T11:30:00Z',daily:[{day:'2026-11-04'}]};
     assert.equal((await (await fetch(base+'/api/devices')).json()).boxes[0].workedSeconds,null);
-    const forwardedDevices=await (await fetch(base+'/api/devices',{headers:{'X-Forwarded-Host':'example.com'}})).json();
-    assert.equal(forwardedDevices.privateRates,false);
-    assert.equal(Object.hasOwn(forwardedDevices.boxes[0],'rates'),false);
-    assert.equal(Object.hasOwn(forwardedDevices.boxes[0],'earnedUsd'),false);
+    const proxyHeaders={'X-Forwarded-Host':'example.com','X-Forwarded-Proto':'https'};
+    const forwardedDevices=await (await fetch(base+'/api/devices',{headers:proxyHeaders})).json();
+    assert.equal(forwardedDevices.privateRates,true);
+    assert.equal(forwardedDevices.boxes[0].rates.ask.gpu,.45);
+    assert.equal(forwardedDevices.boxes[0].earnedUsd,18);
+    assert.deepEqual(await (await fetch(base+'/api/market',{headers:proxyHeaders})).json(),{enabled:false});
+    runtime.market={read:watch=>({watch})};
+    assert.deepEqual(await (await fetch(base+'/api/market?watch=RTX+4090',{headers:proxyHeaders})).json(),{enabled:true,watch:['RTX 4090']});
     const earnings=await (await fetch(base+'/api/earnings')).json();
     assert.equal(Object.hasOwn(earnings.report,'machineTotals'),false);
     const history=await (await fetch(base+'/api/history?from=2026-11-04&to=2026-11-04')).json();assert.equal(history.boxes[0].hours.length,1);

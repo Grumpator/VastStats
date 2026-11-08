@@ -75,8 +75,12 @@ test('market host estimates use comparable offers and the typical renter markup'
   assert.equal(onlyPeers.confidence,'Limited');
   assert.equal(priceSuggestion({exact:{...peers,samples:2}}),null);
   assert.equal(priceSuggestion({exact:peers}).confidence,'Moderate');
-  assert.equal(readConfig({MARKET_ENABLED:'1'}).marketEnabled,false);
-  assert.equal(readConfig({MARKET_ENABLED:'1',HOST:'127.0.0.1'}).marketEnabled,true);
+  const defaults=readConfig({});
+  assert.equal(defaults.marketEnabled,true);
+  assert.equal(defaults.deviceRatesEnabled,true);
+  const disabled=readConfig({MARKET_ENABLED:'0',DEVICES_PRIVATE:'0'});
+  assert.equal(disabled.marketEnabled,false);
+  assert.equal(disabled.deviceRatesEnabled,false);
 });
 
 test('watching a model reuses the catalogue and coalesces one offer sample per cache window',async()=>{

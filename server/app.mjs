@@ -14,12 +14,6 @@ export function dateWindow(url){
   return {from,to};
 }
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.ico':'image/x-icon'};
-function localOperatorRequest(req){
-  return ['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)
-    && /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(req.headers.host??'')
-    && req.headers['sec-fetch-site']!=='cross-site'
-    && !Object.keys(req.headers).some(name=>name==='forwarded'||name.startsWith('x-forwarded-'));
-}
 export async function createServer({runtime,publicDir,now=Date.now}){
   // Only top-level application assets are public; data directories and config are not.
   const assets=new Set((await readdir(publicDir,{withFileTypes:true})).filter(f=>f.isFile()&&mime[path.extname(f.name)]).map(f=>f.name));
@@ -47,14 +41,14 @@ export async function createServer({runtime,publicDir,now=Date.now}){
       if(url.pathname==='/details.html'){res.writeHead(302,{Location:'/occupancy.html'+url.search});res.end();return;}
       if(url.pathname==='/api/market'){
         res.setHeader('Cache-Control','private, no-store');
-        const enabled=!!runtime.market&&localOperatorRequest(req);
+        const enabled=!!runtime.market;
         send(200,enabled?{enabled,...runtime.market.read(url.searchParams.getAll('watch'))}:{enabled:false});return;
       }
       if(url.pathname==='/api/devices'){
         res.setHeader('Cache-Control','private, no-store');
         const snapshot=runtime.store.status??await runtime.store.index();
         const stats=await occupancySummary();
-        const privateRates=!!runtime.deviceRates&&localOperatorRequest(req);
+        const privateRates=!!runtime.deviceRates;
         const rates=privateRates?runtime.deviceRates(snapshot.updatedAt):null;
         const report=privateRates?runtime.store.earningsReport:null;
         const reportedHours=report?.daily?.reduce((hours,row)=>hours+reportedDayHours(row.day,report.updatedAt),0)??0;
