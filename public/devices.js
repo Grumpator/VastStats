@@ -3,7 +3,7 @@ import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './
 import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.0.0';
 import {duration} from './device-info.js?v=1.0.0';
 import {hourlyUsd} from './now.js?v=1.0.0';
-import {bindPopover} from './popover.js?v=1.0.0';
+import {bindPopover,closePopover} from './popover.js?v=1.0.0';
 import {element,icon} from './ui.js?v=1.0.0';
 
 const $=selector=>document.querySelector(selector);
@@ -18,8 +18,10 @@ const utcDay=new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month
 const stamp=value=>value?timestamp.format(Date.parse(value)):'Unavailable';
 const number=value=>Number.isFinite(value)?String(value):'—';
 const period=$('#device-period'),head=$('#device-columns'),body=$('#device-rows'),clearFilters=$('#clear-device-filters');
+const detailToggle=$('#device-detail-toggle'),detailPreference='vaststats.devices.detail';
 const filters=new Map();
-let data=null,sort={key:'name',direction:1};
+let data=null,sort={key:'name',direction:1},detailed=false;
+try{detailed=localStorage.getItem(detailPreference)==='detailed';}catch{/* Use the default if storage is unavailable. */}
 
 function statusLabels(sample,status){
   return [
@@ -109,9 +111,13 @@ function contractCell({contracts,box}){
 
 const columns=[
   {key:'name',label:'Device',filter:'text',value:row=>row.box.name,cell:deviceLink},
-  {key:'gpu-model',label:'GPU',name:'GPU model',filter:'choice',choices:()=>[...new Set(data.boxes.map(box=>box.lastSample?.gpuModel).filter(Boolean))].sort(names.compare),
-    value:row=>row.sample.gpuModel,cell:row=>row.sample.gpuModel??'—'},
-  {key:'gpu-count',label:'#',name:'GPU count',step:1,value:row=>row.sample.gpuCount,cell:row=>number(row.sample.gpuCount)},
+  {key:'gpu',label:'GPU',filter:'gpu',step:1,choices:()=>[...new Set(data.boxes.map(box=>box.lastSample?.gpuModel).filter(Boolean))].sort(names.compare),
+    value:row=>row.sample.gpuModel,cell:({sample})=>{
+      if(!Number.isFinite(sample.gpuCount))return sample.gpuModel??'—';
+      const value=element('span');
+      value.append(element('span','device-gpu-count',number(sample.gpuCount)),' x ',sample.gpuModel??'—');
+      return value;
+    }},
   {key:'state',label:'State',filter:'choice',choices:()=>['Online','Offline','Unknown','Running','Listed','Unlisted','Maintenance','Verified','Unverified','Deverified','Overdue'],
     value:row=>row.labels.join(' · '),filterValue:row=>row.labels.map(label=>label.toLowerCase()),cell:stateCell},
   {key:'reliability',label:'Reliability',unit:'%',value:row=>row.sample.reliability,
@@ -121,13 +127,13 @@ const columns=[
     value.title='Data coverage '+coverageLabel(row.occupancy?.coverage);
     return value;
   }},
-  {key:'worked',label:'Worked',name:'Total hours worked',unit:'hours',value:row=>Number.isFinite(row.box.workedSeconds)?row.box.workedSeconds/3600:null,
+  {key:'worked',label:'Worked',name:'Total hours worked',detailed:true,unit:'hours',value:row=>Number.isFinite(row.box.workedSeconds)?row.box.workedSeconds/3600:null,
     cell:row=>{
       const value=element('span','',duration(row.box.workedSeconds).replace(/(\d) (h|min)\b/g,'$1$2'));
       value.title=data?.earningsWindow?'Confirmed run time on reported billing days. A partial hour at the report cutoff is omitted. '+earningsDates():'Confirmed run time across all available telemetry.';
       return value;
     }},
-  {key:'stored',label:'Images',name:'Stored images',step:1,value:row=>row.sample.storedInstances,cell:row=>{
+  {key:'stored',label:'Images',name:'Stored images',detailed:true,step:1,value:row=>row.sample.storedInstances,cell:row=>{
     const {storedInstances,allocatedStorageGb}=row.sample;
     const size=Number.isFinite(allocatedStorageGb)?allocatedStorageGb.toLocaleString('en-GB',{maximumFractionDigits:1}):null;
     const value=element('span','',number(storedInstances)+(size===null?'':'/'+size+'GB'));
@@ -136,13 +142,15 @@ const columns=[
   }},
   {key:'now-earnings',label:'Now $/h',name:'Current earnings per hour',private:true,unit:'USD/hour',value:row=>row.status.stale?null:row.sample.earnings?.totalUsdPerHour,
     cell:row=>earningsCell(hourlyUsd(row.status.stale?null:row.sample.earnings?.totalUsdPerHour),'Compute and storage from current contracts. Bandwidth is billed by usage.')},
-  {key:'avg-earnings',label:'Avg $/h',name:'Average earnings per hour',private:true,unit:'USD/hour',negative:true,value:row=>row.box.averageUsdPerHour,
+  {key:'avg-earnings',label:'Avg $/h',name:'Average earnings per hour',detailed:true,private:true,unit:'USD/hour',negative:true,value:row=>row.box.averageUsdPerHour,
     cell:row=>earningsCell(hourlyUsd(row.box.averageUsdPerHour),'Recorded earnings divided by the clock hours reported for the fleet. Includes idle time. '+earningsDates())},
   {key:'total-earnings',label:'Earned',name:'Total earned',private:true,unit:'USD',negative:true,value:row=>row.box.earnedUsd,
     cell:row=>earningsCell(Number.isFinite(row.box.earnedUsd)?earningsMoney.format(row.box.earnedUsd):'—','Recorded GPU, storage and bandwidth earnings. '+earningsDates())},
   {key:'contracts',label:'Contracts',private:true,step:1,value:row=>row.contracts?.length,cell:contractCell},
-  {key:'current',label:'Booked',name:'Booked rates',private:true,unit:'USD/GPU-hour',description:'Sort by lowest running GPU rate',value:row=>row.current?.gpu?.[0],cell:row=>rateList(row.current)},
-  {key:'asking',label:'Asking',name:'Asking rates',private:true,unit:'USD/GPU-hour',description:'Sort by asking GPU rate',value:row=>row.box.rates?.ask?.gpu,cell:row=>rateList(row.box.rates?.ask)}
+  {key:'current',label:'Booked',compactLabel:'Booked GPU/h',name:'Booked rates',private:true,unit:'USD/GPU-hour',description:'Sort by lowest running GPU rate',
+    value:row=>row.current?.gpu?.[0],cell:row=>detailed?rateList(row.current):rateText(row.current?.gpu)},
+  {key:'asking',label:'Asking',compactLabel:'Asking GPU/h',name:'Asking rates',private:true,unit:'USD/GPU-hour',description:'Sort by asking GPU rate',
+    value:row=>row.box.rates?.ask?.gpu,cell:row=>detailed?rateList(row.box.rates?.ask):rateText(row.box.rates?.ask?.gpu)}
 ];
 
 function earningsDates(){
@@ -158,14 +166,20 @@ function earningsCell(text,description){
   return cell;
 }
 
-function activeColumns(){return columns.filter(column=>!column.private||data?.privateRates);}
+function activeColumns(){return columns.filter(column=>(detailed||!column.detailed)&&(!column.private||data?.privateRates));}
+
+function withinRange(value,{min,max}){
+  return Number.isFinite(value)&&(min===null||value>=min)&&(max===null||value<=max);
+}
 
 function matchesFilter(row,column){
   if(!filters.has(column.key))return true;
   const filter=filters.get(column.key),value=(column.filterValue??column.value)(row);
   if(column.filter==='text')return value?.toLowerCase().includes(filter)??false;
   if(column.filter==='choice')return Array.isArray(value)?value.includes(filter):value?.toLowerCase()===filter;
-  return Number.isFinite(value)&&(filter.min===null||value>=filter.min)&&(filter.max===null||value<=filter.max);
+  if(column.filter==='gpu')return (!filter.model||value?.toLowerCase()===filter.model)
+    &&((filter.min===null&&filter.max===null)||withinRange(row.sample.gpuCount,filter));
+  return withinRange(value,filter);
 }
 
 function renderRows(){
@@ -180,7 +194,10 @@ function renderRows(){
     const x=column.value(a),y=column.value(b);
     if(x==null)return y==null?0:1;
     if(y==null)return -1;
-    return (typeof x==='number'?x-y:names.compare(x,y))*sort.direction;
+    const comparison=typeof x==='number'?x-y:names.compare(x,y);
+    const countOrder=column.key==='gpu'&&Number.isFinite(a.sample.gpuCount)&&Number.isFinite(b.sample.gpuCount)
+      ?a.sample.gpuCount-b.sample.gpuCount:0;
+    return (comparison||countOrder)*sort.direction;
   });
   body.replaceChildren(...list.map(row=>{
     const tr=element('tr');
@@ -221,26 +238,29 @@ function changeFilter(key,value){
 
 function filterControl(column){
   const content=element('div','inventory-filter-form'),saved=filters.get(column.key);
-  const label=column.name??column.label;
-  if(column.filter==='choice'){
-    const select=element('select');
-    select.setAttribute('aria-label',label+' filter');
+  const label=column.name??column.label,gpu=column.filter==='gpu';
+  let select;
+  if(column.choices){
+    select=element('select');
+    select.setAttribute('aria-label',gpu?'GPU model filter':label+' filter');
     select.append(new Option('Any',''));
     for(const label of column.choices())select.append(new Option(label,label.toLowerCase()));
-    if(saved&&![...select.options].some(option=>option.value===saved))select.append(new Option(saved,saved));
-    select.value=saved??'';
-    select.addEventListener('change',()=>changeFilter(column.key,select.value));
+    const selected=gpu?saved?.model:saved;
+    if(selected&&![...select.options].some(option=>option.value===selected))select.append(new Option(selected,selected));
+    select.value=selected??'';
+    if(!gpu)select.addEventListener('change',()=>changeFilter(column.key,select.value));
     content.append(select);
-  }else if(column.filter==='text'){
+  }
+  if(column.filter==='text'){
     const input=element('input');
     input.type='search';input.placeholder='Name contains…';input.value=saved??'';
     input.setAttribute('aria-label',label+' filter');
     input.addEventListener('input',()=>changeFilter(column.key,input.value.trim().toLowerCase()));
     content.append(input);
-  }else{
+  }else if(!column.choices||gpu){
     const controls={};
     for(const [key,label] of [['min','Minimum'],['max','Maximum']]){
-      const field=element('label','',label),input=element('input');
+      const field=element('label','',label+(gpu?' GPUs':'')),input=element('input');
       input.type='number';input.step=column.step??'any';
       if(!column.negative)input.min=0;
       if(column.unit==='%')input.max=100;
@@ -251,8 +271,10 @@ function filterControl(column){
     const apply=()=>{
       const bound=input=>Number.isFinite(input.valueAsNumber)?input.valueAsNumber:null;
       const min=bound(controls.min),max=bound(controls.max);
-      changeFilter(column.key,min===null&&max===null?null:{min,max});
+      const model=select?.value;
+      changeFilter(column.key,!model&&min===null&&max===null?null:gpu?{model,min,max}:{min,max});
     };
+    select?.addEventListener('change',apply);
     for(const input of Object.values(controls))input.addEventListener('input',apply);
   }
   const reset=element('button','text-button','Clear this filter');
@@ -275,9 +297,11 @@ function refreshIndicators(){
 }
 
 function renderHeader(){
-  head.replaceChildren(...activeColumns().map(column=>{
-    const {key,label,name=label,description}=column;
-    const cell=element('th'),button=element('button','market-column-sort',label);
+  const visible=activeColumns();
+  if(!visible.some(column=>column.key===sort.key))sort={key:'name',direction:1};
+  head.replaceChildren(...visible.map(column=>{
+    const {key,label,name=label,description,compactLabel}=column;
+    const cell=element('th'),button=element('button','market-column-sort',detailed?label:compactLabel??label);
     const controls=element('div','inventory-column-controls'),filter=element('button','inventory-filter');
     const indicator=element('span','market-column-indicator');indicator.setAttribute('aria-hidden','true');
     cell.scope='col';cell.dataset.key=key;button.type='button';
@@ -297,8 +321,22 @@ function renderHeader(){
   refreshFilters();
 }
 
+function updateDetailToggle(){
+  detailToggle.setAttribute('aria-pressed',String(detailed));
+  detailToggle.title='Switch to '+(detailed?'compact':'detailed')+' view';
+}
+
+detailToggle.addEventListener('click',()=>{
+  detailed=!detailed;
+  try{localStorage.setItem(detailPreference,detailed?'detailed':'compact');}catch{/* The toggle still works in this tab. */}
+  updateDetailToggle();
+  closePopover();
+  if(data){renderHeader();renderRows();}
+});
+updateDetailToggle();
+
 bindPopover($('#devices-info'),()=>({title:'Devices',
-  copy:'Click a column name to sort, or its funnel to filter. The period selector changes Occupancy. Worked totals confirmed run time on the reported UTC billing days used for Earned, excluding a partial hour at the cutoff. Without a billing report it uses all available telemetry. Now $/h uses current compute and storage rates. Avg $/h divides the device’s recorded total by the fleet’s reported clock hours, including idle time. This can understate averages for newer devices. '+earningsDates()+' Stored images include running and stopped instances. Contracts shows running/total. Click the count for its breakdown.'}));
+  copy:'Use the table icon to switch between compact and detailed views. Click a column name to sort, or its funnel to filter. Filters on hidden columns pause in compact view. The period selector changes Occupancy. Worked totals confirmed run time on the reported UTC billing days used for Earned, excluding a partial hour at the cutoff. Without a billing report it uses all available telemetry. Now $/h uses current compute and storage rates. Avg $/h divides the device’s recorded total by the fleet’s reported clock hours, including idle time. This can understate averages for newer devices. '+earningsDates()+' Stored images include running and stopped instances. Contracts shows running/total. Click the count for its breakdown.'}));
 
 async function load(){
   try{

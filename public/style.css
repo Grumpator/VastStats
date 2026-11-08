@@ -563,6 +563,9 @@ h1{font-size:29px}
 .device-inventory-toolbar h1{font-size:24px;margin-right:auto}
 .device-inventory-period{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
 .device-inventory-period select{border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);font:inherit;padding:6px 8px}
+#device-detail-toggle{display:grid;place-items:center;width:29px;height:29px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--muted)}
+#device-detail-toggle svg{width:16px;height:16px}
+#device-detail-toggle:hover,#device-detail-toggle[aria-pressed=true]{background:#e6eee1;color:#245840}
 #devices-info{position:static}
 .device-inventory{overflow:auto;overscroll-behavior-x:contain;border:1px solid var(--line);border-radius:10px;background:#fff}
 .device-inventory .market-table th,.device-inventory .market-table td{padding:7px 6px}
@@ -571,6 +574,7 @@ h1{font-size:29px}
 .device-inventory .market-column-sort{padding:2px 0}
 .device-inventory th[aria-sort] .market-column-sort{color:var(--ink)}
 .device-inventory .market-table td:nth-child(2),.device-inventory .device-inventory-empty{font-family:inherit}
+.device-gpu-count{font-family:var(--number-font)}
 .inventory-column-controls{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
 .device-inventory th:first-child .inventory-column-controls{align-items:flex-start}
 .inventory-filter{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:5px;color:var(--muted)}

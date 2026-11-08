@@ -23,11 +23,16 @@
             <option value="month">This month</option><option value="all">All history</option>
           </select>
         </label>
+        <button id="device-detail-toggle" type="button" aria-label="Detailed view" aria-pressed="false" aria-controls="fleet-device-table" title="Switch to detailed view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M4 5h16v14H4zM4 10h16M4 14h16M10 10v9M15 10v9"/>
+          </svg>
+        </button>
         <button class="metric-info" id="devices-info" type="button" aria-label="About the Devices table">?</button>
       </div>
       <div id="device-inventory-notice" class="notice" role="status">Loading saved fleet data…</div>
       <div class="device-inventory" tabindex="0" role="region" aria-label="Scrollable fleet inventory">
-        <table class="market-table" aria-label="Fleet devices">
+        <table class="market-table" id="fleet-device-table" aria-label="Fleet devices">
           <thead><tr id="device-columns"></tr></thead>
           <tbody id="device-rows"></tbody>
         </table>
