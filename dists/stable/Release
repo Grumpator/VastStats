@@ -2,13 +2,13 @@ Origin: VastStats
 Label: VastStats
 Suite: stable
 Codename: stable
-Date: Thu, 05 Nov 2026 19:10:19 GMT
+Date: Sun, 08 Nov 2026 20:56:42 GMT
 Architectures: amd64 arm64
 Components: main
 Acquire-By-Hash: yes
 Description: VastStats Debian and Ubuntu packages
 SHA256:
- 6015346ec86c4de12e5894541fd55dc68b56ac9598dc04f1eaf8c8837f3a44e3 803 main/binary-amd64/Packages
- e42804410644d7687fbeea206931eb29d103cc3d32b724acfe1a7cff0a26ee55 550 main/binary-amd64/Packages.gz
- 6015346ec86c4de12e5894541fd55dc68b56ac9598dc04f1eaf8c8837f3a44e3 803 main/binary-arm64/Packages
- e42804410644d7687fbeea206931eb29d103cc3d32b724acfe1a7cff0a26ee55 550 main/binary-arm64/Packages.gz
+ aa009c3848222c7d17ebd50cca423fe18ae66d581d3352e157dd93734f2d0de4 1606 main/binary-amd64/Packages
+ f5d5a3b7b3aad33a820901d5b0294299b56b2c94d911221c5b8cfffa5af9bc3c 705 main/binary-amd64/Packages.gz
+ aa009c3848222c7d17ebd50cca423fe18ae66d581d3352e157dd93734f2d0de4 1606 main/binary-arm64/Packages
+ f5d5a3b7b3aad33a820901d5b0294299b56b2c94d911221c5b8cfffa5af9bc3c 705 main/binary-arm64/Packages.gz

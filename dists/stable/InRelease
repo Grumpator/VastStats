@@ -5,27 +5,27 @@ Origin: VastStats
 Label: VastStats
 Suite: stable
 Codename: stable
-Date: Thu, 05 Nov 2026 19:10:19 GMT
+Date: Sun, 08 Nov 2026 20:56:42 GMT
 Architectures: amd64 arm64
 Components: main
 Acquire-By-Hash: yes
 Description: VastStats Debian and Ubuntu packages
 SHA256:
- 6015346ec86c4de12e5894541fd55dc68b56ac9598dc04f1eaf8c8837f3a44e3 803 main/binary-amd64/Packages
- e42804410644d7687fbeea206931eb29d103cc3d32b724acfe1a7cff0a26ee55 550 main/binary-amd64/Packages.gz
- 6015346ec86c4de12e5894541fd55dc68b56ac9598dc04f1eaf8c8837f3a44e3 803 main/binary-arm64/Packages
- e42804410644d7687fbeea206931eb29d103cc3d32b724acfe1a7cff0a26ee55 550 main/binary-arm64/Packages.gz
+ aa009c3848222c7d17ebd50cca423fe18ae66d581d3352e157dd93734f2d0de4 1606 main/binary-amd64/Packages
+ f5d5a3b7b3aad33a820901d5b0294299b56b2c94d911221c5b8cfffa5af9bc3c 705 main/binary-amd64/Packages.gz
+ aa009c3848222c7d17ebd50cca423fe18ae66d581d3352e157dd93734f2d0de4 1606 main/binary-arm64/Packages
+ f5d5a3b7b3aad33a820901d5b0294299b56b2c94d911221c5b8cfffa5af9bc3c 705 main/binary-arm64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iQGzBAEBCAAdFiEEKxueSXplhVRkop1zkN1i2CxSVQIFAmrs1JsACgkQkN1i2CxS
-VQKMPwv+KyP3j+RhANMekjW2i5LljFHxn6O2rcn0NVJgp6Olg1x17difsUGJC4aJ
-/YzkXMXCfX9OBJjbuNj6xzPWJmsrFSAgJ9pHXveEw9GU3hGl2daza6r4vqR7siWk
-HxqKjFH6Nm/dojee9odrY+1HTpMdDoM7/0MZzkqcqmGBNorOmNvpfjWTamyGJEjC
-TEL2IAw4ANiqT7B1A7oxnvkUsfwcBlWTHp+2z2gVIyTmPEM7/jS/Y2/LCmopHNhA
-uVCOO/8Q/s7yCBUQsnVC2/aMMC8z5WY+DlcMj74Pb7NwIP3oACEoc5LtjS/agJ0F
-JEqx+8S+GMk9YyJNzlAtprCVQFZ27Awc/KxgoOHoYlTY/PIXiqDzuuudxzfAm2hk
-XhWht8DmcmWatW/JW/WHBArX/lm2PIyojenfDfJFC+p8JiYTCJDXUCU/7oGdCD+Y
-GsPbjGLYhPAXu9pFuifJC7fnmusOHFElq0/W3giQr3Dm6miwDsogis37Oiv7t/XO
-/mGe8GdL
-=Kube
+iQGzBAEBCAAdFiEEKxueSXplhVRkop1zkN1i2CxSVQIFAmrw4goACgkQkN1i2CxS
+VQKIbQv/RjO4GSLPR13Weq4LGpnhNgeNLdvxD6IS23/cuBAYu8LVYx+0hHvGwMEr
+3bdw+YLgYap/ktj8JTnhWNBjsqKt7lR1P3SyXftYZJKhUOm29rtJKI/SdKsTINbc
+bRYWWfOJjktO0FvJZwZzYZzf+dRYRea0yVOK4Dhs2txqtG1UXOh8LSQ/RofYwMju
+EPuxr2a6OwBPbBjX4liyBlDDEELO1Ne2sW7V9KC5AYpNNuKYpb6SCXIMnO0hv/4u
+sspBag62vF9oH4NVXFMuR4KkA7JvpWVwnT24hd2t2vsH9rOYPeF1aaSgi2Y8Q/EY
+xeZ70jm5M+PsTSePJHoRnhJzwAAULt6wBJ23FQravyIjUtvhT3TQXwP3ZdF3t0ee
+tIDsVGKDEkFLaIjdp8qdQI+8MFTDMo8Hfxh5DFWHRe3I+dsC0oIAMxbaC3WKOsos
+psuSihpMvOac5G6fFBMd1IsIskpqDsqgYdYYKjtgs9xkAnldRDSp6vhwAktmjSMI
+LFGSnlhT
+=+NWA
 -----END PGP SIGNATURE-----
