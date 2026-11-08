@@ -52,7 +52,7 @@ bindPopover(addGpu,()=>{
 });
 
 bindPopover($('#market-info'),()=>({title:'How Market compares prices',
-  copy:'Supply is Vast’s worldwide count of GPUs by availability and verification. Price comparisons use on-demand compute in USD per GPU-hour. They exclude storage and bandwidth. The comparable sample matches bundle size, memory, CPU architecture, verification and a reliability floor near your fleet. Local offers take priority when at least three independent hosts match. Sparse samples can use other GPU models within 20.0% below to 25.0% above the reported memory and within 30.0% of DLPerf. Similar GPU prices are scaled by DLPerf and may differ in software support or memory behaviour. Each provider gets one vote. Your booked rates come from active contracts and can include multiple rental types. Where a matching quote is visible, VastStats estimates the host equivalent using the observed renter-to-host ratio for your listing. Suggestions are indicative ranges based on the lower quartile to median of comparable asks, adjusted toward your booked rates where available.'}));
+  copy:'Supply counts GPUs worldwide across all bundle sizes. Price tables sample distinct hosts. Prices show on-demand compute in USD per GPU-hour, excluding storage and bandwidth. Local offers take priority when at least three independent hosts match your hardware profile. When same-model offers are sparse, VastStats searches above and below the target DLPerf, then ranks matches by memory, DLPerf and laptop or desktop class. It interpolates when it finds both slower and faster matches and gives extra weight to actual same-model asks. One-sided estimates have lower confidence. Estimated host prices use comparable market offers and Vast’s typical renter markup of about 25%. The actual markup can vary.'}));
 
 function table(caption,headers,rows){
   const wrapper=element('div','market-table-wrap'),node=element('table','market-table');
@@ -79,7 +79,7 @@ function supply(market){
   const rows=[['Verified',market.verified],['Unverified',market.unverified]].map(([label,cohort])=>[
     label,number(cohort.rented),number(cohort.available),number(cohort.unavailable),percent(cohort.usage30)
   ]);
-  section.append(table('Worldwide supply by verification',['Verification','Rented','Available','Unavailable','30-day usage'],rows));
+  section.append(table('Worldwide GPU supply by verification',['Verification','Rented GPUs','Available GPUs','Unavailable GPUs','30-day usage'],rows));
   return section;
 }
 
@@ -92,14 +92,33 @@ function watchPriceSummary(group){
   box.append(element('h3','','Market asking price'));
   if(group.prices?.all){
     const reading=element('div','market-target');
-    reading.append(element('strong','',price(group.prices.all.median)),element('span','','median per GPU-hour · '+number(group.prices.all.samples)+' hosts'));
+    const hosts=group.prices.all.samples;
+    reading.append(element('strong','',price(group.prices.all.median)),element('span','','median per GPU-hour · '+number(hosts)+(hosts===1?' host':' hosts')));
     box.append(reading);
     if(group.failed)box.append(element('p','market-note','Showing saved offers.'));
   }else{
     const message=group.refreshing?'Checking available offers…':group.prices?'No available offers in the sample.':'Offer prices are unavailable.';
     box.append(element('p','market-note',message));
   }
+  const estimate=group.prices?.peers?.estimate;
+  if(estimate){
+    const range=element('div','market-target market-estimate');
+    range.append(element('strong','',band(estimate.range.low,estimate.range.high)),
+      element('span','','Estimated market range · '+peerMethodLabel(estimate.method)));
+    box.append(range);
+  }
   return box;
+}
+
+function peerMethodLabel(method){
+  return {near:'nearby matches',interpolated:'interpolated',extrapolated:'extrapolated, lower confidence'}[method];
+}
+
+function peerEvidence(models,mixedClass,crossArch){
+  const names=models.map(peer=>peer.name+' ('+peer.prices.samples+')').join(', ');
+  return 'Comparable models and host counts: '+names+'.'
+    +(mixedClass?' Uses offers from a different laptop or desktop class.':'')
+    +(crossArch?' Uses offers from a different CPU architecture.':'');
 }
 
 function watchPriceDetails(group){
@@ -112,23 +131,32 @@ function watchPriceDetails(group){
   section.append(table('Watched GPU asking prices',['Verification','Hosts','Median','Range'],[
     priceRow('All sampled',group.prices.all),priceRow('Verified',group.prices.verified),priceRow('Unverified',group.prices.unverified)
   ]),element('p','market-note',group.prices.limited?'Limited sample of available offers. Prices are per GPU-hour.':'Prices are per GPU-hour across available bundle sizes.'));
+  const peers=group.prices.peers;
+  if(peers?.estimate){
+    const {models,mixedClass,crossArch,exactHosts}=peers.estimate;
+    const anchor=exactHosts?' The estimate also weighs '+number(exactHosts)+(exactHosts===1?' same-model host.':' same-model hosts.'):'';
+    section.append(element('p','market-note',peerEvidence(models,mixedClass,crossArch)+anchor+(peers.limited?' Comparable offer sample was capped.':'')));
+  }else if(peers){
+    section.append(element('p','market-note',peers.failed?'The comparable offer search is temporarily unavailable.':'Too few comparable hosts to estimate a range.'));
+  }
   return section;
 }
 
 function pricing(group){
   const section=element('div','market-prices');
   section.append(element('h3','','On-demand asking prices'));
-  const rows=[priceRow('Same model · all sampled',group.asking,group.offersFailed),priceRow('Comparable · '+group.scope,group.exact,group.offersFailed)];
-  if(group.peers)rows.push(priceRow('Similar GPUs · DLPerf adjusted',group.peers));
+  const rows=[priceRow('Same model · '+group.bundle+' '+(group.bundle===1?'GPU':'GPUs')+' per offer',group.asking,group.offersFailed),
+    priceRow('Comparable · '+group.scope,group.exact,group.offersFailed)];
+  if(group.peers)rows.push(priceRow('Similar GPUs · '+peerMethodLabel(group.peerMethod),group.peers));
   if(group.offersFailed)section.append(element('p','market-note','Same-model offer search is temporarily unavailable.'));
-  section.append(table('Renter compute asking prices',['Renter $/GPU-hour','Hosts','Median','Range'],rows));
+  section.append(table('Renter compute asking prices',['Renter $/GPU-hour','Sampled hosts','Median','Range'],rows));
   const floor=percent(group.floor);
-  const facts=['Comparable offers use a '+floor+' reliability floor.'];
+  const facts=['The same-model row includes all verification groups. Each host counts once. Comparable offers use a '+floor+' reliability floor.'];
   if(group.sampleLimited||group.peerLimited)facts.push('Search results are capped, so prices describe a sample.');
   if(group.peerStatus==='missing specs')facts.push('Vast did not report enough hardware data to match similar GPUs.');
   else if(group.peerStatus==='unavailable')facts.push('The similar-GPU search is temporarily unavailable.');
   else if(group.peerStatus==='checked'&&!group.peers)facts.push('No similar offers met the memory, DLPerf and quality filters.');
-  if(group.peerModels.length)facts.push('Similar models: '+group.peerModels.map(peer=>peer.name+' ('+peer.prices.samples+')').join(', ')+'.'+(group.peerScope==='Mixed CPU architectures'?' This sample crosses CPU architectures.':''));
+  if(group.peerModels.length)facts.push(peerEvidence(group.peerModels,group.peerMixedClass,group.peerScope==='Mixed CPU architectures'));
   if(group.fleetQuotes&&group.exact?.median>0){
     const difference=group.fleetQuotes.median/group.exact.median-1;
     facts.push('Your median visible renter quote is '+(Math.abs(difference)<.005?'in line with':percent(Math.abs(difference))+(difference>0?' above':' below'))+' the comparable median ('+group.fleetQuotes.samples+' fleet '+(group.fleetQuotes.samples===1?'quote).':'quotes).'));
@@ -139,14 +167,14 @@ function pricing(group){
 
 function suggestion(group,stale){
   const box=element('div','market-suggestion'),value=group.suggestion;
-  box.append(element('h3','','Suggested host price'));
+  box.append(element('h3','','Estimated host price'));
   if(stale||!value?.host){
-    const message=stale?'Waiting for a fresh market snapshot.':value?'A matching fleet quote is needed for a host price.':'Too little comparable evidence for a range.';
+    const message=stale?'Waiting for a fresh market snapshot.':'Too little comparable evidence for a range.';
     box.append(element('p','market-note',message));
     return box;
   }
   const reading=element('div','market-target');
-  reading.append(element('strong','',band(value.host.low,value.host.high)),element('span','','per GPU-hour · '+value.confidence.toLowerCase()+' evidence'));
+  reading.append(element('strong','',band(value.host.low,value.host.high)),element('span','','per GPU-hour · '+value.confidence.toLowerCase()+' market evidence'));
   box.append(reading);
   return box;
 }
@@ -156,10 +184,7 @@ function suggestionEvidence(group){
   const signals=[];
   if(value.exact)signals.push('same-model asks');
   if(value.peers)signals.push('similar GPU asks');
-  if(value.booked)signals.push('your running contract rates');
-  let detail=value.confidence+' evidence · '+signals.join(' + ')+'.';
-  if(value.host&&value.renter)detail+=' Host equivalent uses '+group.quoteSamples+' matching fleet '+(group.quoteSamples===1?'quote.':'quotes.');
-  return detail;
+  return value.confidence+' evidence · '+signals.join(' + ')+'. Host prices are estimated using Vast’s typical renter markup of about 25%.';
 }
 
 const fleetColumns=[
@@ -272,9 +297,18 @@ function groupCard(group,stale,index){
     const remove=element('button','text-button','Remove');
     remove.type='button';
     remove.setAttribute('aria-label','Remove '+group.model+' from watchlist');
-    remove.addEventListener('click',()=>{
-      expandedGroups.delete(key);
-      updateWatchlist(watchModels.filter(model=>modelKey(model)!==modelKey(group.model)));
+    bindPopover(remove,()=>{
+      const buttons=element('div','market-watch-confirm'),cancel=element('button','refresh-button','Cancel');
+      const confirm=element('button','refresh-button','Remove GPU');
+      cancel.type=confirm.type='button';
+      cancel.addEventListener('click',()=>closePopover(true));
+      confirm.addEventListener('click',()=>{
+        closePopover();
+        expandedGroups.delete(key);
+        updateWatchlist(watchModels.filter(model=>modelKey(model)!==modelKey(group.model)));
+      });
+      buttons.append(cancel,confirm);
+      return {title:'Remove '+group.model+' from your watchlist?',content:buttons};
     });
     identity.append(element('span','market-note','Watchlist'));
     actions.append(remove);

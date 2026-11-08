@@ -522,6 +522,9 @@ h1{font-size:29px}
 .market-heading-actions .market-note{margin:0}
 .market-watch-picker{display:grid;gap:8px;margin-top:8px}
 .market-watch-picker select{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font:inherit}
+.market-watch-picker .refresh-button,.market-watch-confirm .refresh-button{color:var(--ink)}
+.market-watch-confirm{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.market-card-heading .market-heading-actions{gap:14px}
 #market-progress{display:block;width:min(100%,280px);height:7px;margin:0 0 14px;accent-color:#34845c}
 .market-card{margin:0 0 20px;padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .market-card-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;margin-bottom:8px}
@@ -552,6 +555,7 @@ h1{font-size:29px}
 .market-fleet th[aria-sort] .market-column-indicator{opacity:1}
 .market-suggestion{padding:10px 12px;background:#f1f5eb;border-radius:8px}
 .market-target{display:flex;flex-direction:column}
+.market-estimate{margin-top:8px}
 @media(max-width:610px){.market-card-summary{grid-template-columns:1fr}}
 @media(max-width:460px){.market-card{padding:13px 11px}.market-table th,.market-table td{padding-inline:4px}}
 

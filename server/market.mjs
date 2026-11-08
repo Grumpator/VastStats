@@ -85,38 +85,106 @@ function ownProfiles(raw,status,seed,now){
 }
 
 const bounds=(value,low,high)=>({gte:value*low,lte:value*high});
+const peerMemory=[.6,1.6],peerPerformance=[.55,1.7];
+const laptop=model=>/\blaptop\b/.test(modelKey(model));
+const within=(value,target,[low,high])=>value>=target*low&&value<=target*high;
+const sameModelWeight=exact=>exact.samples/(exact.samples+1);
 function qualityMatch(offer,profile,reliabilityFloor){
   return (!profile.verification||offer.verification===profile.verification)&&offer.reliability!==null&&offer.reliability>=reliabilityFloor;
 }
 
-// Quotes use renter prices. Compare host and renter prices only where a
-// matching fleet quote lets us observe the conversion for this cohort.
-export function priceSuggestion({exact,peers,booked,conversion,crossArch=false}){
+function estimatePeers(offers,target,exact){
+  const isLaptop=laptop(target.model);
+  const slowerThanTarget=offer=>offer.dlperf<target.dlperf;
+  const fasterThanTarget=offer=>offer.dlperf>target.dlperf;
+  const candidates=offers.map(offer=>{
+    const mixedClass=laptop(offer.model)!==isLaptop;
+    const crossArch=!!target.arch&&offer.arch!==target.arch;
+    const otherVerification=target.verification&&offer.verification!==target.verification;
+    const distance=Math.abs(Math.log(offer.ram/target.ram))+Math.abs(Math.log(offer.dlperf/target.dlperf))
+      +(mixedClass ? .25 : 0)+(crossArch ? .35 : 0)+(otherVerification ? .15 : 0);
+    return {offer,distance,mixedClass,crossArch};
+  }).sort((a,b)=>a.distance-b.distance);
+  const byHost=new Map();
+  for(const item of candidates){
+    if(!byHost.has(item.offer.host))byHost.set(item.offer.host,item);
+  }
+  let distinct=[...byHost.values()];
+  const sameArchitecture=distinct.filter(item=>target.arch&&!item.crossArch);
+  // Keep access to both sides of a price bracket when the closer architecture
+  // alone only has offers on one side.
+  if(sameArchitecture.length>=MIN_HOSTS&&[slowerThanTarget,fasterThanTarget].every(side=>
+    !distinct.some(item=>side(item.offer))||sameArchitecture.some(item=>side(item.offer))))distinct=sameArchitecture;
+  if(distinct.length<MIN_HOSTS)return null;
+  const closest=distinct.filter(item=>item.distance<=distinct[MIN_HOSTS-1].distance+1e-8);
+  for(const side of [slowerThanTarget,fasterThanTarget]){
+    if(closest.some(item=>side(item.offer)))continue;
+    const nearest=distinct.find(item=>side(item.offer));
+    if(nearest)closest.push(nearest);
+  }
+  const peers=closest.map(item=>item.offer);
+  const slower=peers.filter(slowerThanTarget),faster=peers.filter(fasterThanTarget);
+  let method='near',prices;
+  if(slower.length&&faster.length){
+    method='interpolated';
+    const lowerScore=distribution(slower.map(offer=>offer.dlperf)).median;
+    const upperScore=distribution(faster.map(offer=>offer.dlperf)).median;
+    const weight=(target.dlperf-lowerScore)/(upperScore-lowerScore);
+    const lower=offerPrices(slower),upper=offerPrices(faster);
+    prices={samples:peers.length};
+    for(const key of ['min','p25','median','p75','max'])prices[key]=lower[key]*(1-weight)+upper[key]*weight;
+  }else{
+    if(peers.some(offer=>!within(offer.dlperf,target.dlperf,[.97,1.03])))method='extrapolated';
+    prices=offerPrices(peers,offer=>offer.usd*target.dlperf/offer.dlperf);
+  }
+  if(exact){
+    const weight=sameModelWeight(exact);
+    for(const key of ['min','p25','median','p75','max'])prices[key]=prices[key]*(1-weight)+exact[key]*weight;
+  }
+  const spread=method==='extrapolated' ? .15 : .05;
+  const models=new Map();
+  for(const offer of peers){
+    const rows=models.get(offer.model)??[];
+    rows.push(offer);
+    models.set(offer.model,rows);
+  }
+  return {prices,method,exactHosts:exact?.samples??0,range:{low:Math.min(prices.p25,prices.median*(1-spread)),high:Math.max(prices.p75,prices.median*(1+spread))},
+    mixedClass:closest.some(item=>item.mixedClass),crossArch:closest.some(item=>item.crossArch),
+    models:[...models].map(([name,rows])=>({name,prices:offerPrices(rows)})).sort((a,b)=>b.prices.samples-a.prices.samples)};
+}
+
+async function samplePeers(api,target,excludedIds,floor=null,exact=null){
+  const limit=SAMPLE_LIMIT/2,score=target.dlperf*target.bundle;
+  const filters={limit,num_gpus:{eq:target.bundle},rentable:{eq:true},rented:{eq:false},
+    gpu_ram:bounds(target.ram,...peerMemory),
+    ...(floor!==null?{reliability:{gte:floor},...(target.verification?{verification:{eq:target.verification}}:{})}:{})};
+  const below=await api.offers({...filters,dlperf:{gte:score*peerPerformance[0],lte:score},order:[['dlperf','desc']]});
+  const above=await api.offers({...filters,dlperf:{gt:score,lte:score*peerPerformance[1]},order:[['dlperf','asc']]});
+  const offers=[...offerRows(below),...offerRows(above)].filter(offer=>offer.available&&!excludedIds.has(offer.machine)
+    &&modelKey(offer.model)!==modelKey(target.model)&&offer.gpus===target.bundle
+    &&(floor===null||qualityMatch(offer,target,floor))
+    &&within(offer.ram,target.ram,peerMemory)&&within(offer.dlperf,target.dlperf,peerPerformance));
+  return {estimate:estimatePeers(offers,target,exact),limited:[below,above].some(raw=>raw.truncated===true||raw.offers.length>=limit)};
+}
+
+// Vast describes live renter GPU prices as typically about 25% above host earnings.
+// https://vast.ai/article/how-much-money-can-you-earn-renting-out-your-gpu-on-vast-ai
+const typicalRenterMultiplier=1.25;
+export function priceSuggestion({exact,peers,crossArch=false}){
   const usePeers=(exact?.samples??0)<MIN_HOSTS&&!!peers;
   const market=usePeers?peers:exact;
-  const sufficient=(market?.samples??0)>=MIN_HOSTS;
-  const bookedMedian=conversion&&booked?.samples>=2?booked.median*conversion:null;
-  if((!sufficient||usePeers&&crossArch&&(!exact||!positive(exact.median)))&&bookedMedian===null){
-    if(booked?.samples<2||!positive(booked?.median))return null;
-    return {renter:null,host:{low:Math.min(booked.p25,booked.median*.95),high:booked.median},
-      exact:false,peers:false,booked:true,confidence:'Limited'};
-  }
-  let low=market?.p25??bookedMedian,high=market?.median??bookedMedian;
-  if(bookedMedian!==null&&market){
-    const weight=sufficient?2/3:1/3;
-    low=low*weight+bookedMedian*(1-weight);
-    high=high*weight+bookedMedian*(1-weight);
-  }
+  if((market?.samples??0)<MIN_HOSTS||(usePeers&&crossArch&&!positive(exact?.median)))return null;
+  let {p25:low,median:high}=market;
   if(usePeers&&exact){
-    low=low*.8+exact.p25*.2;
-    high=high*.8+exact.median*.2;
+    const weight=sameModelWeight(exact);
+    low=low*(1-weight)+exact.p25*weight;
+    high=high*(1-weight)+exact.median*weight;
   }
   if(!positive(high))return null;
   // Avoid presenting a single data point as a precise target range.
   if(high-low<high*.05)low=high*.95;
-  return {renter:{low,high},host:conversion?{low:low/conversion,high:high/conversion}:null,
-    exact:!!exact&&(!usePeers||exact.samples>0),peers:usePeers,booked:bookedMedian!==null,
-    confidence:!usePeers&&sufficient&&bookedMedian!==null?'Moderate':'Limited'};
+  return {host:{low:low/typicalRenterMultiplier,high:high/typicalRenterMultiplier},
+    exact:!!exact,peers:usePeers,confidence:usePeers?'Limited':'Moderate'};
 }
 
 function snapshotCache(collect,now,refreshMs=REFRESH_MS){
@@ -186,52 +254,39 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
       const verifiedRow=verifiedMetrics?.get(model),unverifiedRow=unverifiedMetrics?.get(model);
       const rawMetrics=profile.verification==='verified'?verifiedRow??unverifiedRow:unverifiedRow??verifiedRow;
       const ownQuotes=new Map(profile.devices.map(device=>[device.id,quotes.get(device.id)?.find(o=>modelKey(o.model)===model&&o.gpus===profile.bundle)??null]));
-      const ratios=profile.devices.flatMap(device=>{
-        const quote=ownQuotes.get(device.id);
-        return quote&&positive(device.ask)?[quote.usd/device.ask]:[];
-      });
-      const ratio=distribution(ratios);
-      const conversion=ratio&&ratio.min>=1&&ratio.max<=2&&ratio.max/ratio.min<=1.05?ratio.median:null;
+      const offers=direct?.offers??[];
+      const hardwareMatches=offers.filter(offer=>!profile.arch||offer.arch===profile.arch);
       const ram=distribution(profile.devices.map(device=>device.ram))?.median
-        ??distribution([...ownQuotes.values()].map(o=>o?.ram))?.median;
-      const dlperf=distribution([...ownQuotes.values()].map(o=>o?.dlperf))?.median??(positive(rawMetrics?.dlperf)?rawMetrics.dlperf:null);
+        ??distribution(hardwareMatches.map(offer=>offer.ram))?.median;
+      const dlperf=distribution(hardwareMatches.map(offer=>offer.dlperf))?.median
+        ??(positive(rawMetrics?.dlperf)?rawMetrics.dlperf:null);
       const reliability=distribution(profile.devices.map(d=>d.reliability));
       const floor=Math.max(.95,(reliability?.median??.97)-.02);
-      const offers=direct?.offers??[],matches=offers.filter(offer=>qualityMatch(offer,profile,floor)
-        &&(!profile.arch||offer.arch===profile.arch)&&(!ram||(offer.ram>=ram*.8&&offer.ram<=ram*1.25)));
+      const matches=hardwareMatches.filter(offer=>qualityMatch(offer,profile,floor)
+        &&(!ram||(offer.ram>=ram*.8&&offer.ram<=ram*1.25)));
       const countries=new Set(profile.devices.map(d=>d.country).filter(Boolean));
       const local=matches.filter(o=>countries.has(o.country)),localPrices=offerPrices(local);
       const preferLocal=(localPrices?.samples??0)>=MIN_HOSTS;
       const exact=preferLocal?localPrices:offerPrices(matches);
       let peerResult=null;
       if((exact?.samples??0)<MIN_HOSTS&&positive(ram)&&positive(dlperf)){
-        peerResult=await read(
-          ()=>api.offers({limit:SAMPLE_LIMIT,num_gpus:{eq:profile.bundle},rentable:{eq:true},rented:{eq:false},gpu_ram:bounds(ram,.8,1.25),dlperf:bounds(dlperf*profile.bundle,.7,1.3),reliability:{gte:floor},...(profile.verification?{verification:{eq:profile.verification}}:{})}),
-          raw=>({offers:offerRows(raw).filter(o=>o.available&&!ids.has(o.machine)&&modelKey(o.model)!==model&&o.gpus===profile.bundle
-            &&qualityMatch(o,profile,floor)&&o.ram>=ram*.8&&o.ram<=ram*1.25&&o.dlperf>=dlperf*.7&&o.dlperf<=dlperf*1.3),
-            limited:raw.truncated===true||raw.offers.length>=SAMPLE_LIMIT})
-        );
+        peerResult=await read(()=>samplePeers(api,{...profile,ram,dlperf},ids,floor),value=>value);
       }
-      const similar=peerResult?.offers??[],sameArch=similar.filter(o=>o.arch&&o.arch===profile.arch);
-      const useSameArch=(offerPrices(sameArch)?.samples??0)>=MIN_HOSTS;
-      const peerPool=useSameArch?sameArch:similar;
-      const crossArch=peerPool.some(o=>!profile.arch||o.arch!==profile.arch);
-      const peerModels=new Map();
-      for(const offer of peerPool)peerModels.set(offer.model,[...(peerModels.get(offer.model)||[]),offer]);
-      const peerPrices=offerPrices(peerPool,offer=>offer.usd*dlperf/offer.dlperf);
-      const booked=distribution(profile.devices.map(d=>d.booked));
-      const suggestion=priceSuggestion({exact,peers:peerPrices,booked,conversion,crossArch});
+      const peerEstimate=peerResult?.estimate;
+      const peerPrices=peerEstimate?.prices??null;
+      const crossArch=!!peerEstimate&&(!profile.arch||peerEstimate.crossArch);
+      const suggestion=priceSuggestion({exact,peers:peerPrices,crossArch});
       const fleetQuotes=distribution([...ownQuotes.values()].map(offer=>offer?.usd));
       const devices=profile.devices.map(({id,name,gpus,listed,reliability,ask,active,booked,country})=>({
         name,gpus,listed,reliability,ask,active,booked,country,quote:ownQuotes.get(id)?.usd??null
       }));
       cards.push({model:profile.model,bundle:profile.bundle,arch:profile.arch,verification:profile.verification,shared:profile.shared,
-        ram,dlperf,floor,market:marketMetrics(verifiedRow,unverifiedRow),devices,fleetQuotes,quoteSamples:ratio?.samples??0,
+        ram,dlperf,floor,market:marketMetrics(verifiedRow,unverifiedRow),devices,fleetQuotes,
         asking:offerPrices(offers),exact,scope:preferLocal?[...countries].join(', '):'Global',sampleLimited:direct?.limited??false,offersFailed:direct===null,
         peers:peerPrices,peerScope:crossArch?'Mixed CPU architectures':profile.arch,
         peerStatus:peerResult?'checked':(exact?.samples??0)>=MIN_HOSTS?'not needed':positive(ram)&&positive(dlperf)?'unavailable':'missing specs',
-        peerLimited:peerResult?.limited??false,peerModels:[...peerModels].map(([name,rows])=>({name,prices:offerPrices(rows)}))
-          .sort((a,b)=>b.prices.samples-a.prices.samples).slice(0,5),suggestion});
+        peerLimited:peerResult?.limited??false,peerModels:peerEstimate?.models.slice(0,5)??[],
+        peerMethod:peerEstimate?.method??null,peerMixedClass:peerEstimate?.mixedClass??false,suggestion});
     }
     return {updatedAt:new Date(now()).toISOString(),fleetUpdatedAt:current?.updatedAt??null,groups:cards,catalogue,partial,unavailable:succeeded===0};
   },now);
@@ -244,8 +299,18 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
       const request=quoteQueue.then(async()=>{
         const raw=await api.offers({limit:SAMPLE_LIMIT,gpu_name:{eq:model},rentable:{eq:true},rented:{eq:false}});
         const offers=offerRows(raw).filter(offer=>offer.available&&modelKey(offer.model)===key);
+        const all=offerPrices(offers);
+        let peers=null;
+        if((all?.samples??0)<MIN_HOSTS){
+          const reference=offers.filter(offer=>positive(offer.ram)&&positive(offer.dlperf)).sort((a,b)=>a.gpus-b.gpus)[0];
+          if(reference){
+            const target={...reference,bundle:reference.gpus};
+            const exact=offerPrices(offers.filter(offer=>offer.gpus===target.bundle));
+            try{peers=await samplePeers(api,target,new Set(),null,exact);}catch{peers={failed:true};}
+          }
+        }
         return {
-          updatedAt:new Date(now()).toISOString(),all:offerPrices(offers),
+          updatedAt:new Date(now()).toISOString(),all,peers,
           verified:offerPrices(offers.filter(offer=>offer.verification==='verified')),
           unverified:offerPrices(offers.filter(offer=>offer.verification==='unverified'||offer.verification==='deverified')),
           limited:raw.truncated===true||raw.offers.length>=SAMPLE_LIMIT
