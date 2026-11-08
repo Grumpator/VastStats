@@ -1,5 +1,5 @@
 import {element} from './ui.js?v=1.0.0';
-import {bindPopover} from './popover.js?v=1.0.0';
+import {bindPopover,closePopover} from './popover.js?v=1.0.0';
 import {percentLabel,reliabilityLabel} from './model.js?v=1.0.0';
 
 const $=selector=>document.querySelector(selector);
@@ -10,7 +10,46 @@ const number=value=>Number.isFinite(value)?decimal.format(value):'—';
 const price=value=>Number.isFinite(value)?dollars.format(value):'—';
 const percent=value=>Number.isFinite(value)?percentLabel(value*100):'—';
 const band=(low,high)=>price(low)+(low===high?'':'–'+price(high));
-let lastDraw='',timer;
+let lastDraw='',timer,loadGeneration=0,availableModels=[],watchLimit=8;
+const expandedGroups=new Set();
+const marketGroupKey=group=>JSON.stringify([group.model,group.bundle,group.arch,group.verification,group.ram]);
+const watchKey='vaststats.market.watch';
+const modelKey=model=>model.trim().replace(/[ _]+/g,' ').toLowerCase();
+const addGpu=$('#market-watch-add');
+let watchModels=[];
+try{
+  const saved=JSON.parse(localStorage.getItem(watchKey)??'[]');
+  if(Array.isArray(saved))watchModels=saved.filter(model=>typeof model==='string'&&model.trim()&&model.length<=96).slice(0,watchLimit);
+}catch{/* The watchlist still works for this tab if storage is unavailable. */}
+
+function updateWatchlist(next){
+  watchModels=next;
+  try{localStorage.setItem(watchKey,JSON.stringify(next));}catch{/* Keep the in-memory selection. */}
+  void load();
+}
+
+function selectableModels(){
+  const watched=new Set(watchModels.map(modelKey));
+  return availableModels.filter(model=>!watched.has(modelKey(model)));
+}
+
+bindPopover(addGpu,()=>{
+  const content=element('div','market-watch-picker'),select=element('select'),add=element('button','refresh-button','Add to watchlist');
+  select.setAttribute('aria-label','GPU model to watch');
+  select.append(new Option('Choose a GPU…',''));
+  for(const model of selectableModels())select.append(new Option(model,model));
+  add.type='button';
+  add.disabled=true;
+  select.addEventListener('change',()=>{add.disabled=!select.value;});
+  add.addEventListener('click',()=>{
+    const model=select.value;
+    if(!model||watchModels.length>=watchLimit||!selectableModels().includes(model))return;
+    closePopover(true);
+    updateWatchlist([...watchModels,model]);
+  });
+  content.append(select,add);
+  return {title:'Watch a GPU',copy:'Watch up to '+watchLimit+' models in this browser.',content};
+});
 
 bindPopover($('#market-info'),()=>({title:'How Market compares prices',
   copy:'Supply is Vast’s worldwide count of GPUs by availability and verification. Price comparisons use on-demand compute in USD per GPU-hour. They exclude storage and bandwidth. The comparable sample matches bundle size, memory, CPU architecture, verification and a reliability floor near your fleet. Local offers take priority when at least three independent hosts match. Sparse samples can use other GPU models within 20.0% below to 25.0% above the reported memory and within 30.0% of DLPerf. Similar GPU prices are scaled by DLPerf and may differ in software support or memory behaviour. Each provider gets one vote. Your booked rates come from active contracts and can include multiple rental types. Where a matching quote is visible, VastStats estimates the host equivalent using the observed renter-to-host ratio for your listing. Suggestions are indicative ranges based on the lower quartile to median of comparable asks, adjusted toward your booked rates where available.'}));
@@ -36,30 +75,44 @@ function table(caption,headers,rows){
 
 function supply(market){
   const section=element('div','market-supply');
-  section.append(element('h3','','Worldwide GPU supply'));
   if(!market){section.append(element('p','market-note','Vast’s supply counts are unavailable for this model.'));return section;}
-  const metrics=element('div','market-metrics');
-  for(const [label,value,style] of [['Rented',number(market.rented),'rented'],['Available',number(market.available),'available'],['Unavailable',number(market.unavailable),'unavailable'],['30-day usage',percent(market.usage30),'']]){
-    const metric=element('div','market-metric '+style);
-    metric.append(element('strong','',value),element('span','',label));metrics.append(metric);
-  }
-  section.append(metrics);
-  if(market.total>0&&[market.rented,market.available,market.unavailable].every(Number.isFinite)){
-    const bar=element('div','market-supply-bar');bar.setAttribute('aria-hidden','true');
-    for(const [style,count] of [['rented',market.rented],['available',market.available],['unavailable',market.unavailable]]){
-      const segment=element('span',style);segment.style.flexGrow=String(count);bar.append(segment);
-    }
-    section.append(bar);
-  }
-  section.append(table('Worldwide supply by verification',['Verification','Rented','Available','Unavailable'],[
-    ['Verified',number(market.verified.rented),number(market.verified.available),number(market.verified.unavailable)],
-    ['Other',number(market.other.rented),number(market.other.available),number(market.other.unavailable)]
-  ]),element('p','market-note',number(market.total)+' GPUs in total · '+percent(market.rentedShare)+' rented now'));
+  const rows=[['Verified',market.verified],['Unverified',market.unverified]].map(([label,cohort])=>[
+    label,number(cohort.rented),number(cohort.available),number(cohort.unavailable),percent(cohort.usage30)
+  ]);
+  section.append(table('Worldwide supply by verification',['Verification','Rented','Available','Unavailable','30-day usage'],rows));
   return section;
 }
 
 function priceRow(label,sample,unavailable=false){
   return [label,number(unavailable?null:sample?.samples??0),price(sample?.median),sample?band(sample.min,sample.max):'—'];
+}
+
+function watchPriceSummary(group){
+  const box=element('div','market-suggestion');
+  box.append(element('h3','','Market asking price'));
+  if(group.prices?.all){
+    const reading=element('div','market-target');
+    reading.append(element('strong','',price(group.prices.all.median)),element('span','','median per GPU-hour · '+number(group.prices.all.samples)+' hosts'));
+    box.append(reading);
+    if(group.failed)box.append(element('p','market-note','Showing saved offers.'));
+  }else{
+    const message=group.refreshing?'Checking available offers…':group.prices?'No available offers in the sample.':'Offer prices are unavailable.';
+    box.append(element('p','market-note',message));
+  }
+  return box;
+}
+
+function watchPriceDetails(group){
+  const section=element('div','market-prices');
+  section.append(element('h3','','Available on-demand offers'));
+  if(!group.prices){
+    section.append(element('p','market-note',group.refreshing?'Checking available offers…':'Offer prices are unavailable.'));
+    return section;
+  }
+  section.append(table('Watched GPU asking prices',['Verification','Hosts','Median','Range'],[
+    priceRow('All sampled',group.prices.all),priceRow('Verified',group.prices.verified),priceRow('Unverified',group.prices.unverified)
+  ]),element('p','market-note',group.prices.limited?'Limited sample of available offers. Prices are per GPU-hour.':'Prices are per GPU-hour across available bundle sizes.'));
+  return section;
 }
 
 function pricing(group){
@@ -86,27 +139,27 @@ function pricing(group){
 
 function suggestion(group,stale){
   const box=element('div','market-suggestion'),value=group.suggestion;
-  box.append(element('h3','','Indicative price for a new listing'));
-  if(stale||!value){
-    box.append(element('p','market-note',stale?'Waiting for a fresh market snapshot.':'Too little comparable price evidence for a range.'));
+  box.append(element('h3','','Suggested host price'));
+  if(stale||!value?.host){
+    const message=stale?'Waiting for a fresh market snapshot.':value?'A matching fleet quote is needed for a host price.':'Too little comparable evidence for a range.';
+    box.append(element('p','market-note',message));
     return box;
   }
-  const amounts=element('div','market-targets');
-  for(const [label,target] of [['Host listing',value.host],['Renter compute',value.renter]]){
-    if(!target)continue;
-    const reading=element('div','market-target');
-    reading.append(element('strong','',band(target.low,target.high)),element('span','',label+' / GPU-hour'));amounts.append(reading);
-  }
-  box.append(amounts);
+  const reading=element('div','market-target');
+  reading.append(element('strong','',band(value.host.low,value.host.high)),element('span','','per GPU-hour · '+value.confidence.toLowerCase()+' evidence'));
+  box.append(reading);
+  return box;
+}
+
+function suggestionEvidence(group){
+  const value=group.suggestion;
   const signals=[];
   if(value.exact)signals.push('same-model asks');
   if(value.peers)signals.push('similar GPU asks');
   if(value.booked)signals.push('your running contract rates');
   let detail=value.confidence+' evidence · '+signals.join(' + ')+'.';
   if(value.host&&value.renter)detail+=' Host equivalent uses '+group.quoteSamples+' matching fleet '+(group.quoteSamples===1?'quote.':'quotes.');
-  else if(!value.host)detail+=' A matching fleet quote is needed to estimate the host listing rate.';
-  box.append(element('p','market-note',detail));
-  return box;
+  return detail;
 }
 
 const fleetColumns=[
@@ -127,7 +180,7 @@ function fleetTable(group){
   ]));
   const body=wrapper.querySelector('tbody');
   const rows=Array.from(body.rows,(row,index)=>({row,device:group.devices[index]}));
-  const groupKey=JSON.stringify([group.model,group.bundle,group.arch,group.verification,group.ram]);
+  const groupKey=marketGroupKey(group);
   const headers=Array.from(wrapper.querySelectorAll('thead th'));
   const indicators=[];
   const sortValue=(device,key)=>key==='ask'&&device.listed!==true?null:device[key];
@@ -177,21 +230,72 @@ function fleetTable(group){
   return wrapper;
 }
 
-function groupCard(group,stale){
+function groupCard(group,stale,index){
   const section=element('section','market-card'),head=element('div','market-card-heading');
+  const identity=element('div','market-card-identity'),actions=element('div','market-heading-actions');
+  const heading=element('h2','',group.model),toggle=element('button','market-card-toggle');
+  toggle.type='button';
+  toggle.setAttribute('aria-label',group.model+' market details');
+  const details=element('div','market-card-details');
+  details.id='market-card-details-'+index;
+  toggle.setAttribute('aria-controls',details.id);
+  const key=group.isWatched?'watch:'+modelKey(group.model):marketGroupKey(group);
+  function showDetails(open){
+    details.hidden=!open;
+    toggle.setAttribute('aria-expanded',String(open));
+    if(open&&!details.childElementCount){
+      if(group.isWatched){
+        details.append(watchPriceDetails(group));
+        return;
+      }
+      const own=element('div','market-fleet');
+      own.append(element('h3','','Your fleet'),fleetTable(group));
+      details.append(pricing(group),own);
+      if(!stale&&group.suggestion?.host)details.append(element('p','market-note',suggestionEvidence(group)));
+    }
+  }
+  toggle.addEventListener('click',()=>{
+    const open=!expandedGroups.has(key);
+    if(open)expandedGroups.add(key);
+    else expandedGroups.delete(key);
+    showDetails(open);
+  });
   const specs=[group.bundle+' GPU per offer',group.arch,group.verification,
     group.ram?number(Math.round(group.ram/1024))+' GiB '+(group.shared?'unified memory':'VRAM'):null,
     group.dlperf?number(group.dlperf)+' DLPerf/GPU':null].filter(Boolean);
-  head.append(element('h2','',group.model),element('p','market-note',specs.join(' · ')));
-  const comparisons=element('div','market-comparisons');comparisons.append(supply(group.market),pricing(group));
-  const own=element('div','market-fleet');
-  own.append(element('h3','','Your fleet'),fleetTable(group));
-  section.append(head,comparisons,suggestion(group,stale),own);
+  identity.append(heading);
+  if(Number.isFinite(group.market?.total)){
+    const rented=Number.isFinite(group.market.rentedShare)?' · '+percent(group.market.rentedShare)+' rented now':'';
+    identity.append(element('p','market-note',number(group.market.total)+' GPUs in total'+rented));
+  }
+  if(group.isWatched){
+    const remove=element('button','text-button','Remove');
+    remove.type='button';
+    remove.setAttribute('aria-label','Remove '+group.model+' from watchlist');
+    remove.addEventListener('click',()=>{
+      expandedGroups.delete(key);
+      updateWatchlist(watchModels.filter(model=>modelKey(model)!==modelKey(group.model)));
+    });
+    identity.append(element('span','market-note','Watchlist'));
+    actions.append(remove);
+  }else identity.append(element('p','market-note',specs.join(' · ')));
+  actions.append(toggle);
+  head.append(identity,actions);
+  const summary=element('div','market-card-summary');
+  summary.append(supply(group.market),group.isWatched?watchPriceSummary(group):suggestion(group,stale));
+  showDetails(expandedGroups.has(key));
+  section.append(head,summary,details);
   return section;
 }
 
 function render(data){
   const notice=$('#market-notice'),freshness=$('#freshness'),host=$('#market-groups'),snapshot=data.snapshot;
+  $('#market-progress').hidden=!data.enabled||!data.refreshing;
+  const owned=new Set((snapshot?.groups??[]).map(group=>modelKey(group.model)));
+  availableModels=(snapshot?.models??[]).filter(model=>!owned.has(modelKey(model)));
+  watchLimit=data.watchLimit??watchLimit;
+  addGpu.disabled=!data.enabled||watchModels.length>=watchLimit||!selectableModels().length;
+  addGpu.title=watchModels.length>=watchLimit?'Watchlist is full':'Choose a GPU model to watch';
   if(!data.enabled){
     notice.textContent='Market is available in the local operator view. Start VastStats on localhost with MARKET_ENABLED=1.';
     freshness.textContent='Market collection is disabled.';host.replaceChildren();lastDraw='';return;
@@ -201,25 +305,38 @@ function render(data){
     freshness.textContent=notice.textContent;return;
   }
   const stale=data.failed||Date.now()-Date.parse(snapshot.updatedAt)>20*60_000;
-  notice.textContent=snapshot.unavailable?'Vast’s marketplace sources are temporarily unavailable.':stale?'Showing the last market snapshot.':snapshot.partial?'Some marketplace sources are temporarily unavailable.':!snapshot.groups.length?'No GPU models are available in your fleet snapshot.':'';
+  const watched=data.watched??[];
+  notice.textContent=snapshot.unavailable?'Vast’s marketplace sources are temporarily unavailable.':stale?'Showing the last market snapshot.':snapshot.partial?'Some marketplace sources are temporarily unavailable.':!snapshot.groups.length&&!watched.length?'Add a GPU to start watching the market.':'';
   freshness.textContent='Market checked '+timestamp.format(Date.parse(snapshot.updatedAt))+' (London)'+(snapshot.partial?' · partial':stale?' · overdue':'')+'.'+
     (snapshot.fleetUpdatedAt?' Running contract rates checked '+timestamp.format(Date.parse(snapshot.fleetUpdatedAt))+' (London).':'');
   $('.freshness').classList.toggle('live',!stale&&!snapshot.partial);
-  const key=snapshot.updatedAt+':'+stale;
-  if(key!==lastDraw){host.replaceChildren(...snapshot.groups.map(group=>groupCard(group,stale)));lastDraw=key;}
+  const key=JSON.stringify([snapshot.updatedAt,stale,watched.map(item=>[item.model,item.prices?.updatedAt,item.refreshing,item.failed])]);
+  if(key!==lastDraw){
+    const cards=[...snapshot.groups,...watched.map(item=>({...item,isWatched:true}))];
+    host.replaceChildren(...cards.map((group,index)=>groupCard(group,stale,index)));
+    lastDraw=key;
+  }
 }
 
 async function load(){
   clearTimeout(timer);
   if(document.hidden)return;
+  const generation=++loadGeneration;
   let wait=60_000;
   try{
-    const response=await fetch('/api/market');
+    const params=new URLSearchParams(watchModels.map(model=>['watch',model]));
+    const response=await fetch('/api/market?'+params);
     if(!response.ok)throw Error('Market request failed');
-    const data=await response.json();render(data);
+    const data=await response.json();
+    if(generation!==loadGeneration)return;
+    render(data);
     if(!data.enabled)return;
     if(data.refreshing)wait=2000;
-  }catch{$('#market-notice').textContent='Couldn’t reach the Market snapshot.';}
+  }catch{
+    if(generation!==loadGeneration)return;
+    $('#market-notice').textContent='Couldn’t reach the Market snapshot.';
+    $('#market-progress').hidden=true;
+  }
   timer=setTimeout(load,wait);
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)void load();});

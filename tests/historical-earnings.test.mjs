@@ -51,11 +51,12 @@ test('earnings collection runs independently, retains saved reports after failur
   let machines=0;
   try{
     runtime=await createRuntime({config:{dataDir:root,key:'test',statusInterval:300000,historyInterval:1800000},now:()=>now,
-      apiFactory:()=>({machines:async()=>{machines++;return {machines:[]};},earnings:async(start,end)=>{entered();await gate;if(fail)throw Error('PRIVATE');return {...raw(),sday:start/DAY,eday:end/DAY-1};}}),
+      apiFactory:()=>({machines:async()=>{machines++;return {machines:[]};},earnings:async(start,end)=>{entered();await gate;if(fail)throw Error('PRIVATE');return {...raw(),per_machine:[{machine_id:123,gpu_earn:32,sto_earn:4,bwu_earn:4,bwd_earn:2}],sday:start/DAY,eday:end/DAY-1};}}),
       historyCollector:async({root})=>JSON.parse(await readFile(new URL('index.json',root),'utf8'))});
     const startup=runtime.start();await started;
     await runtime.statusJob.run();assert.equal(machines,2);assert.equal(runtime.earningsJob.state.running,true);
     release();await startup;const saved=runtime.store.earningsReport;assert.equal(saved.periods.week.totalUsd,29);
+    assert.deepEqual(saved.machineTotals,{[saved.machines[0].deviceKey]:42});
     fail=true;await runtime.earningsJob.run();assert.equal(runtime.store.earningsReport,saved);assert.equal(runtime.health().earnings.failed,true);assert.equal(runtime.health().status.failed,false);assert.equal(JSON.stringify(runtime.health()).includes('PRIVATE'),false);
     await runtime.close();runtime=null;
     runtime=await createRuntime({config:{dataDir:root,key:null,statusInterval:300000,historyInterval:1800000},now:()=>now});assert.equal(runtime.store.earningsReport.periods.week.totalUsd,29);

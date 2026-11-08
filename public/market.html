@@ -17,9 +17,13 @@
     <main class="fleet-page">
       <div class="summary-heading earnings-heading">
         <h1>Market</h1>
-        <button id="market-info" class="metric-info" type="button" aria-label="How market comparisons work">i</button>
+        <div class="market-heading-actions">
+          <button id="market-watch-add" class="refresh-button" type="button" disabled>Add GPU</button>
+          <button id="market-info" class="metric-info" type="button" aria-label="How market comparisons work">i</button>
+        </div>
       </div>
       <div id="market-notice" class="notice" role="status">Checking Vast marketplace data…</div>
+      <progress id="market-progress" aria-label="Loading market data"></progress>
       <div id="market-groups"></div>
     </main>
     <footer><span>VastStats <span class="version">v1.0.0</span><span class="footer-dot">·</span> USD per GPU-hour</span></footer>

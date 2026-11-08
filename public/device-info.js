@@ -2,7 +2,7 @@ import {ZONE,percentLabel,coverageLabel,reliabilityLabel} from './model.js?v=1.0
 import {element} from './ui.js?v=1.0.0';
 
 const stamp=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,dateStyle:'medium',timeStyle:'short'}).format(Date.parse(value)):'Unavailable';
-function duration(seconds){
+export function duration(seconds){
   if(!Number.isFinite(seconds))return '—';if(seconds>0&&seconds<60)return '<1 min';
   const total=Math.round(Math.max(0,seconds)/60);return total<60?total+' min':Math.floor(total/60)+' h'+(total%60?' '+total%60+' min':'');
 }
@@ -12,12 +12,13 @@ export function everythingStats(box){
 }
 export function deviceInfoSections(box,stats,status,{period='Everything',now=Date.now()}={}){
   const sample=box.lastSample??{},running=status.running===false?0:sample.runningInstances??'—';
+  const gpu=[sample.gpuCount,sample.gpuModel].filter(value=>value!=null).join(' × ')||'—';
   const coverage=stats.elapsed>0?coverageLabel(stats.coverage):'—';
   const state=[
     ['Connection',status.connection==='online'?'Online':status.connection==='offline'?'Offline':'Unavailable'],['Listing',status.listed===true?'Listed':status.listed===false?'Unlisted':'Unavailable'],
     ['Maintenance',status.maintenance?'Active':status.next?'Planned from '+stamp(status.next.start):status.maintenance===false?'Off':'Unavailable'],
     ['Instances',running+' running · '+(sample.storedInstances??'—')+' stored'],
-    ['Storage',Number.isFinite(sample.allocatedStorageGb)?sample.allocatedStorageGb.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated':'—'],['GPUs',String(sample.gpuCount??'—')],
+    ['Storage',Number.isFinite(sample.allocatedStorageGb)?sample.allocatedStorageGb.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated':'—'],['GPUs',gpu],
     ['Verification',sample.verification??'Unavailable'],['Reliability',reliabilityLabel(sample.reliability)]
   ];
   if(box.discoveryMissing)state.unshift(['Device discovery','Not returned by latest check']);

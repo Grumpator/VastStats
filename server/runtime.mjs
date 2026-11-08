@@ -6,7 +6,7 @@ import {collectStatus} from '../scripts/collect-status.mjs';
 import {collectHistory} from '../scripts/collect-history.mjs';
 import {DataStore,atomicJson,folderURL} from './store.mjs';
 import {ScheduledJob} from './scheduler.mjs';
-import {collectHistoricalEarnings} from './earnings.mjs';
+import {collectHistoricalEarnings,machineEarningsTotals} from './earnings.mjs';
 import {EarningsSeries} from './earnings-series.mjs';
 import {discoverMachines} from '../scripts/history-discovery.mjs';
 import {createMarket} from './market.mjs';
@@ -26,13 +26,17 @@ export async function createRuntime({config,now=Date.now,timers=globalThis,statu
   const market=config.key&&config.marketEnabled
     ?createMarket({api:apiFactory(),machines,status:()=>store.status,seed:store.identitySeed,now})
     :null;
+  let rateSnapshot=null;
   const statusTask=async()=>{
     const work=path.join(store.root,'status-stage-'+randomUUID());await mkdir(work,{recursive:true});
     try{
       await atomicJson(path.join(work,'index.json'),await store.index());
       if(store.status)await atomicJson(path.join(work,'status.json'),store.status);
-      const result=await statusCollector({api:{machines:()=>machines(true),contracts:id=>apiFactory().contracts(id)},root:folderURL(work),now:now(),identitySeed:store.identitySeed});
+      const rates=config.deviceRatesEnabled?new Map():null;
+      const result=await statusCollector({api:{machines:()=>machines(true),contracts:id=>apiFactory().contracts(id)},root:folderURL(work),now:now(),identitySeed:store.identitySeed,
+        onDeviceRates:rates?(key,value)=>rates.set(key,value):undefined});
       await store.publishStatus(result);
+      if(rates)rateSnapshot={updatedAt:result.updatedAt,rates};
     }finally{await rm(work,{recursive:true,force:true});}
   };
   const historyTask=async()=>{
@@ -58,6 +62,7 @@ export async function createRuntime({config,now=Date.now,timers=globalThis,statu
   };
   const statusJob=new ScheduledJob({interval:config.statusInterval,task:statusTask,now,timers}),historyJob=new ScheduledJob({interval:config.historyInterval,task:historyTask,now,timers});
   const earningsJob=new ScheduledJob({interval:1800000,task:async()=>{
+    let machineTotals;
     const report=await collectHistoricalEarnings({api:apiFactory(),now:now(),onMachines:async rows=>{
       const raw=await machines(),current=Array.isArray(raw)?raw:raw.machines,all=new Map(current.map(row=>[String(row.id),row]));
       for(const row of rows){const id=String(row.machine_id);if(!/^\d+$/.test(id))throw Error('Invalid earnings device');if(!all.has(id))all.set(id,{id});}
@@ -66,12 +71,15 @@ export async function createRuntime({config,now=Date.now,timers=globalThis,statu
         ...d,name:d.name.startsWith('Unnamed-')?d.previous?.name??d.name:d.name,
         gpuCount:d.gpuCount??d.previous?.lastSample?.gpuCount??null
       }));
+      machineTotals=machineEarningsTotals(rows,devices);
       await earningsSeries.setDevices(devices);return earningsSeries.publicDevices();
-    }});await store.publishEarnings(report);
+    }});await store.publishEarnings({...report,machineTotals});
   },now,timers});
   const health=()=>({ok:true,version:config.version??null,release:config.release??null,configured:!!config.key,mode:config.key?'collecting':'cache-only',status:{...statusJob.state,updatedAt:store.status?.updatedAt??null},history:{...historyJob.state,updatedAt:historyUpdatedAt},earnings:{...earningsJob.state,updatedAt:store.earningsReport?.updatedAt??null}});
   let startup=null;
-  return {store,statusJob,historyJob,earningsJob,health,market,machineEarnings:(keys,range,group)=>earningsSeries.selected(keys,range,group),
+  return {store,statusJob,historyJob,earningsJob,health,market,
+    deviceRates:config.deviceRatesEnabled?(stamp)=>rateSnapshot?.updatedAt===stamp?rateSnapshot.rates:null:null,
+    machineEarnings:(keys,range,group)=>earningsSeries.selected(keys,range,group),
     start(){if(startup||!config.key)return startup;startup=(async()=>{statusJob.start();await statusJob.run();if(stopping)return;historyJob.start();earningsJob.start();await Promise.all([historyJob.run(),earningsJob.run()]);})();return startup;},
     async close(){stopping=true;abort.abort();await Promise.all([statusJob.stop(),historyJob.stop(),earningsJob.stop(),earningsSeries.close(),market?.close()]);await startup;await store.close();cachedFleet=null;}
   };

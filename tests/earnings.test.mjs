@@ -6,6 +6,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {contractEarnings,fleetEarnings} from '../scripts/earnings.mjs';
 import {collectStatus} from '../scripts/collect-status.mjs';
+import {deviceRates as collectDeviceRates} from '../scripts/device-rates.mjs';
 import {HistoryApi} from '../scripts/history-api.mjs';
 import {mergeStatus} from '../public/overview-model.js';
 import {hourlyUsd} from '../public/now.js';
@@ -19,12 +20,16 @@ test('hourly rate uses actual per-GPU contract prices, allocated storage and a 3
   near(result.computeUsdPerHour,.6);near(result.storageUsdPerHour,.02);near(result.totalUsdPerHour,.62);
 });
 test('stopped instances earn storage only; offline contracts earn nothing; standalone volumes count once',()=>{
+  const stopped=contract({state:'stopped',charge_types:['disk']});
   const result=contractEarnings(response([
-    contract({state:'stopped'}),
+    stopped,
     contract({contract_id:2,state:'offline'}),
     contract({contract_id:3,charge_types:['volume'],num_gpus:0,vol_size_gb:200,vol_price_dpgbm:.36})
   ]));
   near(result.computeUsdPerHour,0);near(result.storageUsdPerHour,.12);near(result.totalUsdPerHour,.12);
+  const [saved]=collectDeviceRates({},[stopped]).contracts;
+  assert.equal(saved.gpu,.3);
+  assert.equal(saved.gpuCharging,false);
   assert.deepEqual(contractEarnings(response([])),{computeUsdPerHour:0,storageUsdPerHour:0,totalUsdPerHour:0});
 });
 test('incomplete responses and invalid or unsupported contract rates never become a partial earnings total',()=>{
@@ -50,16 +55,22 @@ test('contract reads use the existing authenticated read-only endpoint',async()=
 test('Now collects per-device rates privately; an earnings failure still publishes fresh device states and recovers',async()=>{
   const root=await mkdtemp(path.join(tmpdir(),'vaststats-earnings-'));
   let fail=false,calls=[];
+  const deviceRates=new Map();
   const now=Date.parse('2026-11-05T10:00Z'),api={
-    machines:async()=>({machines:[1,2,3].map(id=>({id,hostname:'Box-'+id,timeout:id===3?10:0,listed:true,machine_maintenance:[],current_rentals_running:1,current_rentals_resident:1}))}),
+    machines:async()=>({machines:[1,2,3].map(id=>({id,hostname:'Box-'+id,timeout:id===3?10:0,listed:true,listed_gpu_cost:.45,listed_inet_down_cost:.001,machine_maintenance:[],current_rentals_running:1,current_rentals_resident:1}))}),
     contracts:async id=>{calls.push(id);if(fail&&String(id)==='2')throw Error('PRIVATE_RAW_ERROR');return response([contract({contract_id:987654321,api_key:'PRIVATE_CUSTOMER_SECRET',customer_email:'PRIVATE_EMAIL'})]);}
   };
   try{
-    const opts={api,root:pathToFileURL(root+path.sep),now,identitySeed:'a'.repeat(64)};
+    const opts={api,root:pathToFileURL(root+path.sep),now,identitySeed:'a'.repeat(64),onDeviceRates:(key,value)=>deviceRates.set(key,value)};
     const first=await collectStatus(opts);assert.deepEqual(calls,['1','2']);near(first.earnings.totalUsdPerHour,1.24);
     assert.equal(first.boxes[2].lastSample.earnings.totalUsdPerHour,0);
     const saved=await readFile(path.join(root,'status.json'),'utf8');
     for(const secret of ['PRIVATE_CUSTOMER_SECRET','PRIVATE_EMAIL','987654321','gpu_price_dph','contracts'])assert.equal(saved.includes(secret),false);
+    const device=deviceRates.get(first.boxes[0].deviceKey);
+    assert.equal(device.ask.gpu,.45);assert.equal(device.ask.download,1.024);
+    assert.equal(device.contracts[0].gpu,.3);
+    for(const secret of ['PRIVATE_CUSTOMER_SECRET','PRIVATE_EMAIL','987654321','contract_id'])assert.equal(JSON.stringify(device).includes(secret),false);
+    assert.equal(deviceRates.get(first.boxes[2].deviceKey).contracts,null);
     fail=true;calls=[];const second=await collectStatus({...opts,now:now+300000});
     assert.deepEqual(calls,['1','2']);assert.equal(second.updatedAt,new Date(now+300000).toISOString());assert.equal(second.boxes[1].lastSample.connection,'online');
     assert.equal(second.earnings.totalUsdPerHour,null);assert.equal(second.earnings.unavailableDevices,1);assert.equal(JSON.stringify(second).includes('PRIVATE_RAW_ERROR'),false);

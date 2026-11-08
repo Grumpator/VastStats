@@ -20,12 +20,14 @@ test('market shares a snapshot, excludes own offers and falls back to comparable
     cpu_arch:'arm64',verification:'verified',rentable:true,rented:false,reliability:.99,geolocation:'London, GB',
     private:'secret',...overrides
   });
-  let metricsCalls=0,queries=0;
+  const metricsCalls=[];
+  let queries=0;
   const api={
-    async gpuMetrics(){
-      metricsCalls++;
+    async gpuNames(){return {gpu_names:['GB10']};},
+    async gpuMetrics(verification){
+      metricsCalls.push(verification);
       return {gpus:[{gpu_name:'GB10',total:100,available:5,unavailable:1,rented_verified:80,rented_unverified:14,
-        avail_verified:3,avail_unverified:2,unavail_verified:0,unavail_unverified:1,usage_30d:75,dlperf:26.9}]};
+        avail_verified:3,avail_unverified:2,unavail_verified:0,unavail_unverified:1,usage_30d:verification==='yes'?82:56.5,dlperf:26.9}]};
     },
     async offers(filters){
       queries++;
@@ -44,8 +46,10 @@ test('market shares a snapshot, excludes own offers and falls back to comparable
   assert.equal(market.read().refreshing,true);
   await market.close();
   const result=market.read(),group=result.snapshot.groups[0];
-  assert.equal(metricsCalls,1);assert.equal(queries,3);assert.equal(result.refreshing,false);
-  assert.equal(group.market.rented,94);assert.equal(group.market.verified.rented,80);assert.equal(group.market.usage30,.75);
+  assert.deepEqual(metricsCalls,['yes','no']);assert.equal(queries,3);assert.equal(result.refreshing,false);
+  assert.equal(group.market.total,100);assert.equal(group.market.rented,94);
+  assert.deepEqual(group.market.verified,{rented:80,available:3,unavailable:0,usage30:.82});
+  assert.deepEqual(group.market.unverified,{rented:14,available:2,unavailable:1,usage30:.565});
   assert.equal(group.exact.samples,1);assert.equal(group.exact.median,.5);
   assert.equal(group.peers.samples,3);assert.equal(group.peerModels[0].name,'Similar GPU');
   assert.equal(group.suggestion.peers,true);assert.equal(group.suggestion.booked,true);
@@ -65,4 +69,49 @@ test('market keeps unsupported conversions and thin cross-architecture signals o
   assert.equal(booked.renter,null);assert.equal(booked.host.high,.3);
   assert.equal(readConfig({MARKET_ENABLED:'1'}).marketEnabled,false);
   assert.equal(readConfig({MARKET_ENABLED:'1',HOST:'127.0.0.1'}).marketEnabled,true);
+});
+
+test('watching a model reuses the catalogue and coalesces one offer sample per cache window',async()=>{
+  let currentTime=time,metricsCalls=0,catalogueCalls=0;
+  const offers=[];
+  const api={
+    async gpuNames(){
+      catalogueCalls++;
+      return {gpu_names:['RTX 4090','RTX 4070 laptop']};
+    },
+    async gpuMetrics(){
+      metricsCalls++;
+      return {gpus:[{gpu_name:'RTX 4090',rented_verified:100,avail_verified:4,unavail_verified:0,
+        rented_unverified:10,avail_unverified:3,unavail_unverified:0,usage_30d:80}]};
+    },
+    async offers(filters){
+      const model=filters.gpu_name.eq;
+      offers.push(model);
+      assert.equal(filters.limit,60);
+      return {offers:[{machine_id:31,host_id:41,gpu_name:model,num_gpus:2,dph_base:.8,
+        rentable:true,rented:false,verification:'verified'}]};
+    }
+  };
+  const market=createMarket({api,machines:async()=>({machines:[]}),status:()=>null,seed,now:()=>currentTime});
+  market.read();await market.close();
+  assert.deepEqual(market.read().snapshot.models,['RTX 4070 laptop','RTX 4090']);
+  assert.equal(metricsCalls,2);assert.equal(catalogueCalls,1);assert.deepEqual(offers,[]);
+  const selected=['RTX 4090','rtx_4090','RTX 4070 laptop','Unknown'];
+  assert.equal(market.read(selected).refreshing,true);
+  market.read(selected);await market.close();
+  const [watched,laptop,unknown]=market.read(selected).watched;
+  assert.equal(watched.market.verified.available,4);
+  assert.equal(watched.prices.verified.median,.4);
+  assert.equal(laptop.market,null);
+  assert.equal(laptop.prices.verified.median,.4);
+  assert.equal(unknown.prices,null);
+  assert.equal(metricsCalls,2);assert.deepEqual(offers,['RTX 4090','RTX 4070 laptop']);
+  currentTime+=15*60_000;
+  market.read();await market.close();
+  assert.equal(offers.length,2);assert.equal(catalogueCalls,1);
+  market.read(['RTX 4090']);await market.close();
+  assert.equal(offers.length,3);
+  currentTime=time+24*60*60_000;
+  market.read();await market.close();
+  assert.equal(catalogueCalls,2);
 });

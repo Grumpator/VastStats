@@ -1,7 +1,8 @@
 import {machineState} from '../scripts/collect.mjs';
 import {discoverMachines} from '../scripts/history-discovery.mjs';
 
-const MIN_HOSTS=3, SAMPLE_LIMIT=60, REFRESH_MS=15*60_000, RETRY_MS=5*60_000;
+const MIN_HOSTS=3, SAMPLE_LIMIT=60, REFRESH_MS=15*60_000, RETRY_MS=5*60_000, CATALOGUE_MS=24*60*60_000;
+export const marketWatchLimit=8;
 const positive=value=>Number.isFinite(value)&&value>0;
 const count=value=>Number.isSafeInteger(value)&&value>=0?value:null;
 const country=value=>typeof value==='string'?/(?:^|,\s*)([A-Z]{2})$/.exec(value.trim())?.[1]??null:null;
@@ -40,16 +41,19 @@ function offerPrices(offers,price=offer=>offer.usd){
   return distribution([...byHost.values()].map(values=>distribution(values)?.median));
 }
 
-function marketMetrics(row){
+function marketMetrics(verifiedRow,unverifiedRow){
+  const row=verifiedRow??unverifiedRow;
   if(!row)return null;
+  // The split counts are present on either filtered response. Historical
+  // usage applies only to the verification filter of that response.
   const value=key=>count(row[key+'_gpus']??row[key]);
-  const verified={rented:value('rented_verified'),available:value('avail_verified'),unavailable:value('unavail_verified')};
-  const other={rented:value('rented_unverified'),available:value('avail_unverified'),unavailable:value('unavail_unverified')};
-  const total=value('total');
-  const rented=verified.rented===null||other.rented===null?null:verified.rented+other.rented;
-  return {total,rented,available:value('available'),unavailable:value('unavailable'),verified,other,
-    rentedShare:total&&rented!==null?rented/total:null,
-    usage30:Number.isFinite(row.usage_30d)&&row.usage_30d>=0&&row.usage_30d<=100?row.usage_30d/100:null};
+  const usage30=source=>Number.isFinite(source?.usage_30d)&&source.usage_30d>=0&&source.usage_30d<=100?source.usage_30d/100:null;
+  const cohort=(key,source)=>({rented:value('rented_'+key),available:value('avail_'+key),unavailable:value('unavail_'+key),usage30:usage30(source)});
+  const verified=cohort('verified',verifiedRow),unverified=cohort('unverified',unverifiedRow);
+  const sum=(...counts)=>counts.every(Number.isFinite)?counts.reduce((a,b)=>a+b,0):null;
+  const rented=sum(verified.rented,unverified.rented),available=sum(verified.available,unverified.available);
+  const unavailable=sum(verified.unavailable,unverified.unavailable),total=sum(rented,available,unavailable);
+  return {total,rented,available,unavailable,verified,unverified,rentedShare:total&&rented!==null?rented/total:null};
 }
 
 function ownProfiles(raw,status,seed,now){
@@ -115,7 +119,7 @@ export function priceSuggestion({exact,peers,booked,conversion,crossArch=false})
     confidence:!usePeers&&sufficient&&bookedMedian!==null?'Moderate':'Limited'};
 }
 
-function snapshotCache(collect,now){
+function snapshotCache(collect,now,refreshMs=REFRESH_MS){
   let snapshot=null,pending=null,next=0,failed=false;
   return {
     read(){
@@ -123,7 +127,7 @@ function snapshotCache(collect,now){
         pending=collect().then(value=>{
           if(!snapshot||!value.unavailable)snapshot=value;
           failed=value.unavailable;
-          next=now()+(value.partial?RETRY_MS:REFRESH_MS);
+          next=now()+(value.partial?RETRY_MS:refreshMs);
         },()=>{
           failed=true;next=now()+RETRY_MS;
         }).finally(()=>{pending=null;});
@@ -135,24 +139,38 @@ function snapshotCache(collect,now){
 }
 
 export function createMarket({api,machines,status,seed,now=Date.now}){
-  return snapshotCache(async()=>{
+  const gpuNames=snapshotCache(async()=>{
+    const response=await api.gpuNames();
+    if(response?.success===false||!Array.isArray(response?.gpu_names))throw Error('Invalid GPU catalogue');
+    const models=response.gpu_names.filter(name=>typeof name==='string'&&name.trim()&&name.length<=96);
+    if(!models.length)throw Error('Empty GPU catalogue');
+    return {models};
+  },now,CATALOGUE_MS);
+  const base=snapshotCache(async()=>{
     const started=now(),fleet=await machines(),current=status();
     const {groups,ids}=ownProfiles(fleet,current,seed,started);
     let partial=false,succeeded=0;
     async function read(task,parse){
       try{const value=parse(await task());succeeded++;return value;}catch{partial=true;return null;}
     }
-    if(!groups.length)return {updatedAt:new Date(now()).toISOString(),groups:[],partial:false,unavailable:false};
-    const metrics=await read(()=>api.gpuMetrics(),response=>{
+    const readMetrics=verification=>read(()=>api.gpuMetrics(verification),response=>{
       if(!Array.isArray(response?.gpus)||response.success===false)throw Error('Invalid GPU metrics');
       return new Map(response.gpus.filter(row=>typeof row.gpu_name==='string').map(row=>[modelKey(row.gpu_name),row]));
     });
+    const verifiedMetrics=await readMetrics('yes');
+    const unverifiedMetrics=await readMetrics('no');
+    const catalogue=new Map();
+    for(const key of new Set([...(verifiedMetrics?.keys()??[]),...(unverifiedMetrics?.keys()??[])])){
+      const verified=verifiedMetrics?.get(key),unverified=unverifiedMetrics?.get(key);
+      const model=(verified??unverified).gpu_name;
+      if(key&&model.length<=96)catalogue.set(key,{model,market:marketMetrics(verified,unverified)});
+    }
     const exactByProfile=new Map(),quotes=new Map();
     const allProfiles=[];
     for(const profile of groups){
       const model=modelKey(profile.model),queryKey=JSON.stringify([model,profile.bundle]);
       if(!exactByProfile.has(queryKey))exactByProfile.set(queryKey,await read(
-        ()=>api.offers({limit:SAMPLE_LIMIT,gpu_name:{eq:profile.model.replaceAll(' ','_')},num_gpus:{eq:profile.bundle},rentable:{eq:true},rented:{eq:false}}),
+        ()=>api.offers({limit:SAMPLE_LIMIT,gpu_name:{eq:profile.model.replaceAll('_',' ')},num_gpus:{eq:profile.bundle},rentable:{eq:true},rented:{eq:false}}),
         raw=>({offers:offerRows(raw).filter(row=>row.available&&modelKey(row.model)===model&&row.gpus===profile.bundle&&!ids.has(row.machine)),limited:raw.truncated===true||raw.offers.length>=SAMPLE_LIMIT})
       ));
       allProfiles.push({profile,model,direct:exactByProfile.get(queryKey)});
@@ -165,7 +183,8 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
     }
     const cards=[];
     for(const {profile,model,direct} of allProfiles){
-      const rawMetrics=metrics?.get(model);
+      const verifiedRow=verifiedMetrics?.get(model),unverifiedRow=unverifiedMetrics?.get(model);
+      const rawMetrics=profile.verification==='verified'?verifiedRow??unverifiedRow:unverifiedRow??verifiedRow;
       const ownQuotes=new Map(profile.devices.map(device=>[device.id,quotes.get(device.id)?.find(o=>modelKey(o.model)===model&&o.gpus===profile.bundle)??null]));
       const ratios=profile.devices.flatMap(device=>{
         const quote=ownQuotes.get(device.id);
@@ -207,13 +226,67 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
         name,gpus,listed,reliability,ask,active,booked,country,quote:ownQuotes.get(id)?.usd??null
       }));
       cards.push({model:profile.model,bundle:profile.bundle,arch:profile.arch,verification:profile.verification,shared:profile.shared,
-        ram,dlperf,floor,market:marketMetrics(rawMetrics),devices,fleetQuotes,quoteSamples:ratio?.samples??0,
+        ram,dlperf,floor,market:marketMetrics(verifiedRow,unverifiedRow),devices,fleetQuotes,quoteSamples:ratio?.samples??0,
         asking:offerPrices(offers),exact,scope:preferLocal?[...countries].join(', '):'Global',sampleLimited:direct?.limited??false,offersFailed:direct===null,
         peers:peerPrices,peerScope:crossArch?'Mixed CPU architectures':profile.arch,
         peerStatus:peerResult?'checked':(exact?.samples??0)>=MIN_HOSTS?'not needed':positive(ram)&&positive(dlperf)?'unavailable':'missing specs',
         peerLimited:peerResult?.limited??false,peerModels:[...peerModels].map(([name,rows])=>({name,prices:offerPrices(rows)}))
           .sort((a,b)=>b.prices.samples-a.prices.samples).slice(0,5),suggestion});
     }
-    return {updatedAt:new Date(now()).toISOString(),fleetUpdatedAt:current?.updatedAt??null,groups:cards,partial,unavailable:succeeded===0};
+    return {updatedAt:new Date(now()).toISOString(),fleetUpdatedAt:current?.updatedAt??null,groups:cards,catalogue,partial,unavailable:succeeded===0};
   },now);
+
+  const quoteCaches=new Map();
+  let quoteQueue=Promise.resolve();
+  function watchedPrices(key,model){
+    if(!quoteCaches.has(key))quoteCaches.set(key,snapshotCache(()=>{
+      // Separate models get separate bounded samples, queued one at a time.
+      const request=quoteQueue.then(async()=>{
+        const raw=await api.offers({limit:SAMPLE_LIMIT,gpu_name:{eq:model},rentable:{eq:true},rented:{eq:false}});
+        const offers=offerRows(raw).filter(offer=>offer.available&&modelKey(offer.model)===key);
+        return {
+          updatedAt:new Date(now()).toISOString(),all:offerPrices(offers),
+          verified:offerPrices(offers.filter(offer=>offer.verification==='verified')),
+          unverified:offerPrices(offers.filter(offer=>offer.verification==='unverified'||offer.verification==='deverified')),
+          limited:raw.truncated===true||raw.offers.length>=SAMPLE_LIMIT
+        };
+      });
+      quoteQueue=request.catch(()=>{});
+      return request;
+    },now));
+    return quoteCaches.get(key).read();
+  }
+
+  return {
+    read(models=[]){
+      const result=base.read();
+      const names=gpuNames.read();
+      const refreshing=result.refreshing||names.refreshing;
+      if(!result.snapshot)return {...result,refreshing,watchLimit:marketWatchLimit,watched:[]};
+      const {catalogue:metricsCatalogue,...snapshot}=result.snapshot;
+      const catalogue=new Map(metricsCatalogue);
+      for(const model of names.snapshot?.models??[]){
+        const key=modelKey(model);
+        catalogue.set(key,{model,market:metricsCatalogue.get(key)?.market??null});
+      }
+      const owned=new Set(snapshot.groups.map(group=>modelKey(group.model)));
+      const watched=[],seen=new Set();
+      for(const model of models.slice(0,marketWatchLimit)){
+        if(typeof model!=='string'||!model.trim()||model.length>96)continue;
+        const key=modelKey(model);
+        if(seen.has(key)||owned.has(key))continue;
+        seen.add(key);
+        const entry=catalogue.get(key);
+        const quotes=entry?watchedPrices(key,entry.model):null;
+        watched.push({model:entry?.model??model,market:entry?.market??null,prices:quotes?.snapshot??null,
+          refreshing:quotes?.refreshing??false,failed:quotes?.failed??false});
+      }
+      snapshot.models=[...catalogue.values()].map(item=>item.model).sort((a,b)=>a.localeCompare(b));
+      return {...result,snapshot,watched,watchLimit:marketWatchLimit,refreshing:refreshing||watched.some(item=>item.refreshing)};
+    },
+    async close(){
+      await Promise.all([base.close(),gpuNames.close()]);
+      await Promise.all([...quoteCaches.values()].map(cache=>cache.close()));
+    }
+  };
 }

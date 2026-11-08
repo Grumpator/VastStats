@@ -3,15 +3,17 @@ import {HistoryApi} from './history-api.mjs';
 import {contractEarnings,fleetEarnings} from './earnings.mjs';
 import {sanitizeMachines} from './collect.mjs';
 import {identityNamespace,discoverMachines} from './history-discovery.mjs';
+import {deviceRates} from './device-rates.mjs';
 
 async function read(file,fallback){try{return JSON.parse(await readFile(file,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}}
-export async function collectStatus({api,root,now=Date.now(),identitySeed}={}){
+export async function collectStatus({api,root,now=Date.now(),identitySeed,onDeviceRates}={}){
   if(!root)throw Error('A runtime storage directory is required');
   api??=new HistoryApi(process.env.VAST_API_KEY);
   const namespace=identityNamespace(identitySeed);
   const index=await read(new URL('index.json',root),{boxes:[]}),previous=await read(new URL('status.json',root),{boxes:[]});
   for(const source of [index,previous])if(source.identityNamespace&&source.identityNamespace!==namespace)throw Error('Device identity seed changed');
   const raw=await api.machines(); // One fleet request, followed by sequential read-only contract requests.
+  const rawMachines=onDeviceRates?new Map((Array.isArray(raw)?raw:raw.machines).map(machine=>[String(machine.id),machine])):null;
   const known=[...previous.boxes,...index.boxes.filter(b=>!previous.boxes.some(p=>p.deviceKey===b.deviceKey))];
   const devices=discoverMachines(raw,{seed:identitySeed,previous:known});
   const samples=sanitizeMachines(raw,Object.fromEntries(devices.map(d=>[d.id,d.name])),now),stamp=new Date(now).toISOString();
@@ -19,8 +21,16 @@ export async function collectStatus({api,root,now=Date.now(),identitySeed}={}){
   for(const device of devices){
     const {name,deviceKey,storageKey,previous:old}=device;
     const sample=samples.find(s=>s.name===name);
-    let earnings=null;
-    try{earnings=sample.connection==='offline'?{computeUsdPerHour:0,storageUsdPerHour:0,totalUsdPerHour:0}:sample.connection==='online'?contractEarnings(await api.contracts(device.id),{includeGpuCount:true}):null;}catch{/* Rate failure must not discard a successful machine-state check. */}
+    let earnings=null,contracts=null;
+    try{
+      if(sample.connection==='offline')earnings={computeUsdPerHour:0,storageUsdPerHour:0,totalUsdPerHour:0};
+      else if(sample.connection==='online'){
+        const response=await api.contracts(device.id);
+        earnings=contractEarnings(response,{includeGpuCount:true});
+        contracts=response.contracts;
+      }
+    }catch{/* Rate failure must not discard a successful machine-state check. */}
+    if(onDeviceRates)onDeviceRates(deviceKey,deviceRates(rawMachines.get(device.id),contracts));
     const {name:unused,...fields}=sample;
     boxes.push({name,deviceKey,storageKey,firstSeenAt:old?.firstSeenAt??old?.historyStart??stamp,lastSample:{at:stamp,...fields,gpuModel:device.gpuModel,earnings}});
   }

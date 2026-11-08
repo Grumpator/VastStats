@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VastStats · Devices</title>
+  <meta name="description" content="Fleet inventory, occupancy, and rental rates by device.">
+  <link rel="stylesheet" href="style.css?v=1.0.0">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="header-identity" data-navigation="devices"></div>
+      <div class="freshness"><span class="status-dot"></span><span id="freshness">Waiting for fleet data</span></div>
+    </header>
+    <main class="fleet-page">
+      <div class="device-inventory-toolbar">
+        <h1>Devices <span id="device-inventory-count" aria-live="polite"></span></h1>
+        <button id="clear-device-filters" class="refresh-button" type="button" hidden>Clear filters</button>
+        <label class="device-inventory-period">Occupancy
+          <select id="device-period" aria-label="Occupancy period">
+            <option value="day">24 hours</option><option value="week" selected>This week</option>
+            <option value="month">This month</option><option value="all">All history</option>
+          </select>
+        </label>
+        <button class="metric-info" id="devices-info" type="button" aria-label="About the Devices table">?</button>
+      </div>
+      <div id="device-inventory-notice" class="notice" role="status">Loading saved fleet data…</div>
+      <div class="device-inventory" tabindex="0" role="region" aria-label="Scrollable fleet inventory">
+        <table class="market-table" aria-label="Fleet devices">
+          <thead><tr id="device-columns"></tr></thead>
+          <tbody id="device-rows"></tbody>
+        </table>
+      </div>
+    </main>
+    <footer><span>VastStats <span class="version">v1.0.0</span><span class="footer-dot">·</span> Europe/London</span></footer>
+  </div>
+  <script type="module" src="navigation.js?v=1.0.0"></script>
+  <script type="module" src="devices.js?v=1.0.0"></script>
+</body>
+</html>

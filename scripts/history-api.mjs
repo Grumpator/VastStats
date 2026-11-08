@@ -20,7 +20,10 @@ export class HistoryApi {
   }
   machines(){return this.request('https://console.vast.ai/api/v0/machines/?owner=me&include_offline=1',this.key);}
   contracts(id){return this.request('https://console.vast.ai/api/v0/machines/'+encodeURIComponent(id)+'/contracts/',this.key);}
-  gpuMetrics(){return this.request('https://console.vast.ai/api/v0/metrics/gpu/current/?verified=all',this.key);}
+  gpuNames(){return this.request('https://console.vast.ai/api/v0/gpu_names/unique/',this.key);}
+  gpuMetrics(verified='all'){
+    return this.request('https://console.vast.ai/api/v0/metrics/gpu/current/?'+new URLSearchParams({verified}),this.key);
+  }
   offers(filters){return this.request('https://console.vast.ai/api/v0/bundles',this.key,{type:'ondemand',external:{eq:false},...filters});}
   earnings(start,end,machineId=null){
     // Application windows are end-exclusive; Vast's whole UTC day range is inclusive.

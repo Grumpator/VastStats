@@ -25,6 +25,19 @@ export function earningsReport(raw,now=Date.now(),range=billingWindow(now)){
   }));
   return {version:2,source:'vast-daily-earnings',currency:'USD',timezone:'UTC',updatedAt:new Date(now).toISOString(),from:new Date(range.start).toISOString().slice(0,10),to:new Date(range.end-DAY).toISOString().slice(0,10),lastReportedDay:daily.at(-1)?.day??null,daily,periods};
 }
+export function machineEarningsTotals(rows,devices){
+  const keys=new Map(devices.map(device=>[String(device.id),device.deviceKey]));
+  const totals={},seen=new Set();
+  for(const row of rows){
+    const key=keys.get(String(row.machine_id));
+    if(!key)continue;
+    if(seen.has(key)){delete totals[key];continue;}
+    seen.add(key);
+    const amounts=[row.gpu_earn,row.sto_earn,row.bwu_earn,row.bwd_earn];
+    if(amounts.every(valid))totals[key]=amounts.reduce((sum,value)=>sum+value,0);
+  }
+  return totals;
+}
 export async function collectHistoricalEarnings({api,now=Date.now(),onMachines}={}){
   const range=earningsRange(now),raw=await api.earnings(range.start,range.end),report=earningsReport(raw,now,range);
   if(onMachines)report.machines=await onMachines(raw.per_machine||[]);

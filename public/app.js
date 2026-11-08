@@ -3,7 +3,8 @@ import {deviceInfoList,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.0
 import {detailsClient,collectionNotice} from './api.js?v=1.0.0';
 import {element,icon} from './ui.js?v=1.0.0';
 import {renderNow,bindMetricPills} from './now.js?v=1.0.0';
-import {ZONE,aggregate,currentStatus,demoData,circleSegments,reliabilityLabel,percentLabel as percent,coverageLabel as coveragePercent,primaryDeviceState,sortDevices} from './model.js?v=1.0.0';
+import {ZONE,aggregate,currentStatus,demoData,circleSegments,reliabilityLabel,percentLabel as percent,coverageLabel as coveragePercent,sortDevices} from './model.js?v=1.0.0';
+import {stateIcon,primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.0.0';
 import {applySnapshots,periodRunCount} from './history-data.js?v=1.0.0';
 import {recordsForBin} from './timeline.js?v=1.0.0';
 import {periods,periodWindow,periodBins,movePeriod} from './periods.js?v=1.0.0';
@@ -31,10 +32,6 @@ function updatePeriod(){scale=periodWindow(period,reference??Date.now()).scale;s
 let recordsByBox=new Map(),countsByBox=new Map(),snapshotsByBox=new Map(),summariesByBox=new Map(),activeCell=null;
 const boxKey=box=>box.deviceKey??box.storageKey??box.name;
 
-function stateIcon(kind,state,label,count=null,disabled=false){
-  const item=element('span','device-state '+state);item.title=label;item.setAttribute('role','img');item.setAttribute('aria-label',label);item.append(icon(kind,disabled));
-  if(count!==null)item.append(element('span','device-count',String(count)));return item;
-}
 function closeBoxDetails(restoreFocus=false){document.querySelectorAll('.box-details[open]').forEach(details=>{details.open=false;if(restoreFocus)details.querySelector('summary').focus();});}
 function deviceDetails(box,stat,status){
   const details=element('details','box-details name-details'),summary=element('summary','device-name-button'+(status.stale?' overdue':''));summary.setAttribute('role','button');summary.setAttribute('aria-expanded','false');summary.setAttribute('aria-label','Details for '+box.name);summary.append(element('h3','',box.name));
@@ -149,15 +146,10 @@ function render(){
     const card=element('article','box');card.dataset.device=boxKey(box);if(new URLSearchParams(location.search).get('device')===boxKey(box))card.classList.add('device-highlight');const header=element('div','box-header'),title=element('div','box-title'),name=element('div','device-name');title.append(name);
     const status=currentStatus(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),states=element('div','device-states'+(status.stale?' outdated':''));states.setAttribute('aria-label','Latest snapshot for '+box.name);
     const stamp=box.lastSample?.at,when=stamp?' · checked '+fmt(Date.parse(stamp),{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-    const running=status.running===false?0:box.lastSample?.runningInstances??'?';
-    const primary=primaryDeviceState(status);
-    const primaryLabel=primary==='running'?'Running instances: '+running:primary==='listed'?'Listed':primary==='online'?'Online':primary==='offline'?'Offline':'Status unavailable';
-    states.append(stateIcon(primary==='running'?'play':primary==='listed'?'tag':'power',primary==='offline'?'offline':primary==='unknown'?'muted':'active',primaryLabel+when,primary==='running'?running:primary==='unknown'?'?':null,primary==='offline'));
-    states.append(stateIcon(status.next&&!status.maintenance?'clock':'wrench',status.maintenance||status.next?'maintenance':'muted',status.maintenance?'Maintenance active'+when:status.next?'Maintenance planned: '+fmt(Date.parse(status.next.start),{dateStyle:'medium',timeStyle:'short'}):status.maintenance===false?'Maintenance off'+when:'Maintenance unknown'+when,status.maintenance===null&&!status.next?'?':null,status.maintenance===false&&!status.next));
+    states.append(primaryStatusIcon(box.lastSample,status,when),maintenanceIcon(status,when));
     const storedIcon=stateIcon('stored','muted','Stored instances: '+(box.lastSample?.storedInstances??'unknown')+when,box.lastSample?.storedInstances??'?');storedIcon.classList.add('device-stored');states.append(storedIcon);
     const gpuIcon=stateIcon('gpu','muted','GPUs: '+(box.lastSample?.gpuCount??'unknown')+when,box.lastSample?.gpuCount??'?');gpuIcon.classList.add('device-gpu');states.append(gpuIcon);
-    const verification=box.lastSample?.verification;
-    name.prepend(stateIcon(verification==='deverified'?'deverifiedBadge':'verifiedBadge',verification==='verified'?'verified':verification==='deverified'?'maintenance':'muted','Verification: '+(verification??'unavailable')+when,null));
+    name.prepend(verificationIcon(box.lastSample?.verification,when));
     const reliability=reliabilityLabel(box.lastSample?.reliability);
     const reliabilityIcon=stateIcon('gauge','muted','Reliability: '+(reliability==='—'?'unavailable':reliability)+when,reliability);reliabilityIcon.classList.add('device-reliability');states.append(reliabilityIcon);
     title.append(states);const metric=element('div','box-percent',percent(stats[index].percent));metric.title='Occupancy in observed data for the selected period; see details for coverage';
@@ -165,7 +157,7 @@ function render(){
     const scroll=element('div','timeline-circles');for(const bin of bins)scroll.append(cell(box,bin));
     card.append(scroll);boxes.append(card);if(boxKey(box)===detailsOpenFor)details.open=true;
   });
-  if(!initialDeviceLocated){const target=document.querySelector('.device-highlight');if(target){target.scrollIntoView({block:'center'});initialDeviceLocated=true;}}
+  if(!initialDeviceLocated){const target=document.querySelector('.device-highlight');if(target){target.scrollIntoView({block:'center',inline:'nearest'});initialDeviceLocated=true;}}
   const updated=data.updatedAt?Date.parse(data.updatedAt):null,stale=updated&&Date.now()-updated>90*60000;
   $('.freshness').classList.toggle('live',!!updated&&!stale&&!demo);$('#freshness').textContent=demo?'Sample data':updated?(stale?'History overdue · ':'History updated ')+fmt(updated,{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'}):'Waiting for API history';
   $('#notice').textContent=demo?'SAMPLE DATA · Illustrative history for exploring the views. These are not actual rental figures.':!updated?'Waiting for the first history import. Missing telemetry will remain grey.':stale?'Refresh is overdue. Available API history is shown; a later refresh can recover missed periods.':'';

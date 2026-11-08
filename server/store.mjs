@@ -138,6 +138,25 @@ export class DataStore {
     const pending=this.writer.then(work);this.writer=pending.catch(()=>{});return pending;
   }
   async index(){return readJson(path.join(this.historyPath(),'index.json'));}
+  workedInBillingReport(report){
+    const view=this.viewData;
+    if(this.billingWork?.view===view&&this.billingWork.report===report)return this.billingWork.totals;
+    const hourMs=3600000,dayMs=24*hourMs;
+    const days=new Set(report.daily.map(row=>Date.parse(row.day+'T00:00Z')));
+    const cutoff=Math.floor(Date.parse(report.updatedAt)/hourMs)*hourMs;
+    const totals=new Map();
+    for(const [key,box] of view.boxes){
+      let worked=0,observed=0;
+      for(const {start,end,value} of box.hours.values()){
+        if(end>cutoff||!days.has(Math.floor(start/dayMs)*dayMs))continue;
+        worked+=value.occupied;
+        observed+=value.observed;
+      }
+      if(observed>0)totals.set(key,worked);
+    }
+    this.billingWork={view,report,totals};
+    return totals;
+  }
   async occupancy(now=Date.now()){
     const view=this.viewData,index=view.index,devices=new Map(),windows=new Map();
     const ranges=occupancyPeriods.map(period=>periodWindow(period.key,now));

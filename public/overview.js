@@ -28,7 +28,7 @@ function demoFleet(){
   return {updatedAt:stamp,snapshotMaxAgeSeconds:900,earnings:{computeUsdPerHour:count*.18,storageUsdPerHour:count*.02,totalUsdPerHour:count*.20,unavailableDevices:0},occupancy:{day:{percent:78.4,coverage:.96},week:{percent:71.2,coverage:.98},month:{percent:67.9,coverage:.99}},boxes:Array.from({length:count},(_,i)=>{
     const scenario=i%12,maintenance=scenario>=3&&scenario<=5,unknown=scenario===9,stale=scenario===11;
     const running=unknown?null:scenario<9&&scenario%3===0?1:stale?1:0,stored=unknown?null:Math.max(running,i%4);
-    return {name:'spark-'+String(i+1).padStart(3,'0'),deviceKey:'sample-'+i,totalOccupancy:{percent:70+i%23,observedSeconds:86400,occupiedSeconds:86400*(70+i%23)/100,elapsedSeconds:86400,coverage:1},lastSample:{at:stale?new Date(now-1200000).toISOString():stamp,connection:unknown?'unknown':scenario<9&&scenario%3===2?'offline':'online',runningInstances:running,storedInstances:stored,gpuCount:1+i%4,reliability:.9999-i%5*.001,verification:i%5?'verified':'unverified',listed:unknown?null:scenario>=6&&scenario<=8?false:maintenance?i%2===0:true,maintenanceWindows:unknown?null:maintenance?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:scenario===10?[{start:new Date(now+3600000).toISOString(),end:new Date(now+7200000).toISOString()}]:[],allocatedStorageGb:stored==null?null:stored*40}};
+    return {name:'spark-'+String(i+1).padStart(3,'0'),deviceKey:'sample-'+i,totalOccupancy:{percent:70+i%23,observedSeconds:86400,occupiedSeconds:86400*(70+i%23)/100,elapsedSeconds:86400,coverage:1},lastSample:{at:stale?new Date(now-1200000).toISOString():stamp,connection:unknown?'unknown':scenario<9&&scenario%3===2?'offline':'online',runningInstances:running,storedInstances:stored,gpuCount:1+i%4,gpuModel:['GB10','RTX 4090','L40S','H100 SXM'][i%4],reliability:.9999-i%5*.001,verification:i%5?'verified':'unverified',listed:unknown?null:scenario>=6&&scenario<=8?false:maintenance?i%2===0:true,maintenanceWindows:unknown?null:maintenance?[{start:new Date(now-3600000).toISOString(),end:new Date(now+3600000).toISOString()}]:scenario===10?[{start:new Date(now+3600000).toISOString(),end:new Date(now+7200000).toISOString()}]:[],allocatedStorageGb:stored==null?null:stored*40}};
   })};
 }
 function sizeGrid(){
@@ -50,8 +50,14 @@ function render(){
   for(const box of boxes){
     const status=tileState(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),tile=element('a','estate-tile state-'+status.state+(status.stale?' stale':''));
     const url=new URL('occupancy.html',location);url.searchParams.set('device',box.deviceKey??box.storageKey??box.name);if(demo)url.searchParams.set('demo','1');tile.href=url;
-    tile.setAttribute('aria-label',box.name+', '+labels[status.state]+(status.stale?', snapshot overdue':'')+', open details');
+    const model=box.lastSample?.gpuModel;
+    tile.setAttribute('aria-label',box.name+', '+(model?model+' GPU':'GPU model unavailable')+', '+labels[status.state]+(status.stale?', snapshot overdue':'')+', open details');
     addStateMarker(tile,status.state,status.stale,Number.isFinite(Date.parse(box.lastSample?.at)));
+    if(model){
+      const gpuName=element('span','tile-gpu-model',model);
+      gpuName.setAttribute('aria-hidden','true');
+      tile.append(gpuName);
+    }
     tile.addEventListener('mouseenter',()=>showTip(tile,box));tile.addEventListener('focus',()=>showTip(tile,box));tile.addEventListener('mouseleave',hideTip);tile.addEventListener('blur',hideTip);grid.append(tile);
   }
   $('#empty-estate').hidden=boxes.length>0;sizeGrid();

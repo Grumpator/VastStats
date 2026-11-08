@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import {mergeStatus} from '../public/overview-model.js';
 import {occupancyPeriods,occupancyResult} from './occupancy.mjs';
 import {periods} from '../public/periods.js';
+import {reportedDayHours} from '../public/earnings-chart-model.js';
 
 export function dateWindow(url){
   const from=url.searchParams.get('from'),to=url.searchParams.get('to');
@@ -13,7 +14,7 @@ export function dateWindow(url){
   return {from,to};
 }
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.ico':'image/x-icon'};
-function localMarketRequest(req){
+function localOperatorRequest(req){
   return ['127.0.0.1','::1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress)
     && /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(req.headers.host??'')
     && req.headers['sec-fetch-site']!=='cross-site'
@@ -46,13 +47,40 @@ export async function createServer({runtime,publicDir,now=Date.now}){
       if(url.pathname==='/details.html'){res.writeHead(302,{Location:'/occupancy.html'+url.search});res.end();return;}
       if(url.pathname==='/api/market'){
         res.setHeader('Cache-Control','private, no-store');
-        const enabled=!!runtime.market&&localMarketRequest(req);
-        send(200,enabled?{enabled,...runtime.market.read()}:{enabled:false});return;
+        const enabled=!!runtime.market&&localOperatorRequest(req);
+        send(200,enabled?{enabled,...runtime.market.read(url.searchParams.getAll('watch'))}:{enabled:false});return;
+      }
+      if(url.pathname==='/api/devices'){
+        res.setHeader('Cache-Control','private, no-store');
+        const snapshot=runtime.store.status??await runtime.store.index();
+        const stats=await occupancySummary();
+        const privateRates=!!runtime.deviceRates&&localOperatorRequest(req);
+        const rates=privateRates?runtime.deviceRates(snapshot.updatedAt):null;
+        const report=privateRates?runtime.store.earningsReport:null;
+        const reportedHours=report?.daily?.reduce((hours,row)=>hours+reportedDayHours(row.day,report.updatedAt),0)??0;
+        const billedWork=reportedHours>0?runtime.store.workedInBillingReport(report):null;
+        const history=new Map(stats.index.boxes.map(box=>[box.deviceKey??box.storageKey??box.name,box]));
+        const boxes=snapshot.boxes.map(box=>{
+          const key=box.deviceKey??box.storageKey??box.name;
+          const windows=stats.windows.get(key),metadata=history.get(key),allTime=stats.devices.get(key);
+          let workedSeconds=billedWork?.get(key)??null;
+          if(!billedWork&&allTime?.observedSeconds>0)workedSeconds=allTime.occupiedSeconds;
+          const earnedUsd=reportedHours>0?report?.machineTotals?.[key]??null:null;
+          return {name:box.name,deviceKey:key,lastSample:box.lastSample,workedSeconds,
+            dataThrough:metadata?.dataThrough,historyStart:metadata?.historyStart,historyError:metadata?.historyError,
+            discoveryMissing:box.discoveryMissing,lastSeenAt:box.lastSeenAt,
+            occupancy:Object.fromEntries([...occupancyPeriods.map(({key})=>[key,windows?.[key]?occupancyResult(windows[key]):null]),
+              ['all',allTime??null]]),
+            ...(privateRates?{rates:rates?.get(key)??null,earnedUsd,averageUsdPerHour:earnedUsd===null?null:earnedUsd/reportedHours}:{})};
+        });
+        const earningsWindow=reportedHours>0?{from:report.daily[0].day,to:report.daily.at(-1).day,hours:reportedHours}:null;
+        send(200,{boxes,privateRates,earningsWindow,updatedAt:snapshot.updatedAt,historyUpdatedAt:stats.index.updatedAt,snapshotMaxAgeSeconds:snapshot.snapshotMaxAgeSeconds??900});return;
       }
       if(url.pathname==='/api/earnings'){
-        const status=runtime.store.status,report=runtime.store.earningsReport;
+        const status=runtime.store.status,saved=runtime.store.earningsReport;
+        const {machineTotals,...report}=saved??{};
         const currentDevices=(status?.boxes??[]).map(({deviceKey,name,lastSample})=>({deviceKey,name,gpuModel:lastSample?.gpuModel??null,rate:lastSample?.earnings??null}));
-        send(200,{version:1,report:report??null,currentRate:status?.earnings??null,currentDevices,statusUpdatedAt:status?.updatedAt??null,collection:runtime.health()});return;
+        send(200,{version:1,report:saved?report:null,currentRate:status?.earnings??null,currentDevices,statusUpdatedAt:status?.updatedAt??null,collection:runtime.health()});return;
       }
       if(url.pathname==='/api/earnings/series'){
         const keys=url.searchParams.has('series')?url.searchParams.getAll('series'):(url.searchParams.get('machines')||'').split(',').filter(Boolean);
