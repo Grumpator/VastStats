@@ -1,0 +1,51 @@
+Package: vaststats
+Version: 1.0.0
+Architecture: all
+Section: utils
+Priority: optional
+Maintainer: VastStats maintainers <Grumpator@users.noreply.github.com>
+Depends: nodejs (>= 24), debconf (>= 0.5) | debconf-2.0, adduser, init-system-helpers (>= 1.54), systemd
+Installed-Size: 292
+Homepage: https://github.com/Grumpator/VastStats
+Description: Vast.ai fleet occupancy dashboard
+ Runs a local Node.js dashboard and periodic read-only telemetry collectors.
+ Configuration and persistent history are retained during upgrades.
+Filename: pool/main/v/vaststats/vaststats_1.0.0_all.deb
+Size: 156008
+SHA256: 4771be1971ff2a4b9eb387fefeab07fe3e84e09cc107e3457f69a2f3a21f4252
+SHA512: f78fcf031c51afa7f23fc77da4c7cf7dc6d8414f0bc3fdb2ab545afdf78430b4f363d4bd4da1fea12a7f9ea01663946d986bd8a2dcdfce38caeae31182526054
+
+Package: vaststats
+Version: 1.1.0
+Architecture: all
+Section: utils
+Priority: optional
+Maintainer: VastStats maintainers <Grumpator@users.noreply.github.com>
+Depends: nodejs (>= 24), debconf (>= 0.5) | debconf-2.0, adduser, init-system-helpers (>= 1.54), systemd
+Installed-Size: 444
+Homepage: https://github.com/Grumpator/VastStats
+Description: Vast.ai fleet occupancy dashboard
+ Runs a local Node.js dashboard and periodic read-only telemetry collectors.
+ Configuration and persistent history are retained during upgrades.
+Filename: pool/main/v/vaststats/vaststats_1.1.0_all.deb
+Size: 202800
+SHA256: 9a8d0891d088af9c423cc70c3b10b0d50fcb1750a70f3f1a6a9260323298214e
+SHA512: 52468b3fdc97330ae90c597e65254fe66d23ece8047be14ee2b0d45ce77847acd5507d920535a65c180e908de45dbfc2ad25284a58dcd8a3a50596d37ab1f27f
+
+Package: vaststats
+Version: 1.1.1
+Architecture: all
+Section: utils
+Priority: optional
+Maintainer: VastStats maintainers <Grumpator@users.noreply.github.com>
+Depends: nodejs (>= 24), debconf (>= 0.5) | debconf-2.0, adduser, init-system-helpers (>= 1.54), systemd
+Installed-Size: 444
+Homepage: https://github.com/Grumpator/VastStats
+Description: Vast.ai fleet occupancy dashboard
+ Runs a local Node.js dashboard and periodic read-only telemetry collectors.
+ Configuration and persistent history are retained during upgrades.
+Filename: pool/main/v/vaststats/vaststats_1.1.1_all.deb
+Size: 202568
+SHA256: aebf73f5aff67df864bdd5415b85eb4db6c062b4a7af27ef000dbcab1e733fa1
+SHA512: 664738f61fc2c10c4342c102d2f1a95394a1a90c0f4edde7f0dcdfa65c283229e8a55e27b083d61bf1f279dd62fea9641b2ff854fa725853017d052f5e603b3f
+

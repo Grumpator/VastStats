@@ -5,27 +5,27 @@ Origin: VastStats
 Label: VastStats
 Suite: stable
 Codename: stable
-Date: Sun, 08 Nov 2026 20:56:42 GMT
+Date: Sun, 08 Nov 2026 22:01:12 GMT
 Architectures: amd64 arm64
 Components: main
 Acquire-By-Hash: yes
 Description: VastStats Debian and Ubuntu packages
 SHA256:
- aa009c3848222c7d17ebd50cca423fe18ae66d581d3352e157dd93734f2d0de4 1606 main/binary-amd64/Packages
- f5d5a3b7b3aad33a820901d5b0294299b56b2c94d911221c5b8cfffa5af9bc3c 705 main/binary-amd64/Packages.gz
- aa009c3848222c7d17ebd50cca423fe18ae66d581d3352e157dd93734f2d0de4 1606 main/binary-arm64/Packages
- f5d5a3b7b3aad33a820901d5b0294299b56b2c94d911221c5b8cfffa5af9bc3c 705 main/binary-arm64/Packages.gz
+ da7b2b85e7910b84a31efe8d80be9803f1d7515fb5d4184a8fb82c90091272b8 2409 main/binary-amd64/Packages
+ fb75d34851b9a3ee7153e7581be836742780a4498dc167980fa807b0ca68be22 840 main/binary-amd64/Packages.gz
+ da7b2b85e7910b84a31efe8d80be9803f1d7515fb5d4184a8fb82c90091272b8 2409 main/binary-arm64/Packages
+ fb75d34851b9a3ee7153e7581be836742780a4498dc167980fa807b0ca68be22 840 main/binary-arm64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iQGzBAEBCAAdFiEEKxueSXplhVRkop1zkN1i2CxSVQIFAmrw4goACgkQkN1i2CxS
-VQKIbQv/RjO4GSLPR13Weq4LGpnhNgeNLdvxD6IS23/cuBAYu8LVYx+0hHvGwMEr
-3bdw+YLgYap/ktj8JTnhWNBjsqKt7lR1P3SyXftYZJKhUOm29rtJKI/SdKsTINbc
-bRYWWfOJjktO0FvJZwZzYZzf+dRYRea0yVOK4Dhs2txqtG1UXOh8LSQ/RofYwMju
-EPuxr2a6OwBPbBjX4liyBlDDEELO1Ne2sW7V9KC5AYpNNuKYpb6SCXIMnO0hv/4u
-sspBag62vF9oH4NVXFMuR4KkA7JvpWVwnT24hd2t2vsH9rOYPeF1aaSgi2Y8Q/EY
-xeZ70jm5M+PsTSePJHoRnhJzwAAULt6wBJ23FQravyIjUtvhT3TQXwP3ZdF3t0ee
-tIDsVGKDEkFLaIjdp8qdQI+8MFTDMo8Hfxh5DFWHRe3I+dsC0oIAMxbaC3WKOsos
-psuSihpMvOac5G6fFBMd1IsIskpqDsqgYdYYKjtgs9xkAnldRDSp6vhwAktmjSMI
-LFGSnlhT
-=+NWA
+iQGzBAEBCAAdFiEEKxueSXplhVRkop1zkN1i2CxSVQIFAmrw8SgACgkQkN1i2CxS
+VQLOmgv/YXVZ43TMDAKQ0lOoil58cco15YdZtigAOYVOUkpWgMzbrQ+k0Xl90UIG
+3eU3fHK+odOksqptLF5qA6WJX1L3AGLLg5p2NhwrvEbGoD2Cd6SJdNMO3KHLK7I5
+kPPzADW+s8mfPX8MuZ7xRDbuCvVr0fn/oYznORT60/NQRTKQvhgan8ZB/lIA3+yn
+sRERZt6L8fof4NGk2lLGdGyiywuZhRawW/r2BiL8OyoJB471i7d3itcYgN4MzQws
+To1K1aOwgtFcnYZoZ9W32CPUl52FJxFqQGmX+Yw1jxfZTnvzBuZtgrNTOe1ZfVXd
+FcGGb6KARqbRBmi9UDSt9JYFOMdY88QxX9c3989qHMuSnrsc/TzdPp95UkKKfddV
+VpsynjA+kqmwJOcfFGCoMLwlAAnXqNn56qyQNAQRhp/dqkDoSLTu1R6iA9N/m5W+
+9npNhxvgcl+E4zeaCMAgQgWbO+Y+mq4OJIORMCAxqNOTcC4cy40Msy88GsaP/9+b
+GZf923Gn
+=UFSl
 -----END PGP SIGNATURE-----
