@@ -25,7 +25,10 @@ test('chart series keep unreported days as gaps, preserve zero/negative amounts 
   assert.deepEqual(source[0].points.map(p=>p.value),[2,null,0,0]);assert.deepEqual(source[1].points.map(p=>p.value),[13,null,0,-1]);
   const machine=earningsChartSeries({daily,range,mode:'machine',enabled:[a,'totalUsd'],devices:[{deviceKey:a,name:'Alpha',daily:[{day:'2026-11-01',totalUsd:5}]}]});
   assert.equal(machine[0].points[0].value,5);assert.equal(machine[1].points[0].value,13);assert.equal(machine[0].points[2].value,null);
-  assert.deepEqual(rankedPoints(machine,0).map(point=>point.value),[13,5]);
+  assert.deepEqual(rankedPoints(machine,0),[
+    {label:'Fleet total',color:machine[1].color,value:13},
+    {label:'Alpha',color:machine[0].color,value:5}
+  ]);
   assert.equal(rangeTotal(daily,'totalUsd',{from:'2026-11-02',to:'2026-11-04'}),-1);
   assert.equal(rangeTotal(daily,'totalUsd',{from:'2026-11-02',to:'2026-11-02'}),null);
 });

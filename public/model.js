@@ -66,7 +66,7 @@ export function aggregate(records,start,end,now=Date.now(),historyStart=-Infinit
     state:end<=historyStart&&start<now?'not-tracked':!elapsed?'future':!observed?'unknown':percent>=99.999?'full':percent>0?'partial':'idle'};
 }
 export function currentStatus(sample,now=Date.now(),maxAgeSeconds=5400){
-  if(!sample||!Number.isFinite(Date.parse(sample.at))||now<Date.parse(sample.at))return {connection:'unknown',maintenance:null,next:null,listed:null,running:null,stale:true};
+  if(!sample||!Number.isFinite(Date.parse(sample.at))||now<Date.parse(sample.at))return {connection:'unknown',maintenance:null,next:null,listed:null,verified:null,running:null,stale:true};
   const stale=now-Date.parse(sample.at)>maxAgeSeconds*1000;
   // An overdue snapshot describes the last known state, not an inferred new one.
   const stateTime=stale?Date.parse(sample.at):now;
@@ -75,7 +75,8 @@ export function currentStatus(sample,now=Date.now(),maxAgeSeconds=5400){
   const next=windows?.find(w=>Date.parse(w.start)>stateTime)??null;
   const listed=sample.listed===true&&sample.listingEndsAt&&Date.parse(sample.listingEndsAt)<=stateTime?false:sample.listed??null;
   const running=sample.connection==='offline'?false:typeof sample.running==='boolean'?sample.running:Number.isFinite(sample.runningInstances)?sample.runningInstances>0:null;
-  return {connection:sample.connection??'unknown',maintenance:active,next,listed,running,stale};
+  const verified=['verified','unverified','deverified'].includes(sample.verification)?sample.verification==='verified':null;
+  return {connection:sample.connection??'unknown',maintenance:active,next,listed,verified,running,stale};
 }
 export function demoData(now=Date.now()) {
   const boxes=['Alpha','Beta','Gamma'].map((name,index)=>{
@@ -98,7 +99,7 @@ export function fleetSnapshot(boxes,now=Date.now(),maxAgeSeconds=5400){
   const states=boxes.map(box=>currentStatus(box.lastSample,now,maxAgeSeconds));
   const count=read=>states.length&&states.every(state=>read(state)!==null)?states.filter(state=>read(state)).length:null;
   const sum=read=>{const values=boxes.map((box,i)=>read(box.lastSample,states[i]));return values.length&&values.every(value=>Number.isFinite(value)&&value>=0)?values.reduce((a,b)=>a+b,0):null;};
-  return {total:boxes.length,online:count(s=>s.connection==='unknown'?null:s.connection==='online'),listed:count(s=>s.listed),maintenance:count(s=>s.maintenance),running:count(s=>s.running),runningInstances:sum((s,state)=>state.running===false?0:state.running===null?null:s?.runningInstances),stored:sum(s=>s?.storedInstances),storage:sum(s=>s?.allocatedStorageGb),overdue:states.filter(s=>s.stale).length};
+  return {total:boxes.length,online:count(s=>s.connection==='unknown'?null:s.connection==='online'),listed:count(s=>s.listed),verified:count(s=>s.verified),maintenance:count(s=>s.maintenance),running:count(s=>s.running),runningInstances:sum((s,state)=>state.running===false?0:state.running===null?null:s?.runningInstances),stored:sum(s=>s?.storedInstances),storage:sum(s=>s?.allocatedStorageGb),overdue:states.filter(s=>s.stale).length};
 }
 
 // Circle sectors describe confirmed running/idle time and unknown elapsed time.

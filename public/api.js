@@ -1,5 +1,5 @@
-import {periodWindow} from './periods.js?v=1.1.1';
-import {mergeStatus} from './overview-model.js?v=1.1.1';
+import {periodWindow} from './periods.js?v=1.2.0';
+import {mergeStatus} from './overview-model.js?v=1.2.0';
 
 export function cachedAPI({fetchImpl=fetch,limit=6}={}){
   const entries=new Map(),pending=new Map();

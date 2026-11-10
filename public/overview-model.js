@@ -1,4 +1,4 @@
-import {currentStatus} from './model.js?v=1.1.1';
+import {currentStatus} from './model.js?v=1.2.0';
 
 export function tileState(sample,now=Date.now(),maxAge=900){
   const status=currentStatus(sample,now,maxAge);

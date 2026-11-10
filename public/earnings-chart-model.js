@@ -24,7 +24,7 @@ export function reportedDayHours(day,checkedAt){
   return Math.max(0,Math.min(DAY,elapsed))/3600000;
 }
 export function rankedPoints(series,index){
-  return series.map(s=>({label:s.label,value:s.points[index]?.value??null})).sort((a,b)=>(b.value??-Infinity)-(a.value??-Infinity));
+  return series.map(s=>({label:s.label,color:s.color,value:s.points[index]?.value??null})).sort((a,b)=>(b.value??-Infinity)-(a.value??-Infinity));
 }
 export function chartDateRange(preset,{from,to,availableFrom,now=Date.now()}={}){
   const today=new Date(now).toISOString().slice(0,10),last=Date.parse(today+'T00:00Z');

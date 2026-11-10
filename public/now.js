@@ -1,10 +1,10 @@
-import {fleetSnapshot} from './model.js?v=1.1.1';
-import {bindPopover} from './popover.js?v=1.1.1';
+import {fleetSnapshot} from './model.js?v=1.2.0';
+import {bindPopover} from './popover.js?v=1.2.0';
 const $=s=>document.querySelector(s);
 export const hourlyUsd=value=>Number.isFinite(value)?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:value>0&&value<.01?4:2}).format(value):'\u2014';
 export function renderNow(data){
   const fleet=fleetSnapshot(data.boxes,Date.now(),data.snapshotMaxAgeSeconds??5400);
-  for(const field of ['online','listed','maintenance','running']){const node=$('#'+field+'-boxes');if(node)node.textContent=(fleet[field]??'—')+'/'+fleet.total;}
+  for(const field of ['online','listed','verified','maintenance','running']){const node=$('#'+field+'-boxes');if(node)node.textContent=(fleet[field]??'—')+'/'+fleet.total;}
   if($('#stored'))$('#stored').textContent=fleet.stored??'—';
   if($('#running-note'))$('#running-note').textContent=(fleet.runningInstances??'—')+' instances';
   if($('#stored-note'))$('#stored-note').textContent=fleet.storage==null?'instances · size unknown':fleet.storage.toLocaleString('en-GB',{maximumFractionDigits:1})+' GB allocated';
@@ -20,6 +20,7 @@ export function bindMetricPills(){
     earnings:['Hourly earnings','Current contract rates for running GPUs and allocated storage, including stopped instances. Bandwidth is excluded. Prices are used directly without a commission adjustment. Updated every five minutes.'],
     running:['Running','Boxes with at least one running rental, out of the whole fleet. The smaller count is the total running instances; multiple instances can run on one box.'],
     listed:['Listed','Boxes listed for rental on Vast, out of the whole fleet. This is the latest recorded listing state.'],
+    verified:['Verified','Boxes verified by Vast, out of the whole fleet, based on the latest recorded verification status. A dash means verification data is incomplete.'],
     online:['Online','Boxes reporting an online heartbeat, out of the whole fleet. These values use the latest status snapshot.'],
     maintenance:['Maintenance','Boxes currently within a recorded maintenance window, out of the whole fleet.'],
     stored:['Stored','Total resident instances, including running and stopped instances. GB allocated is reserved disk space, not measured file usage.']

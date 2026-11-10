@@ -1,14 +1,16 @@
-import {bindPopover} from './popover.js?v=1.1.1';
-import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.1.1';
-import {collectionNotice} from './api.js?v=1.1.1';
-import {element,icon} from './ui.js?v=1.1.1';
-import {renderNow,bindMetricPills} from './now.js?v=1.1.1';
-import {percentLabel,coverageLabel,ZONE} from './model.js?v=1.1.1';
-import {tileState,tileLayout} from './overview-model.js?v=1.1.1';
-import {statusSource} from './status-data.js?v=1.1.1';
+import {bindPopover} from './popover.js?v=1.2.0';
+import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.2.0';
+import {collectionNotice} from './api.js?v=1.2.0';
+import {element,icon} from './ui.js?v=1.2.0';
+import {renderNow,bindMetricPills} from './now.js?v=1.2.0';
+import {percentLabel,coverageLabel,ZONE} from './model.js?v=1.2.0';
+import {tileState,tileLayout} from './overview-model.js?v=1.2.0';
+import {statusSource} from './status-data.js?v=1.2.0';
+import {verificationIcon} from './device-state.js?v=1.2.0';
 const $=s=>document.querySelector(s),params=new URLSearchParams(location.search);
 const source=statusSource({endpoint:'/api/overview'});
 const labels={running:'Listed and running',listed:'Listed and online',offline:'Listed and offline','maintenance-running':'Maintenance and running',maintenance:'Maintenance and online','maintenance-offline':'Maintenance and offline','unlisted-running':'Unlisted and running',unlisted:'Unlisted and online','offline-unlisted':'Unlisted and offline',unknown:'Status unavailable'};
+const verificationStates=new Set(['verified','unverified','deverified']);
 function activityIndicator(){
   const bars=element('span','activity-bars');bars.setAttribute('aria-hidden','true');
   for(let i=0;i<3;i++)bars.append(element('span','activity-bar'));
@@ -33,7 +35,8 @@ function demoFleet(){
 }
 function sizeGrid(){
   const grid=$('#estate-grid'),height=Math.max(100,innerHeight-grid.getBoundingClientRect().top-$('footer').offsetHeight-32);
-  const {size}=tileLayout(grid.children.length,grid.clientWidth,height);
+  const gap=Number.parseFloat(getComputedStyle(grid).columnGap);
+  const {size}=tileLayout(grid.children.length,grid.clientWidth,height,{gap});
   grid.style.setProperty('--tile-size',size+'px');
 }
 function hideTip(){hideDeviceTip();$('#tooltip').hidden=true;}
@@ -50,9 +53,16 @@ function render(){
   for(const box of boxes){
     const status=tileState(box.lastSample,Date.now(),data.snapshotMaxAgeSeconds??5400),tile=element('a','estate-tile state-'+status.state+(status.stale?' stale':''));
     const url=new URL('occupancy.html',location);url.searchParams.set('device',box.deviceKey??box.storageKey??box.name);if(demo)url.searchParams.set('demo','1');tile.href=url;
-    const model=box.lastSample?.gpuModel;
-    tile.setAttribute('aria-label',box.name+', '+(model?model+' GPU':'GPU model unavailable')+', '+labels[status.state]+(status.stale?', snapshot overdue':'')+', open details');
+    const model=box.lastSample?.gpuModel,verification=box.lastSample?.verification;
+    const hasVerification=verificationStates.has(verification);
+    tile.setAttribute('aria-label',box.name+', '+(model?model+' GPU':'GPU model unavailable')+', '+labels[status.state]+', verification: '+(hasVerification?verification:'unknown')+(status.stale?', snapshot overdue':'')+', open details');
     addStateMarker(tile,status.state,status.stale,Number.isFinite(Date.parse(box.lastSample?.at)));
+    if(verification==='verified'){
+      const badge=verificationIcon(verification);
+      badge.classList.add('tile-verification');
+      badge.setAttribute('aria-hidden','true');
+      tile.append(badge);
+    }
     if(model){
       const gpuName=element('span','tile-gpu-model',model);
       gpuName.setAttribute('aria-hidden','true');

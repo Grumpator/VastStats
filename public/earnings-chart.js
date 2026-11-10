@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.1.1';
-import {hourlyUsd} from './now.js?v=1.1.1';
-import {bindPopover} from './popover.js?v=1.1.1';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.1.1';
+import {element} from './ui.js?v=1.2.0';
+import {hourlyUsd} from './now.js?v=1.2.0';
+import {bindPopover} from './popover.js?v=1.2.0';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.2.0';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));
@@ -20,7 +20,13 @@ export function createEarningsChart({get}){
   const tooltip=element('div','earnings-chart-tooltip');tooltip.hidden=true;tooltip.setAttribute('role','tooltip');document.body.append(tooltip);
   function detail(index=hoverIndex){
     const day=days[index],content=element('dl','chart-point-details');
-    for(const {label,value} of rankedPoints(activeSeries,index))content.append(element('dt','',label),element('dd','',value==null?'No report':hourlyUsd(value)));
+    for(const {label,color,value} of rankedPoints(activeSeries,index)){
+      const name=element('dt'),swatch=element('span','chart-series-color');
+      swatch.style.background=color;
+      swatch.setAttribute('aria-hidden','true');
+      name.append(swatch,element('span','chart-series-name',label));
+      content.append(name,element('dd','',value==null?'No report':hourlyUsd(value)));
+    }
     return {title:day?dateLabel(day)+(day===new Date().toISOString().slice(0,10)?' · so far':' · earnings'):'Daily earnings',content};
   }
   bindPopover($('#chart-info'),()=>({title:'Daily earnings',copy:'Period totals sum the reported UTC days in the selected range. Average $/h divides earnings by reported clock hours. By GPU estimates dollars per GPU-hour using each reporting machine’s last known GPU model and count. This includes idle time and assumes the hardware count stayed the same. Days with no report are skipped. Today counts up to the report check. A GPU estimate needs a known count for every included machine. For the combined fleet hourly rate, use By source. Vast reports fleet and machine amounts separately, so their totals can differ slightly. Select up to eight machines or GPU groups to plot.'}));

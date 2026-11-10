@@ -1,5 +1,5 @@
-import {ZONE,percentLabel,coverageLabel,reliabilityLabel} from './model.js?v=1.1.1';
-import {element} from './ui.js?v=1.1.1';
+import {ZONE,percentLabel,coverageLabel,reliabilityLabel} from './model.js?v=1.2.0';
+import {element} from './ui.js?v=1.2.0';
 
 const stamp=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,dateStyle:'medium',timeStyle:'short'}).format(Date.parse(value)):'Unavailable';
 export function duration(seconds){

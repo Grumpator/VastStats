@@ -1,4 +1,4 @@
-import {cachedAPI} from './api.js?v=1.1.1';
+import {cachedAPI} from './api.js?v=1.2.0';
 export function statusSource({fetchImpl=fetch,now=Date.now,endpoint='/api/status'}={}){
   const get=cachedAPI({fetchImpl});
   let cached=null,pending=null,checked=-Infinity;
