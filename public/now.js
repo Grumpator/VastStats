@@ -16,7 +16,7 @@ export function renderNow(data){
 // Keep labels available to touch and keyboard users when narrow layouts hide them.
 export function bindMetricPills(){
   const definitions={
-    occupancy:['Occupancy','Running box-time divided by observed box-time for the same 24h, Week and calendar Month periods shown on Occupancy. Future time is excluded. Missing telemetry is excluded.'],
+    occupancy:['Occupancy','Running box-time divided by observed box-time for the same 24h, current calendar week and current calendar month shown on Occupancy. Future time is excluded. Missing telemetry is excluded.'],
     earnings:['Hourly earnings','Current contract rates for running GPUs and allocated storage, including stopped instances. Bandwidth is excluded. Prices are used directly without a commission adjustment. Updated every five minutes.'],
     running:['Running','Boxes with at least one running rental, out of the whole fleet. The smaller count is the total running instances; multiple instances can run on one box.'],
     listed:['Listed','Boxes listed for rental on Vast, out of the whole fleet. This is the latest recorded listing state.'],

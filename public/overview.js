@@ -103,7 +103,7 @@ legend.append(body);$('#tile-legend').append(legend);
 const unknownLegend=element('div','tile-legend-row'),unknownSwatch=element('span','estate-tile state-unknown','?');unknownLegend.append(unknownSwatch,element('span','','Unknown state'));$('#tile-legend').append(unknownLegend);
 bindMetricPills();
 document.querySelectorAll('[data-icon]').forEach(item=>item.append(icon(item.dataset.icon)));
-const helpButton=$('[data-info="now"]');bindPopover(helpButton,()=>({title:'Fleet summary',copy:'Occupancy readings cover the current 24h, calendar Week and Month periods on Occupancy. Running time is divided by observed time; missing telemetry and future time are excluded. Other figures use the latest machine snapshot. Stored includes running instances; GB is allocated space. All figures cover the whole fleet, regardless of search.'}));
+const helpButton=$('[data-info="now"]');bindPopover(helpButton,()=>({title:'Fleet summary',copy:'Occupancy readings cover 24h, this calendar week and this calendar month. Running time is divided by observed time; missing telemetry and future time are excluded. Other figures use the latest machine snapshot. Stored includes running instances; GB is allocated space. All figures cover the whole fleet, regardless of search.'}));
 $('#search').addEventListener('input',render);$('#refresh').onclick=()=>load(true);
 $('#demo').onclick=()=>{const url=new URL(location);if(demo){url.searchParams.delete('demo');url.searchParams.delete('count');}else url.searchParams.set('demo','1');location.href=url;};
 window.addEventListener('resize',()=>{hideTip();sizeGrid();});window.addEventListener('scroll',hideTip,true);
