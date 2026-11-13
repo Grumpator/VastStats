@@ -1,11 +1,12 @@
-import {cachedAPI,showingSuspended} from './api.js?v=1.3.1';
-import {element} from './ui.js?v=1.3.1';
+import {cachedAPI,showingSuspended} from './api.js?v=1.3.2';
+import {element} from './ui.js?v=1.3.2';
 
 const get=cachedAPI();
 const list=document.querySelector('#settings-devices');
 const notice=document.querySelector('#settings-notice');
 const token=document.querySelector('#settings-token');
 let saving=false;
+let loadGeneration=0;
 
 async function save(device,button){
   if(saving)return;
@@ -26,8 +27,10 @@ async function save(device,button){
 }
 
 async function load(message=''){
+  const generation=++loadGeneration;
   try{
     const {devices,editable}=await get('/api/settings/devices');
+    if(generation!==loadGeneration)return;
     document.querySelector('#settings-token-label').hidden=!editable;
     document.querySelector('#freshness').textContent='Fleet settings loaded';
     notice.textContent=message||(!editable?'Set VASTSTATS_SETTINGS_TOKEN on the server to enable editing.':'');
@@ -48,7 +51,8 @@ async function load(message=''){
       row.append(name,state,button);
       list.append(row);
     }
-  }catch{notice.textContent='Could not load fleet settings.';}
+  }catch{if(generation===loadGeneration)notice.textContent='Could not load fleet settings.';}
 }
 
+document.addEventListener('fleet-scope-changed',()=>load());
 load();

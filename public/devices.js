@@ -1,10 +1,10 @@
-import {cachedAPI} from './api.js?v=1.3.1';
-import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.3.1';
-import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.3.1';
-import {duration} from './device-info.js?v=1.3.1';
-import {hourlyUsd} from './now.js?v=1.3.1';
-import {bindPopover,closePopover} from './popover.js?v=1.3.1';
-import {element,icon} from './ui.js?v=1.3.1';
+import {cachedAPI} from './api.js?v=1.3.2';
+import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.3.2';
+import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.3.2';
+import {duration} from './device-info.js?v=1.3.2';
+import {hourlyUsd} from './now.js?v=1.3.2';
+import {bindPopover,closePopover} from './popover.js?v=1.3.2';
+import {element,icon} from './ui.js?v=1.3.2';
 
 const $=selector=>document.querySelector(selector);
 const get=cachedAPI();
@@ -339,9 +339,12 @@ updateDetailToggle();
 bindPopover($('#devices-info'),()=>({title:'Devices',
   copy:'Use the table icon to switch between compact and detailed views. Click a column name to sort, or its funnel to filter. Filters on hidden columns pause in compact view. The period selector changes Occupancy. Worked totals confirmed run time on the reported UTC billing days used for Earned, excluding a partial hour at the cutoff. Without a billing report it uses all available telemetry. Now $/h uses current compute and storage rates. Avg $/h divides the device’s recorded total by the fleet’s reported clock hours, including idle time. This can understate averages for newer devices. '+earningsDates()+' Stored images include running and stopped instances. Contracts shows running/total. Click the count for its breakdown.'}));
 
+let loadGeneration=0;
 async function load(){
+  const generation=++loadGeneration;
   try{
     const next=await get('/api/devices'),first=data===null,changed=first||next.privateRates!==data.privateRates;
+    if(generation!==loadGeneration)return;
     const changedData=next!==data;
     data=next;
     if(changed)renderHeader();
@@ -350,11 +353,12 @@ async function load(){
     const stale=!data.updatedAt||Date.now()-Date.parse(data.updatedAt)>data.snapshotMaxAgeSeconds*1000;
     $('.freshness').classList.toggle('live',!stale);
     $('#device-inventory-notice').textContent=stale?'Showing the last available fleet snapshot.':'';
-  }catch{$('#device-inventory-notice').textContent='Couldn’t load the fleet snapshot.';}
+  }catch{if(generation===loadGeneration)$('#device-inventory-notice').textContent='Couldn’t load the fleet snapshot.';}
 }
 
 clearFilters.addEventListener('click',()=>{filters.clear();refreshFilters();renderRows();});
 period.addEventListener('change',renderRows);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)void load();});
+document.addEventListener('fleet-scope-changed',load);
 setInterval(()=>{if(!document.hidden)void load();},60_000);
 void load();

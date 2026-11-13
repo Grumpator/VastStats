@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.1';
-import {bindPopover,closePopover} from './popover.js?v=1.3.1';
-import {percentLabel,reliabilityLabel} from './model.js?v=1.3.1';
-import {fleetURL} from './api.js?v=1.3.1';
+import {element} from './ui.js?v=1.3.2';
+import {bindPopover,closePopover} from './popover.js?v=1.3.2';
+import {percentLabel,reliabilityLabel} from './model.js?v=1.3.2';
+import {fleetURL} from './api.js?v=1.3.2';
 
 const $=selector=>document.querySelector(selector);
 const decimal=new Intl.NumberFormat('en-GB',{maximumFractionDigits:1});
@@ -345,7 +345,7 @@ function render(data){
   freshness.textContent='Market checked '+timestamp.format(Date.parse(snapshot.updatedAt))+' (London)'+(snapshot.partial?' · partial':stale?' · overdue':'')+'.'+
     (snapshot.fleetUpdatedAt?' Running contract rates checked '+timestamp.format(Date.parse(snapshot.fleetUpdatedAt))+' (London).':'');
   $('.freshness').classList.toggle('live',!stale&&!snapshot.partial);
-  const key=JSON.stringify([snapshot.updatedAt,stale,watched.map(item=>[item.model,item.prices?.updatedAt,item.refreshing,item.failed])]);
+  const key=JSON.stringify([fleetURL(''),snapshot.updatedAt,stale,watched.map(item=>[item.model,item.prices?.updatedAt,item.refreshing,item.failed])]);
   if(key!==lastDraw){
     const cards=[...snapshot.groups,...watched.map(item=>({...item,isWatched:true}))];
     host.replaceChildren(...cards.map((group,index)=>groupCard(group,stale,index)));
@@ -375,4 +375,5 @@ async function load(){
   timer=setTimeout(load,wait);
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)void load();});
+document.addEventListener('fleet-scope-changed',load);
 void load();

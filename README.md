@@ -40,7 +40,7 @@ To change the key, run `sudo dpkg-reconfigure vaststats`. To inspect the service
 The Debian package generates a settings token if one is missing and preserves it on later upgrades. Installation prints this command to retrieve it:
 
 ```sh
-sudo /usr/bin/node -p 'require("node:util").parseEnv(require("node:fs").readFileSync("/etc/vaststats/vaststats.env", "utf8")).VASTSTATS_SETTINGS_TOKEN'
+sudo grep '^VASTSTATS_SETTINGS_TOKEN=' /etc/vaststats/vaststats.env | cut -d= -f2-
 ```
 
 For a local run from source, generate a separate random token with `openssl rand -hex 32`, set it as `VASTSTATS_SETTINGS_TOKEN` in `.env`, and restart the app. Enter the token in Settings over HTTPS when accessing the dashboard remotely.

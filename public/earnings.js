@@ -1,14 +1,15 @@
-import {demoEarnings} from './earnings-demo.js?v=1.3.1';
-import {cachedAPI} from './api.js?v=1.3.1';
-import {hourlyUsd} from './now.js?v=1.3.1';
-import {recordedPeriod,recordedTotal} from './earnings-model.js?v=1.3.1';
-import {icon} from './ui.js?v=1.3.1';
-import {bindPopover} from './popover.js?v=1.3.1';
-import {createEarningsChart} from './earnings-chart.js?v=1.3.1';
+import {demoEarnings} from './earnings-demo.js?v=1.3.2';
+import {cachedAPI} from './api.js?v=1.3.2';
+import {hourlyUsd} from './now.js?v=1.3.2';
+import {recordedPeriod,recordedTotal} from './earnings-model.js?v=1.3.2';
+import {icon} from './ui.js?v=1.3.2';
+import {bindPopover} from './popover.js?v=1.3.2';
+import {createEarningsChart} from './earnings-chart.js?v=1.3.2';
 
 const $=selector=>document.querySelector(selector),get=cachedAPI(),money=hourlyUsd;
 const stamp=value=>value?new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'}).format(Date.parse(value))+' UTC':'Not yet checked';
 let data=null;
+let loadGeneration=0;
 const chart=createEarningsChart({get});
 const demo=new URLSearchParams(location.search).has('demo');
 const periods={today:'Today',week:'This week',month:'This month',total:'Total'};
@@ -43,9 +44,14 @@ function render(){
   chart.update(data?.report?.version===2?data.report:null);
 }
 async function load(){
+  const generation=++loadGeneration;
   if(demo){data=demoEarnings();render();return;}
-  try{data=await get('/api/earnings');render();}catch{$('#notice').textContent='Could not reach the earnings cache. Previously loaded figures are retained.';}
+  try{
+    const next=await get('/api/earnings');
+    if(generation===loadGeneration){data=next;render();}
+  }catch{if(generation===loadGeneration)$('#notice').textContent='Could not reach the earnings cache. Previously loaded figures are retained.';}
 }
 for(const button of document.querySelectorAll('[data-earnings-help]'))bindPopover(button,()=>earningsHelp(button.dataset.earningsHelp));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+document.addEventListener('fleet-scope-changed',load);
 load();setInterval(()=>{if(!document.hidden)load();},60000);

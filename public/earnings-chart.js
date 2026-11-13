@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.1';
-import {hourlyUsd} from './now.js?v=1.3.1';
-import {bindPopover} from './popover.js?v=1.3.1';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.1';
+import {element} from './ui.js?v=1.3.2';
+import {hourlyUsd} from './now.js?v=1.3.2';
+import {bindPopover} from './popover.js?v=1.3.2';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.2';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));
@@ -18,6 +18,7 @@ export function createEarningsChart({get}){
   let activeSeries=[],days=[],hoverIndex=0,resizeTimer,pollTimer,fetchGeneration=0,loading=false;
   const windowKey=()=>range?mode+':'+range.from+':'+range.to:null;
   const devices=()=>mode==='gpu'?groups:roster;
+  const selectedDevices=()=>devices().filter(device=>selections[mode].has(device.deviceKey)).slice(0,8).map(device=>device.deviceKey);
   function pollAfter(ms){pollTimer=setTimeout(()=>{pollTimer=undefined;loadDevices();},ms);}
   const tooltip=element('div','earnings-chart-tooltip');tooltip.hidden=true;tooltip.setAttribute('role','tooltip');document.body.append(tooltip);
   function detail(index=hoverIndex){
@@ -40,8 +41,8 @@ export function createEarningsChart({get}){
     averageHeading.textContent=mode==='gpu'?'Est. $/GPU-h':'Average $/h';
     for(const definition of earningsDefinitions(mode,devices())){
       const {key}=definition,row=element('tr'),heading=element('th'),label=element('label','chart-series-toggle'),input=element('input');heading.scope='row';
-      input.type='checkbox';input.value=key;input.checked=selection.has(key);input.setAttribute('aria-label','Plot '+definition.label);
-      input.disabled=mode!=='source'&&key!=='totalUsd'&&!input.checked&&[...selection].filter(k=>k!=='totalUsd').length>=8;
+      input.type='checkbox';input.value=key;input.checked=mode==='source'||key==='totalUsd'?selection.has(key):selectedDevices().includes(key);input.setAttribute('aria-label','Plot '+definition.label);
+      input.disabled=mode!=='source'&&key!=='totalUsd'&&!input.checked&&devices().filter(device=>selection.has(device.deviceKey)).length>=8;
       const dot=element('span','chart-series-color');dot.style.background=definition.color;
       label.append(input,dot,element('span','chart-series-name',definition.label));heading.append(label);
       const fleetSeries=mode==='source'||key==='totalUsd';
@@ -79,7 +80,7 @@ export function createEarningsChart({get}){
   async function loadDevices(){
     if(document.hidden||mode==='source'||!report||!range||!devices().length||loading)return;
     clearTimeout(pollTimer);pollTimer=undefined;
-    const group=mode,requested={...range},key=windowKey(),keys=[...selections[group]].filter(id=>id!=='totalUsd');
+    const group=mode,requested={...range},key=windowKey(),keys=selectedDevices();
     const state=windows.get(key);
     if(state?.complete&&keys.every(id=>state.series.has(id)))return;
     const generation=++fetchGeneration;loading=true;
@@ -111,7 +112,8 @@ export function createEarningsChart({get}){
     try{range=chartDateRange($('#chart-range').value,{from:$('#chart-from').value,to:$('#chart-to').value,availableFrom:report.from});}catch(error){host.append(element('p','chart-empty',error.message));return;}
     days=chartDays(range);hoverIndex=Math.min(hoverIndex,days.length-1);$('#chart-period').textContent=dateLabel(range.from)+' – '+dateLabel(range.to);
     const series=windows.get(windowKey())?.series;
-    activeSeries=earningsChartSeries({daily:report.daily,devices:devices().map(d=>({...d,daily:series?.get(d.deviceKey)||[]})),range,mode,enabled:[...selections[mode]]});
+    const enabled=mode==='source'?[...selections.source]:[...selectedDevices(),...(selections[mode].has('totalUsd')?['totalUsd']:[])];
+    activeSeries=earningsChartSeries({daily:report.daily,devices:devices().map(d=>({...d,daily:series?.get(d.deviceKey)||[]})),range,mode,enabled});
     const values=activeSeries.flatMap(s=>s.points.map(p=>p.value).filter(v=>v!==null));
     if(!activeSeries.length){host.append(element('p','chart-empty','Select a series to display.'));return;}
     if(!values.length){host.append(element('p','chart-empty',loading?'Loading daily earnings history…':'No earnings reported in this range.'));return;}
@@ -160,7 +162,6 @@ export function createEarningsChart({get}){
     for(const [group,items] of [['machine',roster],['gpu',groups]]){
       const selection=selections[group];
       if(!initialized.has(group)&&items.length){for(const item of items.slice(0,8))selection.add(item.deviceKey);initialized.add(group);}
-      for(const key of selection)if(key!=='totalUsd'&&!items.some(item=>item.deviceKey===key))selection.delete(key);
     }
     const today=new Date().toISOString().slice(0,10);
     for(const id of ['chart-from','chart-to']){$('#'+id).min=report?.from??'';$('#'+id).max=today;}

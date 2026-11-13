@@ -15,7 +15,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #5d90
 button{border:0;background:transparent}
 a{color:inherit;text-decoration:none}
 .shell{max-width:1456px;padding:0 56px;margin:auto}
-.topbar{min-height:68px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.topbar{position:relative;z-index:30;min-height:68px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:19px;letter-spacing:-.5px}
 .brandmark{display:grid;place-content:center;width:32px;height:32px;background:#245840;color:#dcf3b9;border-radius:9px;font-size:29px;font-weight:500;line-height:1;padding-bottom:4px}
 .brand-divider{margin:0 7px;color:#c8cec5;font-weight:400}
@@ -496,6 +496,14 @@ h1{font-size:29px}
 .live-pill-info{font-size:9px;color:#87927f;border:1px solid #d8dfd0;border-radius:50%;display:inline-grid;place-items:center;width:12px;height:12px;flex-shrink:0}
 .header-status{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);padding:4px 0}
 .fleet-now+main.fleet-page{padding-top:0}
+@media(prefers-reduced-motion:no-preference){
+  @view-transition{navigation:auto}
+  .topbar{view-transition-name:fleet-header}
+  .fleet-now{view-transition-name:fleet-summary}
+  ::view-transition-old(fleet-header),::view-transition-old(fleet-summary){animation:none;opacity:0}
+  ::view-transition-new(fleet-header),::view-transition-new(fleet-summary){animation:none}
+  ::view-transition-group(*){animation-duration:140ms}
+}
 .info-popover{width:370px;max-width:calc(100vw - 20px);z-index:150;max-height:calc(100dvh - 20px)}
 .info-popover-body{max-height:calc(100dvh - 100px);overflow:auto;overscroll-behavior:contain;padding-right:2px}
 .info-popover-body p{line-height:1.65}.popover-guide{font-size:11px;line-height:1.65}.popover-guide .legend{color:#d2ddce;margin:13px 0}.popover-guide .state-matrix{color:#d2ddce}

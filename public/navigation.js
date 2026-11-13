@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.1';
-import {bindPopover,bindGuide,closePopover} from './popover.js?v=1.3.1';
-import {initialiseFleetNow} from './fleet-now.js?v=1.3.1';
-import {showingSuspended} from './api.js?v=1.3.1';
+import {element} from './ui.js?v=1.3.2';
+import {bindPopover,bindGuide,closePopover} from './popover.js?v=1.3.2';
+import {initialiseFleetNow} from './fleet-now.js?v=1.3.2';
+import {showingSuspended} from './api.js?v=1.3.2';
 
 export const fleetPages=[['overview','Overview','./'],['devices','Devices','devices.html'],['occupancy','Occupancy','occupancy.html'],['earnings','Earnings','earnings.html'],['market','Market','market.html'],['settings','Settings','settings.html']];
 const host=document.querySelector('[data-navigation]');
@@ -44,13 +44,20 @@ if(host){
   host.replaceChildren(brand,nav);
 }
 for(const freshness of document.querySelectorAll('.topbar .freshness')){
-  const show=showingSuspended();
+  let show=showingSuspended();
   const suspended=element('button','refresh-button suspended-toggle',show?'Hide suspended':'Show suspended');
   suspended.type='button';
   suspended.addEventListener('click',()=>{
-    try{sessionStorage.setItem('vaststats.showSuspended',show?'0':'1');location.reload();}
+    try{
+      sessionStorage.setItem('vaststats.showSuspended',show?'0':'1');
+      show=!show;
+      suspended.textContent=show?'Hide suspended':'Show suspended';
+      suspended.setAttribute('aria-pressed',String(show));
+      document.dispatchEvent(new Event('fleet-scope-changed'));
+    }
     catch{suspended.textContent='Storage unavailable';}
   });
+  suspended.setAttribute('aria-pressed',String(show));
   freshness.before(suspended);
   const copy=freshness.querySelector('#freshness');if(copy)copy.classList.add('sr-only');
   const button=element('button','header-status');button.type='button';

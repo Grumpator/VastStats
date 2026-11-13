@@ -1,5 +1,5 @@
-import {primaryDeviceState,ZONE} from './model.js?v=1.3.1';
-import {element,icon} from './ui.js?v=1.3.1';
+import {primaryDeviceState,ZONE} from './model.js?v=1.3.2';
+import {element,icon} from './ui.js?v=1.3.2';
 
 const maintenanceTime=new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,dateStyle:'medium',timeStyle:'short'});
 

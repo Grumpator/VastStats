@@ -1,12 +1,12 @@
-import {bindPopover} from './popover.js?v=1.3.1';
-import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.3.1';
-import {collectionNotice} from './api.js?v=1.3.1';
-import {element,icon} from './ui.js?v=1.3.1';
-import {renderNow,bindMetricPills} from './now.js?v=1.3.1';
-import {percentLabel,coverageLabel,ZONE} from './model.js?v=1.3.1';
-import {tileState,tileLayout} from './overview-model.js?v=1.3.1';
-import {statusSource} from './status-data.js?v=1.3.1';
-import {verificationIcon} from './device-state.js?v=1.3.1';
+import {bindPopover} from './popover.js?v=1.3.2';
+import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.3.2';
+import {collectionNotice} from './api.js?v=1.3.2';
+import {element,icon} from './ui.js?v=1.3.2';
+import {renderNow,bindMetricPills} from './now.js?v=1.3.2';
+import {percentLabel,coverageLabel,ZONE} from './model.js?v=1.3.2';
+import {tileState,tileLayout} from './overview-model.js?v=1.3.2';
+import {statusSource} from './status-data.js?v=1.3.2';
+import {verificationIcon} from './device-state.js?v=1.3.2';
 const $=s=>document.querySelector(s),params=new URLSearchParams(location.search);
 const source=statusSource({endpoint:'/api/overview'});
 const labels={running:'Listed and running',listed:'Listed and online',offline:'Listed and offline','maintenance-running':'Maintenance and running',maintenance:'Maintenance and online','maintenance-offline':'Maintenance and offline','unlisted-running':'Unlisted and running',unlisted:'Unlisted and online','offline-unlisted':'Unlisted and offline',unknown:'Status unavailable'};
@@ -24,7 +24,7 @@ function addStateMarker(tile,state,stale=false,hasSnapshot=true){
   else if(offlineStates.has(state)){const marker=element('span','offline-indicator');marker.setAttribute('aria-hidden','true');marker.append(icon('power',true));tile.append(marker);}
 }
 const fmt=stamp=>new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,dateStyle:'medium',timeStyle:'short'}).format(Date.parse(stamp));
-let data={boxes:[]},demo=params.has('demo'),loading=false,active=null;
+let data={boxes:[]},demo=params.has('demo'),loadGeneration=0,active=null;
 function demoFleet(){
   const now=Date.now(),stamp=new Date(now).toISOString(),count=Math.max(1,Math.min(1000,Number(params.get('count'))||40));
   return {updatedAt:stamp,snapshotMaxAgeSeconds:900,earnings:{computeUsdPerHour:count*.18,storageUsdPerHour:count*.02,totalUsdPerHour:count*.20,unavailableDevices:0},occupancy:{day:{percent:78.4,coverage:.96},week:{percent:71.2,coverage:.98},month:{percent:67.9,coverage:.99}},boxes:Array.from({length:count},(_,i)=>{
@@ -78,16 +78,19 @@ function render(){
   $('#demo').textContent=demo?'Return to recorded data ↗':'Explore sample data ↗';
 }
 async function load(force=false){
-  if(loading)return;loading=true;$('#refresh').disabled=true;
+  const generation=++loadGeneration;
+  $('#refresh').disabled=true;
   try{
     if(demo)data=demoFleet();
     else{
-      const next=await source({force});if(!next&&!data.updatedAt)throw Error('Unavailable');
+      const next=await source({force});
+      if(generation!==loadGeneration)return;
+      if(!next)throw Error('Unavailable');
       if(next)data=next;
     }
     render();
   }catch{$('#notice').textContent='Could not load the current fleet snapshot. Previously loaded states are retained.';}
-  finally{loading=false;$('#refresh').disabled=false;}
+  finally{if(generation===loadGeneration)$('#refresh').disabled=false;}
 }
 const legend=element('table','state-matrix'),head=element('thead'),headRow=element('tr');
 for(const text of ['Category','Online · idle','Running','Offline']){const th=element('th','',text);th.scope='col';headRow.append(th);}head.append(headRow);legend.append(head);
@@ -106,4 +109,5 @@ $('#demo').onclick=()=>{const url=new URL(location);if(demo){url.searchParams.de
 window.addEventListener('resize',()=>{hideTip();sizeGrid();});window.addEventListener('scroll',hideTip,true);
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){hideTip();}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+document.addEventListener('fleet-scope-changed',()=>load(true));
 load();setInterval(()=>{if(!document.hidden)load();},60000);

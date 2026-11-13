@@ -1,18 +1,18 @@
-import {periodWindow} from './periods.js?v=1.3.1';
-import {mergeStatus} from './overview-model.js?v=1.3.1';
+import {periodWindow} from './periods.js?v=1.3.2';
+import {mergeStatus} from './overview-model.js?v=1.3.2';
 
 export function showingSuspended(){
   try{return globalThis.sessionStorage?.getItem('vaststats.showSuspended')==='1';}catch{return false;}
 }
-export function fleetURL(url){
-  if(!showingSuspended())return url;
+export function fleetURL(url,includeSuspended=showingSuspended()){
+  if(!includeSuspended)return url;
   return url+(url.includes('?')?'&':'?')+'includeSuspended=1';
 }
 
 export function cachedAPI({fetchImpl=fetch,limit=6}={}){
   const entries=new Map(),pending=new Map();
-  return async url=>{
-    url=fleetURL(url);
+  return async (url,includeSuspended)=>{
+    url=fleetURL(url,includeSuspended);
     if(pending.has(url))return pending.get(url);
     const request=(async()=>{
       const prior=entries.get(url),response=await fetchImpl(url,{cache:'no-store',headers:prior?.etag?{'If-None-Match':prior.etag}:{}});
@@ -34,29 +34,36 @@ export async function loadHistoryWindow(days,{get=historyAPI}={}){
 }
 export function detailsClient({fetchImpl=fetch,now=Date.now,limit=24}={}){
   const get=cachedAPI({fetchImpl,limit}),entries=new Map(),pending=new Map();let latest=null;
-  async function refresh(){latest=await get('/api/status');return latest;}
+  let latestScope,refreshGeneration=0;
+  async function refresh(scope=showingSuspended()){
+    const generation=++refreshGeneration;
+    const status=await get('/api/status',scope);
+    if(generation===refreshGeneration){latest=status;latestScope=scope;}
+    return status;
+  }
   return {refresh,
     async load(period,reference=null,{refreshStatus=false}={}){
-      if(!latest||refreshStatus)await refresh();
+      const scope=showingSuspended();
+      const status=!latest||refreshStatus||scope!==latestScope?await refresh(scope):latest;
       const time=now(),window=periodWindow(period,Math.min(reference??time,time));
-      const revision=latest.historyRevision,key=revision+':'+period+':'+window.start;
+      const revision=status.historyRevision,key=scope+':'+revision+':'+period+':'+window.start;
       let value=entries.get(key);
       if(!value){
         if(!pending.has(key)){
           const request=(async()=>{
-            const response=await get('/api/details?'+new URLSearchParams({period,at:String(reference??time)}));
+            const response=await get('/api/details?'+new URLSearchParams({period,at:String(reference??time)}),scope);
             if(response.version!==2||response.representation!=='summaries'||!Array.isArray(response.boxes)||response.boxes.some(box=>!Array.isArray(box.summaries)))throw Error('Invalid details summary');
             // An import may finish between the status and details requests.
-            const actualKey=response.revision+':'+period+':'+window.start;
+            const actualKey=scope+':'+response.revision+':'+period+':'+window.start;
             entries.set(actualKey,response);while(entries.size>limit)entries.delete(entries.keys().next().value);
-            if(latest.historyRevision===revision)latest={...latest,historyRevision:response.revision};
+            if(latest===status)latest={...status,historyRevision:response.revision};
             return response;
           })();pending.set(key,request);
           request.finally(()=>pending.delete(key)).catch(()=>{});
         }
         value=await pending.get(key);
       }else{entries.delete(key);entries.set(key,value);}
-      return {...mergeStatus(value,latest),collection:latest.collection};
+      return {...mergeStatus(value,status),collection:status.collection};
     }
   };
 }
