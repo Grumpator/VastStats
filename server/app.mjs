@@ -117,7 +117,8 @@ export async function createServer({runtime,publicDir,now=Date.now}){
         const boxes=filter(status?.boxes??[]);
         const currentDevices=boxes.map(({deviceKey,name,lastSample})=>({deviceKey,name,gpuModel:lastSample?.gpuModel??null,rate:lastSample?.earnings??null}));
         const scoped=saved?.version===2&&suspended.size?await runtime.scopedEarnings({...report,machines:filter(report.machines??[])},suspended):report;
-        send(200,{version:1,report:saved?{...scoped,scopeRevision}:null,currentRate:status?(suspended.size?fleetEarnings(boxes):status.earnings??null):null,currentDevices,statusUpdatedAt:status?.updatedAt??null,collection:runtime.health()});return;
+        const accountReport=saved&&suspended.size?{...report,machines:undefined}:null;
+        send(200,{version:1,report:saved?{...scoped,scopeRevision}:null,accountReport,currentRate:status?.earnings??null,currentDevices,statusUpdatedAt:status?.updatedAt??null,collection:runtime.health()});return;
       }
       if(url.pathname==='/api/earnings/series'){
         const keys=url.searchParams.has('series')?url.searchParams.getAll('series'):(url.searchParams.get('machines')||'').split(',').filter(Boolean);
@@ -134,13 +135,8 @@ export async function createServer({runtime,publicDir,now=Date.now}){
         const snapshot={...source,boxes,earnings:suspended.size&&status?fleetEarnings(boxes):source.earnings};
         if(url.pathname==='/api/status'){
           const report=runtime.store.earningsReport;
-          let earnedToday=report?.version===2?report.periods.today:null;
-          if(earnedToday?.reported&&suspended.size){
-            const day=earnedToday.from.slice(0,10);
-            const scoped=await runtime.scopedEarnings(report,suspended,report.daily.filter(row=>row.day===day));
-            earnedToday=scoped.periods.today;
-          }
-          send(200,{...snapshot,earnedToday,earningsUpdatedAt:report?.updatedAt??null,historyRevision:runtime.store.revision()+scopeRevision,collection:runtime.health()});return;
+          const earnedToday=report?.version===2?report.periods.today:null;
+          send(200,{...snapshot,earnings:source.earnings,earnedToday,earningsUpdatedAt:report?.updatedAt??null,historyRevision:runtime.store.revision()+scopeRevision,collection:runtime.health()});return;
         }
         const stats=await occupancySummary(),totals={};
         for(const period of occupancyPeriods){

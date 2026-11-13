@@ -45,7 +45,7 @@ sudo /usr/bin/node -p 'require("node:util").parseEnv(require("node:fs").readFile
 
 For a local run from source, generate a separate random token with `openssl rand -hex 32`, set it as `VASTSTATS_SETTINGS_TOKEN` in `.env`, and restart the app. Enter the token in Settings over HTTPS when accessing the dashboard remotely.
 
-Choose **Suspend** beside the device. VastStats excludes it from fleet views and totals while retaining its history. Use **Show suspended** in the header to include suspended devices in your browser tab, or to find and restore a device that has disappeared from Vast. When suspended devices are excluded, historical earnings use the per-device billing breakdown. Period figures wait for the required days to load.
+Choose **Suspend** beside the device. VastStats excludes it from fleet views while retaining its history. Use **Show suspended** in the header to include suspended devices in your browser tab, or to find and restore a device that has disappeared from Vast. The earnings pills show account-wide figures. The Earnings chart uses the per-device billing breakdown when suspended devices are excluded.
 
 ## What the dashboard shows
 

@@ -13,17 +13,18 @@ const chart=createEarningsChart({get});
 const demo=new URLSearchParams(location.search).has('demo');
 const periods={today:'Today',week:'This week',month:'This month',total:'Total'};
 const figure=(report,key,now)=>key==='total'?recordedTotal(report):recordedPeriod(report,key,now);
+const accountReport=()=>data?.accountReport??(data?.report?.version===2?data.report:null);
 function earningsHelp(key){
-  const value=figure(data?.report?.version===2?data.report:null,key);
+  const report=accountReport(),value=figure(report,key);
   let title='Recorded earnings',copy='Money reported by Vast for UTC billing days. Week starts Monday and Month starts on the first. GPU, bandwidth (upload + download) and storage are included. No additional commission adjustment is applied. Today may lag while Vast posts earnings. This is separate from the current hourly rate, which excludes bandwidth.';
   if(value){title=periods[key]+' · recorded earnings';copy=(key==='total'?'Sum of the available daily report (up to 366 UTC dates). ':'')+'GPU '+money(value.computeUsd)+' · Bandwidth '+money(value.bandwidthUsd)+' · Storage '+money(value.storageUsd)+'. From '+stamp(value.from)+' to '+stamp(value.to)+'. Amounts are as reported by Vast.';if(key!=='today')copy+=' The daily average uses UTC days with a report, including today so far if reported.';}
-  if(periods[key]&&!value){title=periods[key]+' · waiting for earnings';copy=data?.report?.missingDays?.length?'Earnings are shown once the needed per-device breakdowns are available for this period.':'Vast has not posted earnings for this UTC billing period yet.';}
-  copy+=' Report checked '+stamp(data?.report?.updatedAt)+'.'+(data?.report?.lastReportedDay?' Latest reported day: '+data.report.lastReportedDay+'.':'');
+  if(periods[key]&&!value){title=periods[key]+' · waiting for earnings';copy='Vast has not posted earnings for this UTC billing period yet.';}
+  copy+=' Report checked '+stamp(report?.updatedAt)+'.'+(report?.lastReportedDay?' Latest reported day: '+report.lastReportedDay+'.':'');
   if(data?.collection?.earnings?.failed)copy+=' The last refresh failed; available saved figures are retained.';
   return {title,copy};
 }
 function render(){
-  const report=data?.report?.version===2?data.report:null,now=Date.now();
+  const report=accountReport(),now=Date.now();
   for(const key of Object.keys(periods)){
     const value=figure(report,key,now),amount=$('#earned-'+key),button=$('#earned-'+key+'-button');
     amount.replaceChildren(value?document.createTextNode(money(value.totalUsd)):icon('clock'));amount.classList.toggle('waiting-value',!value);
@@ -36,10 +37,10 @@ function render(){
   const overdue=report&&now-Date.parse(report.updatedAt)>90*60000;
   $('#freshness').textContent=demo?'Sample data':report?'Earnings checked '+stamp(report.updatedAt):'Waiting for earnings';
   $('.freshness').classList.toggle('live',!!report&&!overdue&&!demo);
-  $('#notice').textContent=demo?'SAMPLE DATA · Illustrative earnings, not actual rental figures.':report?.missingDays?.length?'Waiting for per-device earnings on '+report.missingDays.length+' UTC dates.':'';
-  $('#recorded-earnings-label').textContent=report?.missingDays?'Active fleet earned':'Earned';
+  const missingDays=data?.report?.missingDays?.length;
+  $('#notice').textContent=demo?'SAMPLE DATA · Illustrative earnings, not actual rental figures.':missingDays?'Chart is waiting for per-device earnings on '+missingDays+' UTC dates.':'';
   if(overdue||data?.collection?.earnings?.failed)$('#freshness').textContent+=' · refresh overdue or failed; saved figures retained';
-  chart.update(report);
+  chart.update(data?.report?.version===2?data.report:null);
 }
 async function load(){
   if(demo){data=demoEarnings();render();return;}

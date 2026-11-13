@@ -94,7 +94,10 @@ test('suspension uses cached per-device earnings and waits for missing billing d
     server=await createServer({runtime,publicDir:path.resolve('public'),now:()=>now});
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const base='http://127.0.0.1:'+server.address().port+'/api/earnings';
-    const scoped=(await (await fetch(base)).json()).report;
+    const {report:scoped,accountReport}=await (await fetch(base)).json();
+    assert.equal(recordedTotal(accountReport).totalUsd,42);
+    assert.equal(recordedPeriod(accountReport,'week',now).totalUsd,29);
+    assert.equal(accountReport.machines,undefined);
     assert.deepEqual(scoped.machines.map(device=>device.deviceKey),[active]);
     assert.deepEqual(scoped.daily.map(row=>row.totalUsd),[2,2]);
     assert.deepEqual(scoped.missingDays,['2026-11-01']);
