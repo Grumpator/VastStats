@@ -37,3 +37,9 @@ if [ -d /run/systemd/system ]; then
     if [ -z "${2:-}" ]; then action=start; else action=restart; fi
     deb-systemd-invoke "$action" vaststats.service
 fi
+
+cat >&2 <<'EOF'
+VastStats uses a settings token to suspend and restore devices.
+Retrieve the token and enter it on the Settings page:
+  sudo /usr/bin/node -p 'require("node:util").parseEnv(require("node:fs").readFileSync("/etc/vaststats/vaststats.env", "utf8")).VASTSTATS_SETTINGS_TOKEN'
+EOF

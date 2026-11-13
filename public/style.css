@@ -373,6 +373,19 @@ h1{font-size:29px}
 .estate-toolbar h1{font-size:18px;letter-spacing:-.4px}.estate-toolbar h1 span{font:500 12px 'DM Sans',sans-serif;color:var(--muted);margin-left:8px}
 .estate-controls{display:flex;align-items:center;gap:10px}.estate-controls input{background:#fff;border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12px;width:180px}
 .refresh-button{background:#fff;border:1px solid var(--line);border-radius:7px;padding:7px 12px;font-size:12px}.refresh-button:disabled{opacity:.5}
+.topbar .suspended-toggle{flex:none;margin-inline-start:auto;margin-inline-end:16px;white-space:nowrap}
+@media(max-width:480px){
+  .topbar:has(.suspended-toggle){display:grid;grid-template-columns:minmax(0,1fr) auto}
+  .topbar .suspended-toggle{grid-area:2/1/3/-1;justify-self:end;margin-inline-end:0}
+  .topbar .freshness{grid-area:1/2}
+}
+.settings-panel{max-width:680px;margin-top:16px;padding:18px;background:#fff;border:1px solid var(--line);border-radius:11px}
+.settings-panel h2{font-size:16px;margin:0 0 8px}
+.settings-panel p,.settings-panel label,.settings-device-state{font-size:12px;color:var(--muted)}
+.settings-panel input{max-width:100%;padding:6px;border:1px solid var(--line);border-radius:5px}
+.settings-devices{list-style:none;margin:8px 0 0;padding:0}
+.settings-devices li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.device-suspended{font-size:10px;color:var(--muted)}
 .estate-grid{display:grid;grid-template-columns:repeat(auto-fill,var(--tile-size,64px));gap:9px;align-content:start;min-height:64px;margin:9px 0 0 9px}
 .estate-tile{--tile-top:#c7cec3;--tile-bottom:#a2ae9c;--tile-edge:#8d9d87;display:grid;place-items:center;position:relative;isolation:isolate;width:var(--tile-size,64px);height:var(--tile-size,64px);border-radius:clamp(3px,calc(var(--tile-size,64px)*.12),8px);background:linear-gradient(145deg,#ffffff38,transparent 52%),linear-gradient(165deg,var(--tile-top),var(--tile-bottom));border:1px solid var(--tile-edge);box-shadow:inset 0 1px 0 #ffffff85,inset 0 -2px 3px #163b2420,0 2px 3px #1f382b12;transition:transform .16s,box-shadow .16s}
 .estate-tile:before{content:'';position:absolute;inset:3px;border:1px solid #ffffff32;border-radius:clamp(1px,calc(var(--tile-size,64px)*.065),4px);pointer-events:none}

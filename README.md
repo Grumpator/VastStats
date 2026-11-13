@@ -35,6 +35,18 @@ sudo apt-get update && sudo apt-get install --only-upgrade vaststats
 
 To change the key, run `sudo dpkg-reconfigure vaststats`. To inspect the service, use `systemctl status vaststats` or `journalctl -u vaststats`.
 
+## Suspend a device
+
+The Debian package generates a settings token if one is missing and preserves it on later upgrades. Installation prints this command to retrieve it:
+
+```sh
+sudo /usr/bin/node -p 'require("node:util").parseEnv(require("node:fs").readFileSync("/etc/vaststats/vaststats.env", "utf8")).VASTSTATS_SETTINGS_TOKEN'
+```
+
+For a local run from source, generate a separate random token with `openssl rand -hex 32`, set it as `VASTSTATS_SETTINGS_TOKEN` in `.env`, and restart the app. Enter the token in Settings over HTTPS when accessing the dashboard remotely.
+
+Choose **Suspend** beside the device. VastStats excludes it from fleet views and totals while retaining its history. Use **Show suspended** in the header to include suspended devices in your browser tab, or to find and restore a device that has disappeared from Vast. When suspended devices are excluded, historical earnings use the per-device billing breakdown. Period figures wait for the required days to load.
+
 ## What the dashboard shows
 
 **Overview** shows one adaptive square per device. Green means listed, amber maintenance and grey unlisted. Animated bars indicate running rentals. Offline devices flash red when listed, amber during maintenance and grey when unlisted. Unknown or overdue states are identified explicitly.

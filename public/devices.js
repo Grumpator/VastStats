@@ -1,10 +1,10 @@
-import {cachedAPI} from './api.js?v=1.2.0';
-import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.2.0';
-import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.2.0';
-import {duration} from './device-info.js?v=1.2.0';
-import {hourlyUsd} from './now.js?v=1.2.0';
-import {bindPopover,closePopover} from './popover.js?v=1.2.0';
-import {element,icon} from './ui.js?v=1.2.0';
+import {cachedAPI} from './api.js?v=1.3.0';
+import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.3.0';
+import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.3.0';
+import {duration} from './device-info.js?v=1.3.0';
+import {hourlyUsd} from './now.js?v=1.3.0';
+import {bindPopover,closePopover} from './popover.js?v=1.3.0';
+import {element,icon} from './ui.js?v=1.3.0';
 
 const $=selector=>document.querySelector(selector);
 const get=cachedAPI();
@@ -71,6 +71,7 @@ function deviceLink({box}){
   if(period.value!=='all')query.set('period',period.value);
   link.href='occupancy.html?'+query;
   if(box.lastSample?.at)link.title='Status checked '+stamp(box.lastSample.at);
+  if(box.suspended)link.append(element('span','device-suspended',' · Suspended'));
   return link;
 }
 

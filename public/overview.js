@@ -1,12 +1,12 @@
-import {bindPopover} from './popover.js?v=1.2.0';
-import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.2.0';
-import {collectionNotice} from './api.js?v=1.2.0';
-import {element,icon} from './ui.js?v=1.2.0';
-import {renderNow,bindMetricPills} from './now.js?v=1.2.0';
-import {percentLabel,coverageLabel,ZONE} from './model.js?v=1.2.0';
-import {tileState,tileLayout} from './overview-model.js?v=1.2.0';
-import {statusSource} from './status-data.js?v=1.2.0';
-import {verificationIcon} from './device-state.js?v=1.2.0';
+import {bindPopover} from './popover.js?v=1.3.0';
+import {everythingStats,showDeviceTip,hideDeviceTip} from './device-info.js?v=1.3.0';
+import {collectionNotice} from './api.js?v=1.3.0';
+import {element,icon} from './ui.js?v=1.3.0';
+import {renderNow,bindMetricPills} from './now.js?v=1.3.0';
+import {percentLabel,coverageLabel,ZONE} from './model.js?v=1.3.0';
+import {tileState,tileLayout} from './overview-model.js?v=1.3.0';
+import {statusSource} from './status-data.js?v=1.3.0';
+import {verificationIcon} from './device-state.js?v=1.3.0';
 const $=s=>document.querySelector(s),params=new URLSearchParams(location.search);
 const source=statusSource({endpoint:'/api/overview'});
 const labels={running:'Listed and running',listed:'Listed and online',offline:'Listed and offline','maintenance-running':'Maintenance and running',maintenance:'Maintenance and online','maintenance-offline':'Maintenance and offline','unlisted-running':'Unlisted and running',unlisted:'Unlisted and online','offline-unlisted':'Unlisted and offline',unknown:'Status unavailable'};
@@ -55,7 +55,7 @@ function render(){
     const url=new URL('occupancy.html',location);url.searchParams.set('device',box.deviceKey??box.storageKey??box.name);if(demo)url.searchParams.set('demo','1');tile.href=url;
     const model=box.lastSample?.gpuModel,verification=box.lastSample?.verification;
     const hasVerification=verificationStates.has(verification);
-    tile.setAttribute('aria-label',box.name+', '+(model?model+' GPU':'GPU model unavailable')+', '+labels[status.state]+', verification: '+(hasVerification?verification:'unknown')+(status.stale?', snapshot overdue':'')+', open details');
+    tile.setAttribute('aria-label',box.name+(box.suspended?', suspended':'')+', '+(model?model+' GPU':'GPU model unavailable')+', '+labels[status.state]+', verification: '+(hasVerification?verification:'unknown')+(status.stale?', snapshot overdue':'')+', open details');
     addStateMarker(tile,status.state,status.stale,Number.isFinite(Date.parse(box.lastSample?.at)));
     if(verification==='verified'){
       const badge=verificationIcon(verification);

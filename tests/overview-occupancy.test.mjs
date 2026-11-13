@@ -24,7 +24,7 @@ test('fleet windows use weighted observed time; Everything uses all history and 
     await store.publishStatus({version:1,source:'machines',identityNamespace:initial.identityNamespace,updatedAt:sample.at,boxes:boxes.slice(0,2).map(box=>({...box,lastSample:sample}))});
     const first=await store.occupancy(now);assert.equal(first.devices.get(identity('a')).percent,37.5);assert.equal(first.windows.get(identity('a')).day.occupied,3600);
     const later=await store.occupancy(now+60000);assert.equal(later.devices.get(identity('a')).percent,37.5);
-    const runtime={store,health:()=>({configured:true})};server=await createServer({runtime,publicDir:path.resolve('public'),now:()=>now});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const runtime={store,settingsToken:'fixture-token',health:()=>({configured:true})};server=await createServer({runtime,publicDir:path.resolve('public'),now:()=>now});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const base='http://127.0.0.1:'+server.address().port,response=await fetch(base+'/api/overview'),value=await response.json();
     assert.equal(response.status,200);assert.equal(value.boxes.length,2);
     assert.equal(value.source,'machines');assert.equal(value.updatedAt,sample.at); // History publication cannot replace the Now clock.
@@ -42,6 +42,30 @@ test('fleet windows use weighted observed time; Everything uses all history and 
     assert.equal('hours' in value.boxes[0],false); // Compact summary, not a history transfer.
     const next=await store.stage();await atomicJson(path.join(next,identity('a'),'2026-11.json'),{version:2,name:'a',month:'2026-11',hours:[row(2*hour,0),row(48*hour,0)],snapshots:[]});await store.publish(next);
     const refreshed=await (await fetch(base+'/api/overview')).json();assert.equal(refreshed.occupancy.day.percent,40);assert.equal(refreshed.boxes[0].totalOccupancy.percent,12.5);
+    const get=async route=>(await fetch(base+route)).json();
+    const settings='/api/settings/devices',change=settings+'?device='+identity('b')+'&suspended=';
+    const auth={method:'PUT',headers:{Authorization:'Bearer fixture-token'}};
+    const generation=store.generation,view=store.details('day',now,now);
+    const before=(await get('/api/status')).historyRevision;
+    assert.equal((await fetch(base+change+'1',{method:'PUT'})).status,401);
+    assert.equal((await fetch(base+change+'1',auth)).status,200);
+    assert.equal(store.generation,generation);
+    assert.equal(store.details('day',now,now),view);
+    assert.equal((await get('/api/overview')).occupancy.day.percent,50);
+    assert.equal((await get('/api/overview?includeSuspended=1')).occupancy.day.percent,40);
+    for(const route of ['/api/overview','/api/status','/api/devices','/api/details?period=day']){
+      assert.equal((await get(route)).boxes.some(box=>box.deviceKey===identity('b')),false,route);
+      const include=route+(route.includes('?')?'&':'?')+'includeSuspended=1';
+      assert.equal((await get(include)).boxes.some(box=>box.deviceKey===identity('b')),true,route);
+    }
+    assert.notEqual((await get('/api/status')).historyRevision,before);
+    await store.publishStatus({...store.status,updatedAt:new Date(now+60000).toISOString(),boxes:store.status.boxes.filter(box=>box.name!=='b')});
+    await store.close();store=await new DataStore(root).open();runtime.store=store;
+    const shown=await get(settings+'?includeSuspended=1');
+    assert.deepEqual(shown.devices.find(box=>box.name==='b'),{deviceKey:identity('b'),name:'b',suspended:true});
+    assert.equal((await get('/api/devices?includeSuspended=1')).boxes.find(box=>box.name==='b').discoveryMissing,true);
+    assert.equal((await fetch(base+change+'0',auth)).status,200);
+    assert.equal((await get(settings)).devices.find(box=>box.name==='b').suspended,false);
   }finally{if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}await store?.close();await rm(root,{recursive:true,force:true});}
 });
 

@@ -16,13 +16,16 @@ export function dailyEarnings(raw,range){
   }
   return days.sort((a,b)=>a.day.localeCompare(b.day));
 }
-export function earningsReport(raw,now=Date.now(),range=billingWindow(now)){
-  const daily=dailyEarnings(raw,range),window=billingWindow(now);
-  const periods=Object.fromEntries(Object.entries(window.starts).map(([key,first])=>{
+export function earningsPeriods(daily,now){
+  const window=billingWindow(now);
+  return Object.fromEntries(Object.entries(window.starts).map(([key,first])=>{
     const last=key==='yesterday'?first+1:window.end/DAY,rows=daily.filter(row=>Date.parse(row.day+'T00:00Z')/DAY>=first&&Date.parse(row.day+'T00:00Z')/DAY<last);
     const computeUsd=rows.reduce((n,row)=>n+row.computeUsd,0),storageUsd=rows.reduce((n,row)=>n+row.storageUsd,0),bandwidthUsd=rows.reduce((n,row)=>n+row.bandwidthUsd,0);
     return [key,{from:new Date(first*DAY).toISOString(),to:new Date(Math.min(last*DAY,now)).toISOString(),reported:rows.length>0,computeUsd,storageUsd,bandwidthUsd,totalUsd:computeUsd+storageUsd+bandwidthUsd}];
   }));
+}
+export function earningsReport(raw,now=Date.now(),range=billingWindow(now)){
+  const daily=dailyEarnings(raw,range),periods=earningsPeriods(daily,now);
   return {version:2,source:'vast-daily-earnings',currency:'USD',timezone:'UTC',updatedAt:new Date(now).toISOString(),from:new Date(range.start).toISOString().slice(0,10),to:new Date(range.end-DAY).toISOString().slice(0,10),lastReportedDay:daily.at(-1)?.day??null,daily,periods};
 }
 export function machineEarningsTotals(rows,devices){

@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.2.0';
-import {hourlyUsd} from './now.js?v=1.2.0';
-import {bindPopover} from './popover.js?v=1.2.0';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.2.0';
+import {element} from './ui.js?v=1.3.0';
+import {hourlyUsd} from './now.js?v=1.3.0';
+import {bindPopover} from './popover.js?v=1.3.0';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.0';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));
@@ -10,7 +10,9 @@ function svgElement(tag,attributes={},text){const node=document.createElementNS(
 
 export function createEarningsChart({get}){
   const host=$('#earnings-chart'),legend=$('#chart-legend'),status=$('#chart-status'),averageHeading=$('#chart-average-heading');
-  let report=null,mode='source',range=null,revision=null,roster=[],groups=[];
+  const modeButtons=[...document.querySelectorAll('[data-chart-mode]')];
+  const savedMode=history.state?.earningsChartMode;
+  let report=null,mode=modeButtons.some(button=>button.dataset.chartMode===savedMode)?savedMode:'source',range=null,revision=null,roster=[],groups=[];
   const selections={source:new Set(earningsSources.map(d=>d.key)),machine:new Set(['totalUsd']),gpu:new Set(['totalUsd'])};
   const initialized=new Set(),windows=new Map();
   let activeSeries=[],days=[],hoverIndex=0,resizeTimer,pollTimer,fetchGeneration=0,loading=false;
@@ -139,9 +141,15 @@ export function createEarningsChart({get}){
     svg.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();hoverIndex=Math.max(0,Math.min(days.length-1,hoverIndex+(event.key==='ArrowRight'?1:-1)));svg.setAttribute('aria-label',dateLabel(days[hoverIndex])+'. Press Enter for earnings.');}});
     bindPopover(svg,()=>{tooltip.hidden=true;return detail();});host.append(svg);
   }
-  for(const button of document.querySelectorAll('[data-chart-mode]'))button.addEventListener('click',()=>{
+  function updateModeButtons(){
+    for(const button of modeButtons)button.setAttribute('aria-pressed',String(button.dataset.chartMode===mode));
+  }
+  updateModeButtons();
+  for(const button of modeButtons)button.addEventListener('click',()=>{
+    if(mode===button.dataset.chartMode)return;
     mode=button.dataset.chartMode;
-    for(const item of document.querySelectorAll('[data-chart-mode]'))item.setAttribute('aria-pressed',String(item===button));
+    history.replaceState({...history.state,earningsChartMode:mode},'');
+    updateModeButtons();
     changeView();
   });
   $('#chart-range').addEventListener('change',()=>{$('#chart-custom-range').hidden=$('#chart-range').value!=='custom';changeView();});
@@ -157,7 +165,8 @@ export function createEarningsChart({get}){
     const today=new Date().toISOString().slice(0,10);
     for(const id of ['chart-from','chart-to']){$('#'+id).min=report?.from??'';$('#'+id).max=today;}
     if(!$('#chart-to').value)$('#chart-to').value=today;if(!$('#chart-from').value)$('#chart-from').value=new Date(Date.now()-29*86400000).toISOString().slice(0,10);
-    if(revision!==next?.updatedAt){revision=next?.updatedAt;windows.clear();changeView();}
+    const nextRevision=next?next.updatedAt+(next.scopeRevision??''):null;
+    if(revision!==nextRevision){revision=nextRevision;windows.clear();changeView();}
     else{draw();updateTable();if(!pollTimer)loadDevices();}
   }};
 }

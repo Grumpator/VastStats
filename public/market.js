@@ -1,6 +1,7 @@
-import {element} from './ui.js?v=1.2.0';
-import {bindPopover,closePopover} from './popover.js?v=1.2.0';
-import {percentLabel,reliabilityLabel} from './model.js?v=1.2.0';
+import {element} from './ui.js?v=1.3.0';
+import {bindPopover,closePopover} from './popover.js?v=1.3.0';
+import {percentLabel,reliabilityLabel} from './model.js?v=1.3.0';
+import {fleetURL} from './api.js?v=1.3.0';
 
 const $=selector=>document.querySelector(selector);
 const decimal=new Intl.NumberFormat('en-GB',{maximumFractionDigits:1});
@@ -359,7 +360,7 @@ async function load(){
   let wait=60_000;
   try{
     const params=new URLSearchParams(watchModels.map(model=>['watch',model]));
-    const response=await fetch('/api/market?'+params);
+    const response=await fetch(fleetURL('/api/market?'+params));
     if(!response.ok)throw Error('Market request failed');
     const data=await response.json();
     if(generation!==loadGeneration)return;

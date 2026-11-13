@@ -5,6 +5,7 @@ import path from 'node:path';
 import {tmpdir} from 'node:os';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {parseEnv} from 'node:util';
 import {buildDeb} from '../scripts/deb/build.mjs';
 import {configureFile} from '../packaging/debian/configure.mjs';
 const exec=promisify(execFile);
@@ -30,8 +31,14 @@ test('Debian package is readable by independent archive tools, declares Node dep
 test('first-time configuration supports an empty unattended install and a later key without exposing it in output',async()=>{
   const root=await mkdtemp(path.join(tmpdir(),'vaststats-deb-config-')),file=path.join(root,'config','vaststats.env');
   try{
-    assert.equal(await configureFile(file,''),false);assert.match(await readFile(file,'utf8'),/^DATA_DIR=\/var\/lib\/vaststats\/data$/m);
-    assert.equal(await configureFile(file,'test-key'),true);assert.match(await readFile(file,'utf8'),/^VAST_API_KEY="test-key"$/m);
+    assert.equal(await configureFile(file,''),false);
+    const initial=parseEnv(await readFile(file,'utf8'));
+    assert.equal(initial.DATA_DIR,'/var/lib/vaststats/data');
+    assert.match(initial.VASTSTATS_SETTINGS_TOKEN,/^[a-f0-9]{64}$/);
+    assert.equal(await configureFile(file,'test-key'),true);
+    const configured=parseEnv(await readFile(file,'utf8'));
+    assert.equal(configured.VAST_API_KEY,'test-key');
+    assert.equal(configured.VASTSTATS_SETTINGS_TOKEN,initial.VASTSTATS_SETTINGS_TOKEN);
     if(process.platform!=='win32')assert.equal((await stat(file)).mode&0o777,0o600);
   }finally{await rm(root,{recursive:true,force:true});}
 });
@@ -39,8 +46,12 @@ test('upgrade retains configuration byte for byte; key rotation preserves admini
   const root=await mkdtemp(path.join(tmpdir(),'vaststats-deb-upgrade-')),file=path.join(root,'vaststats.env');
   try{
     const original='# custom\nHOST=127.0.0.1\nPORT=4567\nDATA_DIR=/srv/separate-data\nVAST_API_KEY="old-key"\nCUSTOM=value\n';await writeFile(file,original);
-    assert.equal(await configureFile(file,''),true);assert.equal(await readFile(file,'utf8'),original);
-    await configureFile(file,'new-key');const updated=await readFile(file,'utf8');assert.equal(updated,original.replace('old-key','new-key'));
+    assert.equal(await configureFile(file,''),true);
+    const migrated=await readFile(file,'utf8'),token=parseEnv(migrated).VASTSTATS_SETTINGS_TOKEN;
+    assert.match(token,/^[a-f0-9]{64}$/);
+    assert.equal(migrated,original+'VASTSTATS_SETTINGS_TOKEN='+token+'\n');
+    assert.equal(await configureFile(file,''),true);assert.equal(await readFile(file,'utf8'),migrated);
+    await configureFile(file,'new-key');const updated=await readFile(file,'utf8');assert.equal(updated,migrated.replace('old-key','new-key'));
     await assert.rejects(configureFile(file,'bad\nINJECT=value'));assert.equal(await readFile(file,'utf8'),updated);
   }finally{await rm(root,{recursive:true,force:true});}
 });

@@ -10,7 +10,7 @@ export function recordedPeriod(report,key,now=Date.now()){
 }
 export function recordedTotal(report){
   const daily=report?.daily;
-  if(!daily?.length)return null;
+  if(!daily?.length||report.missingDays?.length)return null;
   const sum=key=>daily.reduce((total,row)=>total+row[key],0);
   return {from:daily[0].day+'T00:00:00Z',to:report.updatedAt,computeUsd:sum('computeUsd'),bandwidthUsd:sum('bandwidthUsd'),storageUsd:sum('storageUsd'),totalUsd:sum('totalUsd')};
 }

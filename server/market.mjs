@@ -56,14 +56,14 @@ function marketMetrics(verifiedRow,unverifiedRow){
   return {total,rented,available,unavailable,verified,unverified,rentedShare:total&&rented!==null?rented/total:null};
 }
 
-function ownProfiles(raw,status,seed,now){
+function ownProfiles(raw,status,seed,now,suspended){
   const rows=Array.isArray(raw)?raw:raw.machines;
   const byId=new Map(rows.map(row=>[String(row.id),row]));
   const byKey=new Map((status?.boxes||[]).map(box=>[box.deviceKey,box.lastSample]));
   const fresh=now-Date.parse(status?.updatedAt)<15*60_000;
   const groups=new Map();
   for(const device of discoverMachines(raw,{seed,previous:status?.boxes||[]})){
-    if(!device.gpuModel)continue;
+    if(!device.gpuModel||suspended?.has(device.deviceKey))continue;
     const row=byId.get(device.id),gpus=count(row.num_gpus);
     if(!gpus)continue;
     const bundle=count(row.listed_min_gpu_count)||gpus;
@@ -214,9 +214,9 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
     if(!models.length)throw Error('Empty GPU catalogue');
     return {models};
   },now,CATALOGUE_MS);
-  const base=snapshotCache(async()=>{
+  const makeFleetCache=suspended=>snapshotCache(async()=>{
     const started=now(),fleet=await machines(),current=status();
-    const {groups,ids}=ownProfiles(fleet,current,seed,started);
+    const {groups,ids}=ownProfiles(fleet,current,seed,started,suspended);
     let partial=false,succeeded=0;
     async function read(task,parse){
       try{const value=parse(await task());succeeded++;return value;}catch{partial=true;return null;}
@@ -290,6 +290,9 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
     }
     return {updatedAt:new Date(now()).toISOString(),fleetUpdatedAt:current?.updatedAt??null,groups:cards,catalogue,partial,unavailable:succeeded===0};
   },now);
+  const base=makeFleetCache();
+  let activeScope,activeCache;
+  const retired=new Set();
 
   const quoteCaches=new Map();
   let quoteQueue=Promise.resolve();
@@ -323,8 +326,17 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
   }
 
   return {
-    read(models=[]){
-      const result=base.read();
+    read(models=[],suspended){
+      if(suspended?.size&&activeScope!==suspended){
+        if(activeCache){
+          const closing=activeCache.close();
+          retired.add(closing);
+          closing.finally(()=>retired.delete(closing));
+        }
+        activeScope=suspended;
+        activeCache=makeFleetCache(suspended);
+      }
+      const result=(suspended?.size?activeCache:base).read();
       const names=gpuNames.read();
       const refreshing=result.refreshing||names.refreshing;
       if(!result.snapshot)return {...result,refreshing,watchLimit:marketWatchLimit,watched:[]};
@@ -350,7 +362,7 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
       return {...result,snapshot,watched,watchLimit:marketWatchLimit,refreshing:refreshing||watched.some(item=>item.refreshing)};
     },
     async close(){
-      await Promise.all([base.close(),gpuNames.close()]);
+      await Promise.all([base.close(),activeCache?.close(),gpuNames.close(),...retired]);
       await Promise.all([...quoteCaches.values()].map(cache=>cache.close()));
     }
   };

@@ -1,9 +1,18 @@
-import {periodWindow} from './periods.js?v=1.2.0';
-import {mergeStatus} from './overview-model.js?v=1.2.0';
+import {periodWindow} from './periods.js?v=1.3.0';
+import {mergeStatus} from './overview-model.js?v=1.3.0';
+
+export function showingSuspended(){
+  try{return globalThis.sessionStorage?.getItem('vaststats.showSuspended')==='1';}catch{return false;}
+}
+export function fleetURL(url){
+  if(!showingSuspended())return url;
+  return url+(url.includes('?')?'&':'?')+'includeSuspended=1';
+}
 
 export function cachedAPI({fetchImpl=fetch,limit=6}={}){
   const entries=new Map(),pending=new Map();
   return async url=>{
+    url=fleetURL(url);
     if(pending.has(url))return pending.get(url);
     const request=(async()=>{
       const prior=entries.get(url),response=await fetchImpl(url,{cache:'no-store',headers:prior?.etag?{'If-None-Match':prior.etag}:{}});

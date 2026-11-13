@@ -23,7 +23,7 @@ export function validateIndex(index){
   return index;
 }
 export class DataStore {
-  constructor(root){this.root=path.resolve(root);this.leases=new Map();this.status=null;this.generation=null;this.writer=Promise.resolve();this.observations=new Map();}
+  constructor(root){this.root=path.resolve(root);this.leases=new Map();this.status=null;this.generation=null;this.writer=Promise.resolve();this.observations=new Map();this.suspended=new Map();}
   historyPath(generation=this.generation){return path.join(this.root,'history',generation);}
   async open(){
     await mkdir(this.root,{recursive:true});
@@ -50,6 +50,8 @@ export class DataStore {
       else{const stage=await this.stage(false);await atomicJson(path.join(stage,'index.json'),{version:2,source:'telemetry',identityNamespace:namespace,updatedAt:null,boxes:[]});await this.publish(stage);}
       this.status=await readJson(path.join(this.root,'status.json'));
       this.earningsReport=await readJson(path.join(this.root,'earnings.json'));
+      const settings=await readJson(path.join(this.root,'suspended.json'),{devices:[]});
+      this.suspended=new Map(settings.devices.map(device=>[device.deviceKey,device]));
       if([await this.index(),this.status].some(value=>value&&value.identityNamespace!==namespace))throw Error('Local identity does not match stored data');
       await this.loadViews();await this.loadObservations();
       for(const base of [this.root,path.join(this.root,'history')])for(const entry of await readdir(base,{withFileTypes:true}))if(entry.isDirectory()&&/^(status-stage-|stage-)/.test(entry.name))await rm(path.join(base,entry.name),{recursive:true,force:true});
@@ -138,6 +140,28 @@ export class DataStore {
     const pending=this.writer.then(work);this.writer=pending.catch(()=>{});return pending;
   }
   async index(){return readJson(path.join(this.historyPath(),'index.json'));}
+  async settingsDevices(){
+    const index=await this.index(),devices=new Map(this.suspended);
+    for(const box of [...index.boxes,...(this.status?.boxes??[])]){
+      const key=deviceKey(box);
+      devices.set(key,{deviceKey:key,name:box.name});
+    }
+    return [...devices.values()];
+  }
+  setSuspended(key,suspended){
+    const pending=this.writer.then(async()=>{
+      const device=(await this.settingsDevices()).find(device=>device.deviceKey===key);
+      if(!device)return false;
+      if(this.suspended.has(key)===suspended)return true;
+      const next=new Map(this.suspended);
+      if(suspended)next.set(key,device);else next.delete(key);
+      await atomicJson(path.join(this.root,'suspended.json'),{devices:[...next.values()]});
+      this.suspended=next;
+      return true;
+    });
+    this.writer=pending.catch(()=>{});
+    return pending;
+  }
   workedInBillingReport(report){
     const view=this.viewData;
     if(this.billingWork?.view===view&&this.billingWork.report===report)return this.billingWork.totals;

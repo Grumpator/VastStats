@@ -1,7 +1,7 @@
 import path from 'node:path';
 import {setTimeout as pause} from 'node:timers/promises';
 import {atomicJson,readJson} from './store.mjs';
-import {dailyEarnings,earningsRange} from './earnings.mjs';
+import {dailyEarnings,earningsPeriods,earningsRange} from './earnings.mjs';
 import {chartDays,gpuGroups,reportedDayHours} from '../public/earnings-chart-model.js';
 const DAY=86400000,valid=n=>typeof n==='number'&&Number.isFinite(n);
 const knownGpuCount=n=>Number.isSafeInteger(n)&&n>0?n:null;
@@ -40,15 +40,45 @@ export class EarningsSeries {
       try{const start=Date.parse(day+'T00:00Z'),raw=await this.apiFactory().earnings(start,start+DAY),value=machineDay(raw,day,[...this.devices.values()],this.now());await atomicJson(path.join(this.root,'day-'+day+'.json'),value);this.cache.set(day,value);this.failures.delete(day);}catch{this.failures.set(day,this.now());}
     });this.pending.set(day,request);this.chain=request.catch(()=>{});request.finally(()=>this.pending.delete(day)).catch(()=>{});
   }
-  async selected(keys,range,group='machine'){
+  async loadDay(day){
+    if(!this.cache.has(day)){
+      const value=await readJson(path.join(this.root,'day-'+day+'.json'));
+      if(value?.version===3&&value.day===day&&!this.cache.has(day))this.cache.set(day,value);
+    }
+    return this.cache.get(day);
+  }
+  async scopedReport(report,suspended,days=report.daily){
+    await Promise.all(days.map(({day})=>this.loadDay(day)));
+    const daily=[],missingDays=[];
+    for(const {day} of [...days].reverse()){
+      const cached=this.cache.get(day);
+      if((!cached||!this.fresh(cached))&&(days.length===1||this.pending.size<16))this.schedule(day);
+      if(!cached?.reported){missingDays.push(day);continue;}
+      const totals={day,computeUsd:0,storageUsd:0,bandwidthUsd:0,totalUsd:0};
+      for(const [key,row] of Object.entries(cached.byDevice)){
+        if(suspended.has(key))continue;
+        for(const field of ['computeUsd','storageUsd','bandwidthUsd','totalUsd'])totals[field]+=row[field];
+      }
+      daily.push(totals);
+    }
+    daily.reverse();
+    const periods=earningsPeriods(daily,Date.parse(report.updatedAt));
+    for(const [key,period] of Object.entries(periods)){
+      const first=period.from.slice(0,10);
+      if(missingDays.some(day=>day>=first&&(key!=='yesterday'||day===first)))period.reported=false;
+    }
+    return {...report,daily,periods,missingDays,lastReportedDay:daily.at(-1)?.day??null};
+  }
+  async selected(keys,range,group='machine',suspended=new Map()){
     if(!['machine','gpu'].includes(group))throw Error('Invalid grouping');
-    const devices=[...this.devices.values()],groups=group==='gpu'?gpuGroups(devices):devices.map(device=>({...device,members:[device]}));
+    const devices=[...this.devices.values()].filter(device=>!suspended.has(device.deviceKey));
+    const groups=group==='gpu'?gpuGroups(devices):devices.map(device=>({...device,members:[device]}));
     const byKey=new Map(groups.map(item=>[item.deviceKey,item]));
     if(!Array.isArray(keys)||keys.length>8||new Set(keys).size!==keys.length||keys.some(key=>!byKey.has(key)))throw Error('Select up to eight known series');
     const bounds=earningsRange(this.now()),validDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')&&Number.isFinite(Date.parse(v+'T00:00Z'))&&new Date(v+'T00:00Z').toISOString().slice(0,10)===v;
     if(!range||!validDate(range.from)||!validDate(range.to)||range.from>range.to||Date.parse(range.from+'T00:00Z')<bounds.start||Date.parse(range.to+'T00:00Z')>=bounds.end)throw Error('Invalid daily range');
     const days=chartDays(range);
-    await Promise.all(days.map(async day=>{if(!this.cache.has(day)){const value=await readJson(path.join(this.root,'day-'+day+'.json'));if(value?.version===3&&value.day===day)this.cache.set(day,value);}}));
+    await Promise.all(days.map(day=>this.loadDay(day)));
     const stale=days.some(day=>this.cache.has(day)&&!this.fresh(this.cache.get(day)));
     if(groups.length)for(const day of [...days].reverse())if(!this.cache.has(day)||!this.fresh(this.cache.get(day)))this.schedule(day);
     const loaded=days.filter(day=>this.cache.has(day)),pending=days.filter(day=>this.pending.has(day)).length,failed=days.filter(day=>this.failures.has(day)||(!this.enabled&&!this.cache.has(day))).length;

@@ -1,19 +1,23 @@
 import {readFile,writeFile,mkdir,rename,rm,lstat,chmod} from 'node:fs/promises';
 import {parseEnv} from 'node:util';
-import {randomUUID} from 'node:crypto';
+import {randomBytes,randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 export async function configureFile(file,key){
   if(key&&!/^[A-Za-z0-9._~+/=-]+$/.test(key))throw Error('API key contains unsupported whitespace or characters');
   let text=null;
   try{if(!(await lstat(file)).isFile())throw Error('Configuration must be a regular file');text=await readFile(file,'utf8');}catch(e){if(e.code!=='ENOENT')throw e;}
-  if(text!==null&&!key){await chmod(file,0o600);return !!parseEnv(text).VAST_API_KEY;}
+  const original=text;
   if(text===null)text='# VastStats configuration; preserved on upgrades.\nHOST=0.0.0.0\nPORT=3000\nDATA_DIR=/var/lib/vaststats/data\n';
   if(key){
     let replaced=false;
     text=text.replace(/^[ \t]*(?:export\s+)?VAST_API_KEY\s*=.*$/gm,()=>{if(replaced)return '';replaced=true;return 'VAST_API_KEY='+JSON.stringify(key);});
     if(!replaced)text+=(text.endsWith('\n')?'':'\n')+'VAST_API_KEY='+JSON.stringify(key)+'\n';
-  }else text+='VAST_API_KEY=\n';
+  }else if(original===null)text+='VAST_API_KEY=\n';
+  if(!parseEnv(text).VASTSTATS_SETTINGS_TOKEN){
+    text+=(text.endsWith('\n')?'':'\n')+'VASTSTATS_SETTINGS_TOKEN='+randomBytes(32).toString('hex')+'\n';
+  }
+  if(text===original){await chmod(file,0o600);return !!parseEnv(text).VAST_API_KEY;}
   await mkdir(path.dirname(file),{recursive:true});
   const temp=file+'.'+randomUUID()+'.tmp';
   try{await writeFile(temp,text,{mode:0o600});await rename(temp,file);}finally{await rm(temp,{force:true});}

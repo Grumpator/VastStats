@@ -4,10 +4,11 @@ import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {earningsReport,collectHistoricalEarnings,billingWindow,earningsRange} from '../server/earnings.mjs';
-import {recordedPeriod} from '../public/earnings-model.js';
+import {recordedPeriod,recordedTotal} from '../public/earnings-model.js';
 import {HistoryApi} from '../scripts/history-api.mjs';
 import {createRuntime} from '../server/runtime.mjs';
 import {createServer} from '../server/app.mjs';
+import {atomicJson} from '../server/store.mjs';
 
 const now=Date.parse('2026-11-07T12:30Z'),DAY=86400000;
 const day=value=>Date.parse(value+'T00:00Z')/DAY;
@@ -73,4 +74,39 @@ test('earnings API reads only saved totals and renamed page redirects preserve q
     const old=await fetch(base+'/details.html?period=week&device=example',{redirect:'manual'});assert.equal(old.status,302);assert.equal(old.headers.get('location'),'/occupancy.html?period=week&device=example');
     for(const name of ['occupancy','earnings','market','settings'])assert.equal((await fetch(base+'/'+name+'.html')).status,200);
   }finally{if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}await runtime?.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('suspension uses cached per-device earnings and waits for missing billing days',async()=>{
+  const root=await mkdtemp(path.join(tmpdir(),'vaststats-scoped-earnings-'));
+  let runtime,server;
+  try{
+    const active='device-'+'a'.repeat(32),suspended='device-'+'b'.repeat(32);
+    runtime=await createRuntime({config:{dataDir:root,key:null},now:()=>now});
+    const report=earningsReport(raw(),now);
+    await runtime.store.publishEarnings({...report,machines:[{deviceKey:active,name:'Active'},{deviceKey:suspended,name:'Suspended'}]});
+    runtime.store.suspended=new Map([[suspended,{deviceKey:suspended,name:'Suspended'}]]);
+    for(const {day} of report.daily.slice(1))await atomicJson(path.join(root,'earnings-series','day-'+day+'.json'),{
+      version:3,day,updatedAt:report.updatedAt,reported:true,byDevice:{
+        [active]:{day,computeUsd:1,storageUsd:1,bandwidthUsd:0,totalUsd:2},
+        [suspended]:{day,computeUsd:6,storageUsd:3,bandwidthUsd:1,totalUsd:10}
+      }
+    });
+    server=await createServer({runtime,publicDir:path.resolve('public'),now:()=>now});
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const base='http://127.0.0.1:'+server.address().port+'/api/earnings';
+    const scoped=(await (await fetch(base)).json()).report;
+    assert.deepEqual(scoped.machines.map(device=>device.deviceKey),[active]);
+    assert.deepEqual(scoped.daily.map(row=>row.totalUsd),[2,2]);
+    assert.deepEqual(scoped.missingDays,['2026-11-01']);
+    assert.equal(recordedPeriod(scoped,'week',now).totalUsd,4);
+    assert.equal(recordedPeriod(scoped,'month',now),null);
+    assert.equal(recordedTotal(scoped),null);
+    const full=(await (await fetch(base+'?includeSuspended=1')).json()).report;
+    assert.equal(full.machines.length,2);
+    assert.equal(recordedTotal(full).totalUsd,42);
+  }finally{
+    if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+    await runtime?.close();
+    await rm(root,{recursive:true,force:true});
+  }
 });

@@ -77,9 +77,10 @@ export async function createRuntime({config,now=Date.now,timers=globalThis,statu
   },now,timers});
   const health=()=>({ok:true,version:config.version??null,release:config.release??null,configured:!!config.key,mode:config.key?'collecting':'cache-only',status:{...statusJob.state,updatedAt:store.status?.updatedAt??null},history:{...historyJob.state,updatedAt:historyUpdatedAt},earnings:{...earningsJob.state,updatedAt:store.earningsReport?.updatedAt??null}});
   let startup=null;
-  return {store,statusJob,historyJob,earningsJob,health,market,
+  return {store,statusJob,historyJob,earningsJob,health,market,settingsToken:config.settingsToken,
     deviceRates:config.deviceRatesEnabled?(stamp)=>rateSnapshot?.updatedAt===stamp?rateSnapshot.rates:null:null,
-    machineEarnings:(keys,range,group)=>earningsSeries.selected(keys,range,group),
+    machineEarnings:(keys,range,group,suspended)=>earningsSeries.selected(keys,range,group,suspended),
+    scopedEarnings:(report,suspended,days)=>earningsSeries.scopedReport(report,suspended,days),
     start(){if(startup||!config.key)return startup;startup=(async()=>{statusJob.start();await statusJob.run();if(stopping)return;historyJob.start();earningsJob.start();await Promise.all([historyJob.run(),earningsJob.run()]);})();return startup;},
     async close(){stopping=true;abort.abort();await Promise.all([statusJob.stop(),historyJob.stop(),earningsJob.stop(),earningsSeries.close(),market?.close()]);await startup;await store.close();cachedFleet=null;}
   };

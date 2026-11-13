@@ -1,5 +1,5 @@
-import {ZONE,percentLabel,coverageLabel,reliabilityLabel} from './model.js?v=1.2.0';
-import {element} from './ui.js?v=1.2.0';
+import {ZONE,percentLabel,coverageLabel,reliabilityLabel} from './model.js?v=1.3.0';
+import {element} from './ui.js?v=1.3.0';
 
 const stamp=value=>Number.isFinite(Date.parse(value))?new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,dateStyle:'medium',timeStyle:'short'}).format(Date.parse(value)):'Unavailable';
 export function duration(seconds){
@@ -23,6 +23,7 @@ export function deviceInfoSections(box,stats,status,{period='Everything',now=Dat
   ];
   if(box.discoveryMissing)state.unshift(['Device discovery','Not returned by latest check']);
   if(status.stale)state.unshift(['Snapshot','Overdue; last known state']);
+  if(box.suspended)state.unshift(['Fleet settings','Suspended']);
   const usage=[
     ['Period',period],['Occupancy',percentLabel(stats.percent)],['Running time',stats.observed>0?duration(stats.occupied):'—'],
     ['Observed time',stats.observed>0?duration(stats.observed):'—'],['Data coverage',coverage]
