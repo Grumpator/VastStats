@@ -1,4 +1,4 @@
-import {billingWindow} from './earnings-model.js?v=1.3.0';
+import {billingWindow} from './earnings-model.js?v=1.3.1';
 export function demoEarnings(now=Date.now()){
   const day=Math.floor(now/86400000),window=billingWindow(now);
   const daily=Array.from({length:120},(_,i)=>{const computeUsd=18+Math.sin(i*.3)*6,storageUsd=2.1+Math.sin(i*.12)*.3,bandwidthUsd=.4+Math.cos(i*.6)*.2;return {day:new Date((day-119+i)*86400000).toISOString().slice(0,10),computeUsd,storageUsd,bandwidthUsd,totalUsd:computeUsd+storageUsd+bandwidthUsd};});

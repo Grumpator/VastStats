@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.0';
-import {hourlyUsd} from './now.js?v=1.3.0';
-import {bindPopover} from './popover.js?v=1.3.0';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.0';
+import {element} from './ui.js?v=1.3.1';
+import {hourlyUsd} from './now.js?v=1.3.1';
+import {bindPopover} from './popover.js?v=1.3.1';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.1';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));
