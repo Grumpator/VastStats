@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.2';
-import {bindPopover,closePopover} from './popover.js?v=1.3.2';
-import {percentLabel,reliabilityLabel} from './model.js?v=1.3.2';
-import {fleetURL} from './api.js?v=1.3.2';
+import {element} from './ui.js?v=1.3.3';
+import {bindPopover,closePopover} from './popover.js?v=1.3.3';
+import {percentLabel,reliabilityLabel} from './model.js?v=1.3.3';
+import {fleetURL} from './api.js?v=1.3.3';
 
 const $=selector=>document.querySelector(selector);
 const decimal=new Intl.NumberFormat('en-GB',{maximumFractionDigits:1});
@@ -77,15 +77,41 @@ function table(caption,headers,rows){
 function supply(market){
   const section=element('div','market-supply');
   if(!market){section.append(element('p','market-note','Vast’s supply counts are unavailable for this model.'));return section;}
-  const rows=[['Verified',market.verified],['Unverified',market.unverified]].map(([label,cohort])=>[
-    label,number(cohort.rented),number(cohort.available),number(cohort.unavailable),percent(cohort.usage30)
-  ]);
+  const rows=[['Verified',market.verified],['Unverified',market.unverified]].map(([label,cohort])=>{
+    const counts=[cohort.rented,cohort.available,cohort.unavailable];
+    const total=counts.every(Number.isFinite)?counts.reduce((sum,count)=>sum+count,0):0;
+    const rented=number(cohort.rented)+(total>0?' ('+percent(cohort.rented/total)+')':'');
+    return [label,rented,number(cohort.available),number(cohort.unavailable),percent(cohort.usage30)];
+  });
   section.append(table('Worldwide GPU supply by verification',['Verification','Rented GPUs','Available GPUs','Unavailable GPUs','30-day usage'],rows));
   return section;
 }
 
-function priceRow(label,sample,unavailable=false){
-  return [label,number(unavailable?null:sample?.samples??0),price(sample?.median),sample?band(sample.min,sample.max):'—'];
+function priceRow(label,sample,unavailable=false,multiplier=1){
+  return [label,number(unavailable?null:sample?.samples??0),sample?price(sample.median/multiplier):'—',sample?band(sample.min/multiplier,sample.max/multiplier):'—'];
+}
+
+function priceHistogram(histograms,key,multiplier){
+  const bins=histograms?.[key];
+  if(!bins?.some(Boolean))return null;
+  const chart=element('span','market-histogram');
+  chart.setAttribute('role','img');
+  const peak=Math.max(...histograms.sameModel,...histograms.comparable,...(histograms.occupied??[]));
+  const width=(histograms.high-histograms.low)/bins.length;
+  const descriptions=[];
+  for(const [index,count] of bins.entries()){
+    const bar=element('span','market-histogram-bar');
+    bar.style.height=(count?Math.max(2,Math.round(16*count/peak)):0)+'px';
+    if(count){
+      const low=histograms.low+index*width;
+      const high=index===bins.length-1?histograms.high:low+width;
+      bar.title=band(low/multiplier,high/multiplier)+' · '+count+(count===1?' host':' hosts');
+      descriptions.push(bar.title);
+    }
+    chart.append(bar);
+  }
+  chart.setAttribute('aria-label','Estimated host asking price distribution, low to high. '+descriptions.join('. '));
+  return chart;
 }
 
 function watchPriceSummary(group){
@@ -146,13 +172,20 @@ function watchPriceDetails(group){
 function pricing(group){
   const section=element('div','market-prices');
   section.append(element('h3','','On-demand asking prices'));
-  const rows=[priceRow('Same model · '+group.bundle+' '+(group.bundle===1?'GPU':'GPUs')+' per offer',group.asking,group.offersFailed),
-    priceRow('Comparable · '+group.scope,group.exact,group.offersFailed)];
-  if(group.peers)rows.push(priceRow('Similar GPUs · '+peerMethodLabel(group.peerMethod),group.peers));
+  const multiplier=group.renterMultiplier??1.25;
+  const rows=[priceRow('Same model · '+group.bundle+' '+(group.bundle===1?'GPU':'GPUs')+' per offer',group.asking,group.offersFailed,multiplier),
+    priceRow('Comparable · '+group.scope,group.exact,group.offersFailed,multiplier)];
+  if(group.occupied)rows.push(priceRow('Occupied machines · asking rates',group.occupied,false,multiplier));
+  if(group.peers)rows.push(priceRow('Similar GPUs · '+peerMethodLabel(group.peerMethod),group.peers,false,multiplier));
   if(group.offersFailed)section.append(element('p','market-note','Same-model offer search is temporarily unavailable.'));
-  section.append(table('Renter compute asking prices',['Renter $/GPU-hour','Sampled hosts','Median','Range'],rows));
+  const prices=table('Estimated host compute asking prices',['Estimated host $/GPU-hour','Sampled hosts','Host median','Host range'],rows);
+  for(const [index,key] of ['sameModel','comparable',...(group.occupied?['occupied']:[])].entries()){
+    const histogram=priceHistogram(group.priceHistograms,key,multiplier);
+    if(histogram)prices.querySelector('tbody').rows[index].cells[3].prepend(histogram);
+  }
+  section.append(prices);
   const floor=percent(group.floor);
-  const facts=['The same-model row includes all verification groups. Each host counts once. Comparable offers use a '+floor+' reliability floor.'];
+  const facts=['Host asking rates are estimated from public renter quotes using Vast’s typical surcharge. The same-model row includes all verification groups. Each host counts once. Comparable offers use a '+floor+' reliability floor.'];
   if(group.sampleLimited||group.peerLimited)facts.push('Search results are capped, so prices describe a sample.');
   if(group.peerStatus==='missing specs')facts.push('Vast did not report enough hardware data to match similar GPUs.');
   else if(group.peerStatus==='unavailable')facts.push('The similar-GPU search is temporarily unavailable.');
@@ -160,7 +193,7 @@ function pricing(group){
   if(group.peerModels.length)facts.push(peerEvidence(group.peerModels,group.peerMixedClass,group.peerScope==='Mixed CPU architectures'));
   if(group.fleetQuotes&&group.exact?.median>0){
     const difference=group.fleetQuotes.median/group.exact.median-1;
-    facts.push('Your median visible renter quote is '+(Math.abs(difference)<.005?'in line with':percent(Math.abs(difference))+(difference>0?' above':' below'))+' the comparable median ('+group.fleetQuotes.samples+' fleet '+(group.fleetQuotes.samples===1?'quote).':'quotes).'));
+    facts.push('Your median renter quote is '+(Math.abs(difference)<.005?'in line with':percent(Math.abs(difference))+(difference>0?' above':' below'))+' the comparable renter quote median ('+group.fleetQuotes.samples+' fleet '+(group.fleetQuotes.samples===1?'quote).':'quotes).'));
   }
   section.append(element('p','market-note',facts.join(' ')));
   return section;
@@ -184,8 +217,25 @@ function suggestionEvidence(group){
   const value=group.suggestion;
   const signals=[];
   if(value.exact)signals.push('same-model asks');
-  if(value.peers)signals.push('similar GPU asks');
+  if(value.occupied)signals.push('asks from occupied machines');
+  if(value.peers)signals.push(group.peerScope==='Mixed CPU architectures'?'similar GPU asks across CPU architectures':'similar GPU asks');
   return value.confidence+' evidence · '+signals.join(' + ')+'. Host prices are estimated using Vast’s typical renter markup of about 25%.';
+}
+
+function availableOffers(offers){
+  const section=element('div','market-fleet');
+  section.append(element('h3','','Available market devices'));
+  if(!offers?.length){
+    section.append(element('p','market-note','No available offers in this sample.'));
+    return section;
+  }
+  const component=value=>Number.isFinite(value)?'$'+value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6}):'—';
+  section.append(table('Available offers with estimated host asking rates',
+    ['GPUs','Location','Verification','Reliability','GPU $/GPU-h','Disk $/GB-month','Upload $/GB','Download $/GB'],
+    offers.map(offer=>[number(offer.gpus),offer.country??'—',offer.verification??'—',reliabilityLabel(offer.reliability),
+      price(offer.gpu),component(offer.disk),component(offer.upload),component(offer.download)])));
+  section.append(element('p','market-note','Estimated host rates from sampled public offers. The actual surcharge can vary.'));
+  return section;
 }
 
 const fleetColumns=[
@@ -271,12 +321,12 @@ function groupCard(group,stale,index){
     toggle.setAttribute('aria-expanded',String(open));
     if(open&&!details.childElementCount){
       if(group.isWatched){
-        details.append(watchPriceDetails(group));
+        details.append(watchPriceDetails(group),availableOffers(group.prices?.availableOffers));
         return;
       }
       const own=element('div','market-fleet');
       own.append(element('h3','','Your fleet'),fleetTable(group));
-      details.append(pricing(group),own);
+      details.append(pricing(group),own,availableOffers(group.availableOffers));
       if(!stale&&group.suggestion?.host)details.append(element('p','market-note',suggestionEvidence(group)));
     }
   }

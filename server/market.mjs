@@ -4,6 +4,7 @@ import {discoverMachines} from '../scripts/history-discovery.mjs';
 const MIN_HOSTS=3, SAMPLE_LIMIT=60, REFRESH_MS=15*60_000, RETRY_MS=5*60_000, CATALOGUE_MS=24*60*60_000;
 export const marketWatchLimit=8;
 const positive=value=>Number.isFinite(value)&&value>0;
+const rate=value=>Number.isFinite(value)&&value>=0?value:null;
 const count=value=>Number.isSafeInteger(value)&&value>=0?value:null;
 const country=value=>typeof value==='string'?/(?:^|,\s*)([A-Z]{2})$/.exec(value.trim())?.[1]??null:null;
 const architecture=value=>['aarch64','arm64'].includes(value)?'arm64':['x86_64','amd64'].includes(value)?'amd64':null;
@@ -28,17 +29,39 @@ function offerRows(response){
       usd:row.dph_base/gpus,dlperf:positive(row.dlperf)?row.dlperf/gpus:null,ram:positive(row.gpu_ram)?row.gpu_ram:null,
       arch:architecture(row.cpu_arch),verification:knownVerification(row.verification),country:country(row.geolocation),
       reliability:Number.isFinite(row.reliability)&&row.reliability>=0&&row.reliability<=1?row.reliability:null,
-      available:row.rentable===true&&row.rented===false}];
+      disk:rate(row.storage_cost),upload:rate(row.inet_up_cost),download:rate(row.inet_down_cost),
+      available:row.rentable===true&&row.rented===false,
+      occupied:row.rented===true||row.rentable===false}];
   });
 }
 
-function offerPrices(offers,price=offer=>offer.usd){
+function hostPrices(offers,price=offer=>offer.usd){
   const byHost=new Map();
   for(const offer of offers){
     if(!byHost.has(offer.host))byHost.set(offer.host,[]);
     byHost.get(offer.host).push(price(offer));
   }
-  return distribution([...byHost.values()].map(values=>distribution(values)?.median));
+  return [...byHost.values()].map(values=>distribution(values)?.median).filter(Number.isFinite);
+}
+
+function offerPrices(offers,price){
+  return distribution(hostPrices(offers,price));
+}
+
+function priceHistograms(series){
+  const prices=Object.values(series).flat();
+  if(!prices.length)return null;
+  const low=Math.min(...prices),high=Math.max(...prices);
+  const binCount=high===low?1:10;
+  const histogram=prices=>{
+    const bins=Array(binCount).fill(0);
+    for(const price of prices){
+      const index=binCount===1?0:Math.min(binCount-1,Math.floor((price-low)/(high-low)*binCount));
+      bins[index]++;
+    }
+    return bins;
+  };
+  return {low,high,...Object.fromEntries(Object.entries(series).map(([key,values])=>[key,histogram(values)]))};
 }
 
 function marketMetrics(verifiedRow,unverifiedRow){
@@ -170,21 +193,37 @@ async function samplePeers(api,target,excludedIds,floor=null,exact=null){
 // Vast describes live renter GPU prices as typically about 25% above host earnings.
 // https://vast.ai/article/how-much-money-can-you-earn-renting-out-your-gpu-on-vast-ai
 const typicalRenterMultiplier=1.25;
-export function priceSuggestion({exact,peers,crossArch=false}){
-  const usePeers=(exact?.samples??0)<MIN_HOSTS&&!!peers;
-  const market=usePeers?peers:exact;
-  if((market?.samples??0)<MIN_HOSTS||(usePeers&&crossArch&&!positive(exact?.median)))return null;
+export function priceSuggestion({exact,available,occupied,peers}){
+  const direct=exact??available;
+  const useOccupied=(exact?.samples??0)<MIN_HOSTS&&!!occupied;
+  const usePeers=!useOccupied&&(exact?.samples??0)<MIN_HOSTS&&!!peers;
+  const market=useOccupied?occupied:usePeers?peers:direct;
+  if(!market)return null;
   let {p25:low,median:high}=market;
-  if(usePeers&&exact){
-    const weight=sameModelWeight(exact);
-    low=low*(1-weight)+exact.p25*weight;
-    high=high*(1-weight)+exact.median*weight;
+  if((usePeers||useOccupied)&&direct){
+    const weight=sameModelWeight(direct);
+    low=low*(1-weight)+direct.p25*weight;
+    high=high*(1-weight)+direct.median*weight;
   }
   if(!positive(high))return null;
   // Avoid presenting a single data point as a precise target range.
   if(high-low<high*.05)low=high*.95;
   return {host:{low:low/typicalRenterMultiplier,high:high/typicalRenterMultiplier},
-    exact:!!exact,peers:usePeers,confidence:usePeers?'Limited':'Moderate'};
+    exact:!!direct,occupied:useOccupied,peers:usePeers,confidence:!usePeers&&!useOccupied&&(exact?.samples??0)>=MIN_HOSTS?'Moderate':'Limited'};
+}
+
+function publicOffers(offers){
+  const sorted=[...offers].sort((a,b)=>a.usd-b.usd);
+  const seen=new Set();
+  return sorted.filter(offer=>{
+    const key=offer.machine+':'+offer.gpus;
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  }).map(({gpus,verification,country,reliability,usd,disk,upload,download})=>({
+    gpus,verification,country,reliability,
+    gpu:usd/typicalRenterMultiplier,disk:disk===null?null:disk/typicalRenterMultiplier,
+    upload:upload===null?null:upload/typicalRenterMultiplier,download:download===null?null:download/typicalRenterMultiplier
+  }));
 }
 
 function snapshotCache(collect,now,refreshMs=REFRESH_MS){
@@ -233,7 +272,7 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
       const model=(verified??unverified).gpu_name;
       if(key&&model.length<=96)catalogue.set(key,{model,market:marketMetrics(verified,unverified)});
     }
-    const exactByProfile=new Map(),quotes=new Map();
+    const exactByProfile=new Map(),occupiedByProfile=new Map(),quotes=new Map();
     const allProfiles=[];
     for(const profile of groups){
       const model=modelKey(profile.model),queryKey=JSON.stringify([model,profile.bundle]);
@@ -267,24 +306,41 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
       const countries=new Set(profile.devices.map(d=>d.country).filter(Boolean));
       const local=matches.filter(o=>countries.has(o.country)),localPrices=offerPrices(local);
       const preferLocal=(localPrices?.samples??0)>=MIN_HOSTS;
-      const exact=preferLocal?localPrices:offerPrices(matches);
+      const comparablePrices=hostPrices(preferLocal?local:matches);
+      const sameModelPrices=hostPrices(offers);
+      const exact=distribution(comparablePrices);
+      const available=offerPrices(hardwareMatches)??offerPrices(offers);
+      let occupiedPrices=[];
+      if((exact?.samples??0)<MIN_HOSTS){
+        const key=JSON.stringify([model,profile.bundle]);
+        if(!occupiedByProfile.has(key))occupiedByProfile.set(key,await read(
+          ()=>api.offers({limit:SAMPLE_LIMIT,gpu_name:{eq:profile.model.replaceAll('_',' ')},num_gpus:{eq:profile.bundle},rented:{eq:true}}),
+          raw=>offerRows(raw).filter(offer=>offer.occupied&&modelKey(offer.model)===model&&offer.gpus===profile.bundle&&!ids.has(offer.machine))
+        ));
+        const candidates=(occupiedByProfile.get(key)??[]).filter(offer=>!profile.arch||offer.arch===profile.arch);
+        occupiedPrices=hostPrices(candidates.filter(offer=>qualityMatch(offer,profile,floor)));
+        if(!occupiedPrices.length)occupiedPrices=hostPrices(candidates);
+      }
+      const occupied=distribution(occupiedPrices);
       let peerResult=null;
-      if((exact?.samples??0)<MIN_HOSTS&&positive(ram)&&positive(dlperf)){
+      if(!occupied&&(exact?.samples??0)<MIN_HOSTS&&positive(ram)&&positive(dlperf)){
         peerResult=await read(()=>samplePeers(api,{...profile,ram,dlperf},ids,floor),value=>value);
       }
       const peerEstimate=peerResult?.estimate;
       const peerPrices=peerEstimate?.prices??null;
       const crossArch=!!peerEstimate&&(!profile.arch||peerEstimate.crossArch);
-      const suggestion=priceSuggestion({exact,peers:peerPrices,crossArch});
+      const suggestion=priceSuggestion({exact,available,occupied,peers:peerPrices});
       const fleetQuotes=distribution([...ownQuotes.values()].map(offer=>offer?.usd));
       const devices=profile.devices.map(({id,name,gpus,listed,reliability,ask,active,booked,country})=>({
         name,gpus,listed,reliability,ask,active,booked,country,quote:ownQuotes.get(id)?.usd??null
       }));
       cards.push({model:profile.model,bundle:profile.bundle,arch:profile.arch,verification:profile.verification,shared:profile.shared,
         ram,dlperf,floor,market:marketMetrics(verifiedRow,unverifiedRow),devices,fleetQuotes,
-        asking:offerPrices(offers),exact,scope:preferLocal?[...countries].join(', '):'Global',sampleLimited:direct?.limited??false,offersFailed:direct===null,
+        asking:distribution(sameModelPrices),renterMultiplier:typicalRenterMultiplier,
+        priceHistograms:priceHistograms({sameModel:sameModelPrices,comparable:comparablePrices,occupied:occupiedPrices}),
+        availableOffers:publicOffers(offers),occupied,exact,scope:preferLocal?[...countries].join(', '):'Global',sampleLimited:direct?.limited??false,offersFailed:direct===null,
         peers:peerPrices,peerScope:crossArch?'Mixed CPU architectures':profile.arch,
-        peerStatus:peerResult?'checked':(exact?.samples??0)>=MIN_HOSTS?'not needed':positive(ram)&&positive(dlperf)?'unavailable':'missing specs',
+        peerStatus:peerResult?'checked':occupied||(exact?.samples??0)>=MIN_HOSTS?'not needed':positive(ram)&&positive(dlperf)?'unavailable':'missing specs',
         peerLimited:peerResult?.limited??false,peerModels:peerEstimate?.models.slice(0,5)??[],
         peerMethod:peerEstimate?.method??null,peerMixedClass:peerEstimate?.mixedClass??false,suggestion});
     }
@@ -313,7 +369,7 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
           }
         }
         return {
-          updatedAt:new Date(now()).toISOString(),all,peers,
+          updatedAt:new Date(now()).toISOString(),all,peers,availableOffers:publicOffers(offers),
           verified:offerPrices(offers.filter(offer=>offer.verification==='verified')),
           unverified:offerPrices(offers.filter(offer=>offer.verification==='unverified'||offer.verification==='deverified')),
           limited:raw.truncated===true||raw.offers.length>=SAMPLE_LIMIT

@@ -1,5 +1,5 @@
-import {cachedAPI,showingSuspended} from './api.js?v=1.3.2';
-import {element} from './ui.js?v=1.3.2';
+import {cachedAPI,showingSuspended} from './api.js?v=1.3.3';
+import {element} from './ui.js?v=1.3.3';
 
 const get=cachedAPI();
 const list=document.querySelector('#settings-devices');

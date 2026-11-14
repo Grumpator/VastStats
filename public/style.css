@@ -571,6 +571,8 @@ h1{font-size:29px}
 .market-table th,.market-table td{padding:6px 7px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 .market-table th:first-child{text-align:left;white-space:normal}.market-table tbody th{font-weight:500}.market-table thead th{color:var(--muted);font-size:10px}
 .market-table td,.chart-series-table td{font-family:var(--number-font)}
+.market-histogram{display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;align-items:end;gap:2px;width:58px;height:17px;margin-inline-end:7px;vertical-align:middle;border-bottom:1px solid var(--line)}
+.market-histogram-bar{background:#34845c;border-radius:1px 1px 0 0}
 .market-fleet .market-table th:first-child{min-width:100px}
 .market-column-controls{display:flex;justify-content:flex-end;align-items:center;gap:2px}
 .market-fleet th:first-child .market-column-controls{justify-content:flex-start}
