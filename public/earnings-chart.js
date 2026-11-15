@@ -1,8 +1,8 @@
-import {element} from './ui.js?v=1.3.4';
-import {hourlyUsd} from './now.js?v=1.3.4';
-import {bindPopover} from './popover.js?v=1.3.4';
-import {duration} from './device-info.js?v=1.3.4';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.4';
+import {element} from './ui.js?v=1.3.5';
+import {hourlyUsd} from './now.js?v=1.3.5';
+import {bindPopover} from './popover.js?v=1.3.5';
+import {duration} from './device-info.js?v=1.3.5';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.5';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));
@@ -45,6 +45,7 @@ export function createEarningsChart({get}){
     hoursHeading.title=mode==='gpu'?'Estimated GPU-hours used in the average':'Reported clock hours used in the average, including idle time';
     for(const definition of earningsDefinitions(mode,devices())){
       const {key}=definition,row=element('tr'),heading=element('th'),label=element('label','chart-series-toggle'),input=element('input');heading.scope='row';
+      if(key==='totalUsd')row.classList.add('chart-total-row');
       input.type='checkbox';input.value=key;input.checked=mode==='source'||key==='totalUsd'?selection.has(key):selectedDevices().includes(key);input.setAttribute('aria-label','Plot '+definition.label);
       input.disabled=mode!=='source'&&key!=='totalUsd'&&!input.checked&&devices().filter(device=>selection.has(device.deviceKey)).length>=8;
       const dot=element('span','chart-series-color');dot.style.background=definition.color;

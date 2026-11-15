@@ -1,10 +1,10 @@
-import {demoEarnings} from './earnings-demo.js?v=1.3.4';
-import {cachedAPI} from './api.js?v=1.3.4';
-import {hourlyUsd} from './now.js?v=1.3.4';
-import {recordedPeriod,recordedTotal} from './earnings-model.js?v=1.3.4';
-import {icon} from './ui.js?v=1.3.4';
-import {bindPopover} from './popover.js?v=1.3.4';
-import {createEarningsChart} from './earnings-chart.js?v=1.3.4';
+import {demoEarnings} from './earnings-demo.js?v=1.3.5';
+import {cachedAPI} from './api.js?v=1.3.5';
+import {hourlyUsd} from './now.js?v=1.3.5';
+import {recordedPeriod,recordedTotal} from './earnings-model.js?v=1.3.5';
+import {icon} from './ui.js?v=1.3.5';
+import {bindPopover} from './popover.js?v=1.3.5';
+import {createEarningsChart} from './earnings-chart.js?v=1.3.5';
 
 const $=selector=>document.querySelector(selector),get=cachedAPI(),money=hourlyUsd;
 const stamp=value=>value?new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'}).format(Date.parse(value))+' UTC':'Not yet checked';

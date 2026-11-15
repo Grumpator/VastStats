@@ -1,4 +1,4 @@
-import {aggregate} from './model.js?v=1.3.4';
+import {aggregate} from './model.js?v=1.3.5';
 
 const fields=['observed','occupied','offline','maintenance','connectionObserved','maintenanceObserved','listed','unlisted','listingObserved'];
 // Confirmed totals do not grow between imports. Only elapsed time/coverage changes.

@@ -1,5 +1,5 @@
-import {periodWindow} from './periods.js?v=1.3.4';
-import {mergeStatus} from './overview-model.js?v=1.3.4';
+import {periodWindow} from './periods.js?v=1.3.5';
+import {mergeStatus} from './overview-model.js?v=1.3.5';
 
 export function showingSuspended(){
   try{return globalThis.sessionStorage?.getItem('vaststats.showSuspended')==='1';}catch{return false;}

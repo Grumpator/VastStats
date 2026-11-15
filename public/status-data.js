@@ -1,4 +1,4 @@
-import {cachedAPI,fleetURL} from './api.js?v=1.3.4';
+import {cachedAPI,fleetURL} from './api.js?v=1.3.5';
 export function statusSource({fetchImpl=fetch,now=Date.now,endpoint='/api/status'}={}){
   const get=cachedAPI({fetchImpl});
   const scopes=new Map();

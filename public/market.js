@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.4';
-import {bindPopover,closePopover} from './popover.js?v=1.3.4';
-import {percentLabel,reliabilityLabel} from './model.js?v=1.3.4';
-import {fleetURL} from './api.js?v=1.3.4';
+import {element} from './ui.js?v=1.3.5';
+import {bindPopover,closePopover} from './popover.js?v=1.3.5';
+import {percentLabel,reliabilityLabel} from './model.js?v=1.3.5';
+import {fleetURL} from './api.js?v=1.3.5';
 
 const $=selector=>document.querySelector(selector);
 const decimal=new Intl.NumberFormat('en-GB',{maximumFractionDigits:1});

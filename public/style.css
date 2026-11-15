@@ -542,7 +542,7 @@ h1{font-size:29px}
 .chart-series-table th,.chart-series-table td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
 .chart-series-table th:first-child{text-align:left}.chart-series-table td{white-space:nowrap}
 .chart-series-table thead th{position:sticky;top:0;background:#fff;color:var(--muted);font-weight:600;white-space:nowrap}
-.chart-series-table tbody th{font-weight:500}.chart-series-table tbody tr:last-child{font-weight:700}
+.chart-series-table tbody th{font-weight:500}.chart-series-table .chart-total-row{font-weight:700}
 @media(max-width:560px){.earnings-values{grid-template-columns:repeat(2,minmax(0,1fr))}.chart-controls .segments button{padding-inline:8px}}
 
 #market-info{position:static;margin-right:2px}

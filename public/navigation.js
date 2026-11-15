@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.4';
-import {bindPopover,bindGuide,closePopover} from './popover.js?v=1.3.4';
-import {initialiseFleetNow} from './fleet-now.js?v=1.3.4';
-import {showingSuspended} from './api.js?v=1.3.4';
+import {element} from './ui.js?v=1.3.5';
+import {bindPopover,bindGuide,closePopover} from './popover.js?v=1.3.5';
+import {initialiseFleetNow} from './fleet-now.js?v=1.3.5';
+import {showingSuspended} from './api.js?v=1.3.5';
 
 export const fleetPages=[['overview','Overview','./'],['devices','Devices','devices.html'],['occupancy','Occupancy','occupancy.html'],['earnings','Earnings','earnings.html'],['market','Market','market.html'],['settings','Settings','settings.html']];
 const host=document.querySelector('[data-navigation]');
