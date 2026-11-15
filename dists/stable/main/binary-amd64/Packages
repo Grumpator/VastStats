@@ -151,3 +151,20 @@ Size: 213338
 SHA256: 367e13c4405e3ea22c4e71cb3b68e7d344b442bee4b87b3281fbfaf44e67d16f
 SHA512: cafeec0ec469d5f94e9d6f9079bb860c20db6973b7d82b3f904421b31e2c8c7a018f224bbeefd7a81ee5349827bc530c1431f969e713671f86031f3ba618710a
 
+Package: vaststats
+Version: 1.3.5
+Architecture: all
+Section: utils
+Priority: optional
+Maintainer: VastStats maintainers <Grumpator@users.noreply.github.com>
+Depends: nodejs (>= 24), debconf (>= 0.5) | debconf-2.0, adduser, init-system-helpers (>= 1.54), systemd
+Installed-Size: 484
+Homepage: https://github.com/Grumpator/VastStats
+Description: Vast.ai fleet occupancy dashboard
+ Runs a local Node.js dashboard and periodic read-only telemetry collectors.
+ Configuration and persistent history are retained during upgrades.
+Filename: pool/main/v/vaststats/vaststats_1.3.5_all.deb
+Size: 213354
+SHA256: 0aa0aedc15144657feb3e939d4305b5873f9239ad1092563c01b77257f4388f1
+SHA512: f5e9a5178fc2903223cbe229b1496c32415668f9e835713516be380030cf7cf7f0b245b7778fec457106599c248168f0edd6855163a18364baf5c443a08f1389
+
