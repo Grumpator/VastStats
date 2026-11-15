@@ -1,7 +1,8 @@
-import {element} from './ui.js?v=1.3.3';
-import {hourlyUsd} from './now.js?v=1.3.3';
-import {bindPopover} from './popover.js?v=1.3.3';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.3';
+import {element} from './ui.js?v=1.3.4';
+import {hourlyUsd} from './now.js?v=1.3.4';
+import {bindPopover} from './popover.js?v=1.3.4';
+import {duration} from './device-info.js?v=1.3.4';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.4';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));
@@ -10,6 +11,7 @@ function svgElement(tag,attributes={},text){const node=document.createElementNS(
 
 export function createEarningsChart({get}){
   const host=$('#earnings-chart'),legend=$('#chart-legend'),status=$('#chart-status'),averageHeading=$('#chart-average-heading');
+  const hoursHeading=$('#chart-hours-heading');
   const modeButtons=[...document.querySelectorAll('[data-chart-mode]')];
   const savedMode=history.state?.earningsChartMode;
   let report=null,mode=modeButtons.some(button=>button.dataset.chartMode===savedMode)?savedMode:'source',range=null,revision=null,roster=[],groups=[];
@@ -39,6 +41,8 @@ export function createEarningsChart({get}){
     const state=windows.get(windowKey()),selection=selections[mode];
     const daily=range?(report?.daily||[]).filter(row=>row.day>=range.from&&row.day<=range.to):[];
     averageHeading.textContent=mode==='gpu'?'Est. $/GPU-h':'Average $/h';
+    hoursHeading.textContent=mode==='gpu'?'Est. GPU-hours':'Hours';
+    hoursHeading.title=mode==='gpu'?'Estimated GPU-hours used in the average':'Reported clock hours used in the average, including idle time';
     for(const definition of earningsDefinitions(mode,devices())){
       const {key}=definition,row=element('tr'),heading=element('th'),label=element('label','chart-series-toggle'),input=element('input');heading.scope='row';
       input.type='checkbox';input.value=key;input.checked=mode==='source'||key==='totalUsd'?selection.has(key):selectedDevices().includes(key);input.setAttribute('aria-label','Plot '+definition.label);
@@ -51,7 +55,7 @@ export function createEarningsChart({get}){
       if(mode==='gpu')hours=state?.gpuHours?.[key];
       else if(fleetSeries)hours=daily.reduce((sum,row)=>Number.isFinite(row[key])?sum+reportedDayHours(row.day,report.updatedAt):sum,0);
       const average=Number.isFinite(total)&&hours>0?total/hours:null;
-      row.append(heading,element('td','',hourlyUsd(total)),element('td','',hourlyUsd(average)));
+      row.append(heading,element('td','',average===null?'—':duration(hours*3600)),element('td','',hourlyUsd(total)),element('td','',hourlyUsd(average)));
       input.addEventListener('change',()=>{input.checked?selection.add(key):selection.delete(key);changeView();});
       legend.append(row);
       if(focus===key)input.focus({preventScroll:true});

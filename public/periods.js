@@ -1,4 +1,4 @@
-import {dayKey,addDays,midnight} from './model.js?v=1.3.3';
+import {dayKey,addDays,midnight} from './model.js?v=1.3.4';
 
 const HOUR=3600000;
 export const periods=[{key:'day',label:'24h',scale:'hours'},{key:'week',label:'Week',scale:'days'},{key:'month',label:'Month',scale:'days'},{key:'year',label:'Year',scale:'months'}];

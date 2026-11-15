@@ -1,13 +1,15 @@
-import {cachedAPI} from './api.js?v=1.3.3';
-import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.3.3';
-import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.3.3';
-import {duration} from './device-info.js?v=1.3.3';
-import {hourlyUsd} from './now.js?v=1.3.3';
-import {bindPopover,closePopover} from './popover.js?v=1.3.3';
-import {element,icon} from './ui.js?v=1.3.3';
+import {cachedAPI} from './api.js?v=1.3.4';
+import {coverageLabel,currentStatus,percentLabel,reliabilityLabel,ZONE} from './model.js?v=1.3.4';
+import {primaryStatusIcon,maintenanceIcon,verificationIcon} from './device-state.js?v=1.3.4';
+import {duration} from './device-info.js?v=1.3.4';
+import {hourlyUsd} from './now.js?v=1.3.4';
+import {bindPopover,closePopover} from './popover.js?v=1.3.4';
+import {element,icon} from './ui.js?v=1.3.4';
+import {createReliabilityChart} from './reliability-chart.js?v=1.3.4';
 
 const $=selector=>document.querySelector(selector);
 const get=cachedAPI();
+const reliabilityChart=createReliabilityChart(get);
 const names=new Intl.Collator('en-GB',{numeric:true,sensitivity:'base'});
 const timestamp=new Intl.DateTimeFormat('en-GB',{timeZone:ZONE,dateStyle:'medium',timeStyle:'short'});
 const money=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:6});
@@ -122,7 +124,13 @@ const columns=[
   {key:'state',label:'State',filter:'choice',choices:()=>['Online','Offline','Unknown','Running','Listed','Unlisted','Maintenance','Verified','Unverified','Deverified','Overdue'],
     value:row=>row.labels.join(' · '),filterValue:row=>row.labels.map(label=>label.toLowerCase()),cell:stateCell},
   {key:'reliability',label:'Reliability',unit:'%',value:row=>row.sample.reliability,
-    filterValue:row=>row.sample.reliability==null?null:row.sample.reliability*100,cell:row=>reliabilityLabel(row.sample.reliability)},
+    filterValue:row=>row.sample.reliability==null?null:row.sample.reliability*100,cell:({box,sample})=>{
+      const button=element('button','device-reliability-link',reliabilityLabel(sample.reliability));
+      button.type='button';
+      button.setAttribute('aria-label','Show reliability history for '+box.name);
+      button.onclick=()=>reliabilityChart.open(box.deviceKey);
+      return button;
+    }},
   {key:'occupancy',label:'Occupancy',unit:'%',value:row=>row.occupancy?.percent,cell:row=>{
     const value=element('span','',percentLabel(row.occupancy?.percent));
     value.title='Data coverage '+coverageLabel(row.occupancy?.coverage);
@@ -349,6 +357,7 @@ async function load(){
     data=next;
     if(changed)renderHeader();
     if(changedData)renderRows();
+    reliabilityChart.setDevices(data.boxes);
     $('#freshness').textContent='Fleet checked '+stamp(data.updatedAt)+' · Occupancy imported '+stamp(data.historyUpdatedAt);
     const stale=!data.updatedAt||Date.now()-Date.parse(data.updatedAt)>data.snapshotMaxAgeSeconds*1000;
     $('.freshness').classList.toggle('live',!stale);

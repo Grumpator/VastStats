@@ -8,6 +8,7 @@ import {periods} from '../public/periods.js';
 import {reportedDayHours} from '../public/earnings-chart-model.js';
 import {deviceKey} from './views.mjs';
 import {fleetEarnings} from '../scripts/earnings.mjs';
+import {validStorageKey} from '../scripts/history-discovery.mjs';
 
 const emptySuspensions=new Map();
 const tokenDigest=token=>createHash('sha256').update(token).digest();
@@ -84,6 +85,16 @@ export async function createServer({runtime,publicDir,now=Date.now}){
         res.setHeader('Cache-Control','private, no-store');
         const enabled=!!runtime.market;
         send(200,enabled?{enabled,...runtime.market.read(url.searchParams.getAll('watch'),suspended)}:{enabled:false});return;
+      }
+      if(url.pathname==='/api/devices/reliability'){
+        let window;
+        try{window=dateWindow(url);}catch(error){send(400,{error:error.message});return;}
+        const keys=url.searchParams.getAll('device'),{from,to}=window;
+        if(!keys.length||keys.length>8||new Set(keys).size!==keys.length||keys.some(key=>!validStorageKey(key))||Date.parse(to)-Date.parse(from)>365*86400000){
+          send(400,{error:'Choose up to eight devices and a range of at most 366 days.'});return;
+        }
+        const allowed=new Set(filter(await runtime.store.settingsDevices()).map(device=>device.deviceKey));
+        send(200,{series:await runtime.store.reliabilityHistory(keys.filter(key=>allowed.has(key)),from,to)});return;
       }
       if(url.pathname==='/api/devices'){
         res.setHeader('Cache-Control','private, no-store');

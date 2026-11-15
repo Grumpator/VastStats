@@ -20,7 +20,7 @@ test('fleet windows use weighted observed time; Everything uses all history and 
     const rows={a:[row(2*hour,3600),row(48*hour,0),row(10*day,1800),row(40*day,0)],b:[row(2*hour,0,1800)],c:[row(2*hour,3600)]};
     for(const box of boxes)for(const month of box.months)await atomicJson(path.join(stage,box.storageKey,month+'.json'),{version:2,name:box.name,month,hours:rows[box.name].filter(r=>r.start.slice(0,7)===month),snapshots:[]});
     await atomicJson(path.join(stage,'index.json'),{...initial,updatedAt:new Date(now+1000).toISOString(),boxes});await store.publish(stage);
-    const sample={at:new Date(now).toISOString(),connection:'online',listed:true,runningInstances:1,maintenanceWindows:[]};
+    const sample={at:new Date(now).toISOString(),connection:'online',listed:true,runningInstances:1,maintenanceWindows:[],reliability:.99};
     await store.publishStatus({version:1,source:'machines',identityNamespace:initial.identityNamespace,updatedAt:sample.at,boxes:boxes.slice(0,2).map(box=>({...box,lastSample:sample}))});
     const first=await store.occupancy(now);assert.equal(first.devices.get(identity('a')).percent,37.5);assert.equal(first.windows.get(identity('a')).day.occupied,3600);
     const later=await store.occupancy(now+60000);assert.equal(later.devices.get(identity('a')).percent,37.5);
@@ -45,6 +45,8 @@ test('fleet windows use weighted observed time; Everything uses all history and 
     const get=async route=>(await fetch(base+route)).json();
     const settings='/api/settings/devices',change=settings+'?device='+identity('b')+'&suspended=';
     const auth={method:'PUT',headers:{Authorization:'Bearer fixture-token'}};
+    const laterStamp=new Date(now+60000).toISOString();
+    await store.publishStatus({...store.status,updatedAt:laterStamp,boxes:store.status.boxes.map(box=>box.name==='b'?{...box,lastSample:{...sample,at:laterStamp,reliability:1}}:box)});
     const generation=store.generation,view=store.details('day',now,now);
     const before=(await get('/api/status')).historyRevision;
     assert.equal((await fetch(base+change+'1',{method:'PUT'})).status,401);
@@ -59,11 +61,14 @@ test('fleet windows use weighted observed time; Everything uses all history and 
       assert.equal((await get(include)).boxes.some(box=>box.deviceKey===identity('b')),true,route);
     }
     assert.notEqual((await get('/api/status')).historyRevision,before);
-    await store.publishStatus({...store.status,updatedAt:new Date(now+60000).toISOString(),boxes:store.status.boxes.filter(box=>box.name!=='b')});
+    await store.publishStatus({...store.status,updatedAt:new Date(now+120000).toISOString(),boxes:store.status.boxes.filter(box=>box.name!=='b')});
     await store.close();store=await new DataStore(root).open();runtime.store=store;
     const shown=await get(settings+'?includeSuspended=1');
     assert.deepEqual(shown.devices.find(box=>box.name==='b'),{deviceKey:identity('b'),name:'b',suspended:true});
     assert.equal((await get('/api/devices?includeSuspended=1')).boxes.find(box=>box.name==='b').discoveryMissing,true);
+    const reliability='/api/devices/reliability?from=2026-11-03&to=2026-11-05&device='+identity('b');
+    assert.deepEqual((await get(reliability)).series,[]);
+    assert.deepEqual((await get(reliability+'&includeSuspended=1')).series,[{deviceKey:identity('b'),points:[[now,.99],[now+60000,1]]}]);
     assert.equal((await fetch(base+change+'0',auth)).status,200);
     assert.equal((await get(settings)).devices.find(box=>box.name==='b').suspended,false);
   }finally{if(server){server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}await store?.close();await rm(root,{recursive:true,force:true});}

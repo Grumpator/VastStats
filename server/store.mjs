@@ -197,6 +197,28 @@ export class DataStore {
     }
     return {index,devices,windows};
   }
+  async reliabilityHistory(keys,from,to){
+    const months=[];
+    for(let month=from.slice(0,7);month<=to.slice(0,7);){
+      months.push(month);
+      const date=new Date(month+'-01T12:00Z');
+      date.setUTCMonth(date.getUTCMonth()+1);
+      month=date.toISOString().slice(0,7);
+    }
+    return Promise.all(keys.map(async deviceKey=>{
+      const readings=[];
+      for(const month of months){
+        const samples=await readJson(path.join(this.root,'observations',deviceKey,month+'.json'),[]);
+        for(const {at,reliability} of samples){
+          const day=at?.slice(0,10);
+          if(!day||day<from||day>to||!Number.isFinite(reliability)||reliability<0||reliability>1)continue;
+          const time=Date.parse(at);
+          if(Number.isFinite(time))readings.push([time,reliability]);
+        }
+      }
+      return {deviceKey,points:readings.sort(([a],[b])=>a-b)};
+    }));
+  }
   async history(from,to){
     const generation=this.generation;this.leases.set(generation,(this.leases.get(generation)||0)+1);
     try{
