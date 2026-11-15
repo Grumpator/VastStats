@@ -5,27 +5,27 @@ Origin: VastStats
 Label: VastStats
 Suite: stable
 Codename: stable
-Date: Sat, 14 Nov 2026 22:48:12 GMT
+Date: Sun, 15 Nov 2026 02:37:16 GMT
 Architectures: amd64 arm64
 Components: main
 Acquire-By-Hash: yes
 Description: VastStats Debian and Ubuntu packages
 SHA256:
- 4c381d61b00d56d8e8f7f365037b2af96a9c75f0ffe0b1ed6caa16bf243576d4 6424 main/binary-amd64/Packages
- 5b2e5390dfcc016f2ce2f6479a25a39e438cc6e442091a5875123a2de23b8722 1494 main/binary-amd64/Packages.gz
- 4c381d61b00d56d8e8f7f365037b2af96a9c75f0ffe0b1ed6caa16bf243576d4 6424 main/binary-arm64/Packages
- 5b2e5390dfcc016f2ce2f6479a25a39e438cc6e442091a5875123a2de23b8722 1494 main/binary-arm64/Packages.gz
+ 8455104f0de39537a16332ad14a11cc09f748fbd23536c1e30eaca41d3dfdc20 7227 main/binary-amd64/Packages
+ 276af12eb8a09c876d773f848d2ca764be4425a634bbae48f572b2866688b18b 1623 main/binary-amd64/Packages.gz
+ 8455104f0de39537a16332ad14a11cc09f748fbd23536c1e30eaca41d3dfdc20 7227 main/binary-arm64/Packages
+ 276af12eb8a09c876d773f848d2ca764be4425a634bbae48f572b2866688b18b 1623 main/binary-arm64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iQGzBAEBCAAdFiEEKxueSXplhVRkop1zkN1i2CxSVQIFAmr45S0ACgkQkN1i2CxS
-VQIUAQwApkH3Zxon3Y97T5+BA5gSl7zov/gwU7D3SbZH2/AsGx7xWPQ+2jNi6IkQ
-bGkOY5M04Mxf9HRcyR0xGjgpOJOUnma4iZwVc7Wfj3JfrH5wg02eABO24Aogzy6C
-3S82XIXT61YuAQBqKmIzvwmrP1BSgZ3fooIK+yg8Bofi50NQrSspIKjMcjQlduLo
-5Wg/p9EjEvZpuZC3ng/DoK9qNrXiM2KiyyRlQndL6fupk4KYzUrk8b80WTOsLQ79
-jG/MuCGhRG/htwQfDrlPMIVoXovkUCLaADqGlij+Fz95AKuM13u0eiaExoLRCK55
-yaND2ndPyEoUfATBwgajNLE0Ia1MtdV/paV0CcbTyVVkGToq9MdVTe0nbWPnuT1S
-K22RZaJgJ/IzTaAxuhQsN7VXfN+wLTpwVb2LincJ5sbBQWz5hhffPSjy2NGJ2wzb
-CrmKeZC+FU6Q3ftGzHbI9brZU9mMFbLLHAemKq5X5pVHLtUFZApwKzb6bIdkE0Lc
-lgbK1pOv
-=FN3S
+iQGzBAEBCAAdFiEEKxueSXplhVRkop1zkN1i2CxSVQIFAmr5GtwACgkQkN1i2CxS
+VQJ+/gwAqUdExsM5Gyi54aGriZPvMwfsmqz+BNsmkX7C5TvD6BpXi90LcYPlDMBW
+Lo3Mp01dQVTT/KcyEYtXnukVDSLvq3yIZID/dnOG/eLRWQraeGlE9PxjwBTrO8eU
+CX2ize3S+Uuee1jikmKrBLr73qqBbjKAaWprzcjZup2Qq+aFB4mFEbR/iHdM6ez8
+YZBKGEHh0+Hqc7wk6JyvyB41892Tc7OoCy2iOZ9aj5H12d8yOP3kteuN23m8Uytn
+t3WIIQsxPyfYgpQTUIJJjfB8K+iaTdteK7UymT+QifRR7yqcntk2GWznnBxUw99U
+iB3DGaNxJqg+bMiAPuP7Py7ITw0Vm+1GF0Q9e/p2AVj7M4ldBK/QMsWcP6egsavb
+o5CSa+hppxf+RhOjeVKCzbtjXQFKFRgVrwShu6wLb96TzpEw74XQBzwP4yjqstyI
+M61BpvN0Gl3x+NaGVaDeM1Dm0OR9q8FLxl1/stFfJRPZ72xrhyUnbY4tDAsZ7ei3
+Ng93xCYJ
+=HYJv
 -----END PGP SIGNATURE-----
