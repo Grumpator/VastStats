@@ -1,4 +1,10 @@
 const DAY=86400000;
+export function projectedDayEarnings(day,earned,rate,now=Date.now()){
+  if(!Number.isFinite(earned)||!Number.isFinite(rate)||rate<0)return null;
+  if(day!==new Date(now).toISOString().slice(0,10))return null;
+  const hoursLeft=(Date.parse(day+'T00:00Z')+DAY-now)/3600000;
+  return earned+hoursLeft*rate;
+}
 export const earningsSources=[{key:'computeUsd',label:'GPU',color:'#34845c'},{key:'bandwidthUsd',label:'Bandwidth',color:'#7b71b8'},{key:'storageUsd',label:'Storage',color:'#d4a13c'},{key:'totalUsd',label:'Total',color:'#253d32'}];
 const palette=['#34845c','#7b71b8','#d4a13c','#579bac','#b9757a','#7f9551','#b48b60','#7494c6'];
 export const gpuKey=model=>model?'gpu:'+model:'gpu-unknown';

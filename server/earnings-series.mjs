@@ -31,7 +31,14 @@ export class EarningsSeries {
     await atomicJson(path.join(this.root,'registry.json'),{version:1,devices:[...this.devices.values()]});
   }
   publicDevices(){return [...this.devices.values()].map(({deviceKey,name,gpuModel})=>({deviceKey,name,gpuModel:gpuModel??null}));}
-  fresh(value){const age=Math.floor(this.now()/DAY)-Date.parse(value.day+'T00:00Z')/DAY,ttl=age===0?1800000:age<=3?6*3600000:7*DAY;return this.now()-Date.parse(value.updatedAt)<ttl;}
+  fresh(value){
+    const now=this.now(),start=Date.parse(value.day+'T00:00Z'),checked=Date.parse(value.updatedAt);
+    const age=Math.floor(now/DAY)-start/DAY;
+    // A snapshot fetched while the day was still open needs a refresh after midnight.
+    if(age>0&&checked<start+DAY)return false;
+    const ttl=age===0?1800000:age<=3?6*3600000:7*DAY;
+    return now-checked<ttl;
+  }
   schedule(day){
     if(!this.enabled||this.closed||this.pending.has(day)||this.now()-(this.failures.get(day)??-Infinity)<300000)return;
     const request=this.chain.then(async()=>{
@@ -50,12 +57,18 @@ export class EarningsSeries {
   async scopedReport(report,suspended,days=report.daily){
     await Promise.all(days.map(({day})=>this.loadDay(day)));
     const daily=[],missingDays=[];
-    for(const {day} of [...days].reverse()){
+    for(const accountDay of [...days].reverse()){
+      const {day}=accountDay;
       const cached=this.cache.get(day);
-      if((!cached||!this.fresh(cached))&&(days.length===1||this.pending.size<16))this.schedule(day);
+      const rows=Object.entries(cached?.byDevice??{});
+      const cachedTotal=rows.reduce((sum,[,row])=>sum+row.totalUsd,0);
+      const newerAccountTotal=cached?.reported&&Date.parse(report.updatedAt)-Date.parse(day+'T00:00Z')<4*DAY
+        &&Date.parse(cached.updatedAt)<Date.parse(report.updatedAt)
+        &&Math.abs(cachedTotal-accountDay.totalUsd)>Math.max(.05,rows.length*.03);
+      if((!cached||!this.fresh(cached)||newerAccountTotal)&&(days.length===1||this.pending.size<16))this.schedule(day);
       if(!cached?.reported){missingDays.push(day);continue;}
       const totals={day,computeUsd:0,storageUsd:0,bandwidthUsd:0,totalUsd:0};
-      for(const [key,row] of Object.entries(cached.byDevice)){
+      for(const [key,row] of rows){
         if(suspended.has(key))continue;
         for(const field of ['computeUsd','storageUsd','bandwidthUsd','totalUsd'])totals[field]+=row[field];
       }

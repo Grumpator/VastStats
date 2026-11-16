@@ -1,8 +1,9 @@
-import {element} from './ui.js?v=1.3.5';
-import {hourlyUsd} from './now.js?v=1.3.5';
-import {bindPopover} from './popover.js?v=1.3.5';
-import {duration} from './device-info.js?v=1.3.5';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.5';
+import {element} from './ui.js?v=1.3.6';
+import {hourlyUsd} from './now.js?v=1.3.6';
+import {bindPopover} from './popover.js?v=1.3.6';
+import {duration} from './device-info.js?v=1.3.6';
+import {projectedDayEarnings} from './earnings-chart-model.js?v=1.3.6';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.6';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));
@@ -15,6 +16,7 @@ export function createEarningsChart({get}){
   const modeButtons=[...document.querySelectorAll('[data-chart-mode]')];
   const savedMode=history.state?.earningsChartMode;
   let report=null,mode=modeButtons.some(button=>button.dataset.chartMode===savedMode)?savedMode:'source',range=null,revision=null,roster=[],groups=[];
+  let snapshot=null,projections=new Map();
   const selections={source:new Set(earningsSources.map(d=>d.key)),machine:new Set(['totalUsd']),gpu:new Set(['totalUsd'])};
   const initialized=new Set(),windows=new Map();
   let activeSeries=[],days=[],hoverIndex=0,resizeTimer,pollTimer,fetchGeneration=0,loading=false;
@@ -31,6 +33,14 @@ export function createEarningsChart({get}){
       swatch.setAttribute('aria-hidden','true');
       name.append(swatch,element('span','chart-series-name',label));
       content.append(name,element('dd','',value==null?'No report':hourlyUsd(value)));
+    }
+    if(index===days.length-1){
+      for(const estimate of [...projections.values()].sort((a,b)=>b.value-a.value)){
+        const label=element('dt'),swatch=element('span','chart-series-color');
+        swatch.style.background=estimate.color;
+        label.append(swatch,element('span','chart-series-name',estimate.label+' · estimated at midnight UTC'));
+        content.append(label,element('dd','',hourlyUsd(estimate.value)));
+      }
     }
     return {title:day?dateLabel(day)+(day===new Date().toISOString().slice(0,10)?' · so far':' · earnings'):'Daily earnings',content};
   }
@@ -112,7 +122,7 @@ export function createEarningsChart({get}){
     draw();updateTable();loadDevices();
   }
   function draw(){
-    tooltip.hidden=true;host.replaceChildren();range=null;$('#chart-period').textContent='';
+    tooltip.hidden=true;host.replaceChildren();range=null;projections.clear();$('#chart-period').textContent='';
     if(!report?.daily){host.append(element('p','chart-empty','Waiting for daily earnings.'));return;}
     try{range=chartDateRange($('#chart-range').value,{from:$('#chart-from').value,to:$('#chart-to').value,availableFrom:report.from});}catch(error){host.append(element('p','chart-empty',error.message));return;}
     days=chartDays(range);hoverIndex=Math.min(hoverIndex,days.length-1);$('#chart-period').textContent=dateLabel(range.from)+' – '+dateLabel(range.to);
@@ -120,6 +130,35 @@ export function createEarningsChart({get}){
     const enabled=mode==='source'?[...selections.source]:[...selectedDevices(),...(selections[mode].has('totalUsd')?['totalUsd']:[])];
     activeSeries=earningsChartSeries({daily:report.daily,devices:devices().map(d=>({...d,daily:series?.get(d.deviceKey)||[]})),range,mode,enabled});
     const values=activeSeries.flatMap(s=>s.points.map(p=>p.value).filter(v=>v!==null));
+    const now=Date.now(),rateAge=now-Date.parse(snapshot?.statusUpdatedAt);
+    if(rateAge>=0&&rateAge<15*60_000){
+      const current=new Map((snapshot.currentDevices??[]).map(device=>[device.deviceKey,device.rate]));
+      const sumRate=(keys,field)=>{
+        let sum=0;
+        for(const key of keys){
+          const rate=current.get(key)?.[field];
+          if(!Number.isFinite(rate))return null;
+          sum+=rate;
+        }
+        return sum;
+      };
+      for(const line of activeSeries){
+        let rate;
+        if(line.key==='bandwidthUsd')rate=0;
+        else if(line.key==='totalUsd'||mode==='source'){
+          const field=line.key.replace(/Usd$/,'UsdPerHour');
+          rate=snapshot.accountReport?sumRate(current.keys(),field):snapshot.currentRate?.[field];
+        }else if(mode==='machine')rate=sumRate([line.key],'totalUsdPerHour');
+        else{
+          const members=groups.find(group=>group.deviceKey===line.key).members;
+          rate=sumRate(members.map(device=>device.deviceKey).filter(key=>current.has(key)),'totalUsdPerHour');
+        }
+        const last=line.points.at(-1),estimate=projectedDayEarnings(last?.day,last?.value,rate,now);
+        if(estimate===null)continue;
+        projections.set(line.key,{label:line.label,color:line.color,value:estimate});
+        values.push(estimate);
+      }
+    }
     if(!activeSeries.length){host.append(element('p','chart-empty','Select a series to display.'));return;}
     if(!values.length){host.append(element('p','chart-empty',loading?'Loading daily earnings history…':'No earnings reported in this range.'));return;}
     const width=Math.max(280,host.clientWidth),height=300,left=54,right=16,top=18,bottom=40,plotWidth=width-left-right,plotHeight=height-top-bottom;
@@ -134,12 +173,19 @@ export function createEarningsChart({get}){
     for(const i of indices)svg.append(svgElement('text',{x:x(i),y:height-14,'text-anchor':i===0?'start':i===days.length-1?'end':'middle',class:'chart-axis-label'},shortDate.format(Date.parse(days[i]+'T00:00Z'))));
     for(const series of activeSeries){
       let path='',connected=false;
-      for(let i=0;i<series.points.length;i++){
+      const projection=projections.get(series.key),last=series.points.length-1;
+      const length=projection?last:series.points.length;
+      for(let i=0;i<length;i++){
         const value=series.points[i].value;if(value===null){connected=false;continue;}
         path+=(connected?'L':'M')+x(i).toFixed(2)+','+y(value).toFixed(2)+' ';connected=true;
         if(days.length<=90)svg.append(svgElement('circle',{cx:x(i),cy:y(value),r:series.key==='totalUsd'?2.5:2,fill:series.color}));
       }
       svg.append(svgElement('path',{d:path,fill:'none',stroke:series.color,'stroke-width':series.key==='totalUsd'?2.8:1.8,'stroke-linecap':'round','stroke-linejoin':'round'}));
+      if(projection){
+        const at=x(last),end=y(projection.value),previous=series.points[last-1]?.value;
+        if(Number.isFinite(previous))svg.append(svgElement('line',{x1:x(last-1),x2:at,y1:y(previous),y2:end,stroke:series.color,'stroke-width':2,'stroke-dasharray':'4 3'}));
+        svg.append(svgElement('circle',{cx:at,cy:end,r:3,fill:'#fff',stroke:series.color,'stroke-width':1.5}));
+      }
     }
     const cursor=svgElement('line',{x1:left,x2:left,y1:top,y2:height-bottom,stroke:'#7c8c75','stroke-dasharray':'3 3',visibility:'hidden'});svg.append(cursor);
     const nearest=event=>{const bounds=svg.getBoundingClientRect();hoverIndex=Math.max(0,Math.min(days.length-1,Math.round(((event.clientX-bounds.left)/bounds.width*width-left)/plotWidth*(days.length-1))));};
@@ -162,7 +208,8 @@ export function createEarningsChart({get}){
   $('#chart-range').addEventListener('change',()=>{$('#chart-custom-range').hidden=$('#chart-range').value!=='custom';changeView();});
   for(const id of ['chart-from','chart-to'])$('#'+id).addEventListener('change',changeView);
   new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(draw,80);}).observe(host);
-  return {update(next){
+  return {update(next,currentSnapshot){
+    snapshot=currentSnapshot;
     report=next;roster=report?.machines||[];groups=gpuGroups(roster);
     for(const [group,items] of [['machine',roster],['gpu',groups]]){
       const selection=selections[group];

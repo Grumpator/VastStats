@@ -1,10 +1,10 @@
-import {demoEarnings} from './earnings-demo.js?v=1.3.5';
-import {cachedAPI} from './api.js?v=1.3.5';
-import {hourlyUsd} from './now.js?v=1.3.5';
-import {recordedPeriod,recordedTotal} from './earnings-model.js?v=1.3.5';
-import {icon} from './ui.js?v=1.3.5';
-import {bindPopover} from './popover.js?v=1.3.5';
-import {createEarningsChart} from './earnings-chart.js?v=1.3.5';
+import {demoEarnings} from './earnings-demo.js?v=1.3.6';
+import {cachedAPI} from './api.js?v=1.3.6';
+import {hourlyUsd} from './now.js?v=1.3.6';
+import {recordedPeriod,recordedTotal} from './earnings-model.js?v=1.3.6';
+import {icon} from './ui.js?v=1.3.6';
+import {bindPopover} from './popover.js?v=1.3.6';
+import {createEarningsChart} from './earnings-chart.js?v=1.3.6';
 
 const $=selector=>document.querySelector(selector),get=cachedAPI(),money=hourlyUsd;
 const stamp=value=>value?new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',dateStyle:'medium',timeStyle:'short'}).format(Date.parse(value))+' UTC':'Not yet checked';
@@ -41,7 +41,8 @@ function render(){
   const missingDays=data?.report?.missingDays?.length;
   $('#notice').textContent=demo?'SAMPLE DATA · Illustrative earnings, not actual rental figures.':missingDays?'Chart is waiting for per-device earnings on '+missingDays+' UTC dates.':'';
   if(overdue||data?.collection?.earnings?.failed)$('#freshness').textContent+=' · refresh overdue or failed; saved figures retained';
-  chart.update(data?.report?.version===2?data.report:null);
+  const chartReport=data?.report?.version===2?data.report:null;
+  chart.update(chartReport,data);
 }
 async function load(){
   const generation=++loadGeneration;

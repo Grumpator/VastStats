@@ -67,6 +67,13 @@ test('one daily backfill serves every device, coalesces requests, paces dates an
     await series.selected([a],today);await series.chain;
     const partial=await series.selected([a],today);
     assert.ok(Math.abs(partial.hours[a]-(12+2.5/3600))<1e-9);
+    time=Date.parse('2026-11-08T00:01Z');
+    await series.selected([a],today);await series.chain;
+    assert.equal(calls,4,'yesterday refreshes even if the pre-midnight cache is under six hours old');
+    time+=1800000;
+    const report={updatedAt:new Date(time).toISOString(),daily:[{day:today.from,totalUsd:23.05}]};
+    await series.scopedReport(report,new Set());await series.chain;
+    assert.equal(calls,5,'a newer account total triggers reconciliation within the cache lifetime');
     await assert.rejects(series.selected(['unknown'],range));await assert.rejects(series.selected(Array(9).fill(a),range));await assert.rejects(series.selected([a],{from:'2020-01-01',to:'2026-11-07'}));
   }finally{await series?.close();await rm(root,{recursive:true,force:true});}
 });
