@@ -20,6 +20,16 @@ function distribution(values){
   return {samples:sorted.length,min:sorted[0],p25:quantile(sorted,.25),median:quantile(sorted,.5),p75:quantile(sorted,.75),max:sorted.at(-1)};
 }
 
+export function suggestionPrices(values){
+  const sample=distribution(values);
+  if(!sample)return null;
+  const spread=sample.p75-sample.p25;
+  // A relative floor keeps normal variation in a tightly priced market.
+  const margin=Math.max(1.5*spread,.2*sample.median);
+  const retained=sample.samples<5?values:values.filter(value=>value>=sample.p25-margin&&value<=sample.p75+margin);
+  return {...distribution(retained),excluded:sample.samples-retained.length};
+}
+
 function offerRows(response){
   if(!Array.isArray(response?.offers))throw Error('Invalid offer response');
   return response.offers.flatMap(row=>{
@@ -194,9 +204,9 @@ async function samplePeers(api,target,excludedIds,floor=null,exact=null){
 // https://vast.ai/article/how-much-money-can-you-earn-renting-out-your-gpu-on-vast-ai
 const typicalRenterMultiplier=1.25;
 export function priceSuggestion({exact,available,occupied,peers}){
-  const direct=exact??available;
-  const useOccupied=(exact?.samples??0)<MIN_HOSTS&&!!occupied;
-  const usePeers=!useOccupied&&(exact?.samples??0)<MIN_HOSTS&&!!peers;
+  const direct=(exact?.samples??0)>=MIN_HOSTS?exact:available??exact;
+  const useOccupied=(direct?.samples??0)<MIN_HOSTS&&!!occupied;
+  const usePeers=!useOccupied&&(direct?.samples??0)<MIN_HOSTS&&!!peers;
   const market=useOccupied?occupied:usePeers?peers:direct;
   if(!market)return null;
   let {p25:low,median:high}=market;
@@ -207,9 +217,9 @@ export function priceSuggestion({exact,available,occupied,peers}){
   }
   if(!positive(high))return null;
   // Avoid presenting a single data point as a precise target range.
-  if(high-low<high*.05)low=high*.95;
+  if(market.samples<MIN_HOSTS&&high-low<high*.05)low=high*.95;
   return {host:{low:low/typicalRenterMultiplier,high:high/typicalRenterMultiplier},
-    exact:!!direct,occupied:useOccupied,peers:usePeers,confidence:!usePeers&&!useOccupied&&(exact?.samples??0)>=MIN_HOSTS?'Moderate':'Limited'};
+    exact:!!direct,occupied:useOccupied,peers:usePeers,confidence:!usePeers&&!useOccupied&&(direct?.samples??0)>=MIN_HOSTS?'Moderate':'Limited'};
 }
 
 function publicOffers(offers){
@@ -219,8 +229,8 @@ function publicOffers(offers){
     const key=offer.machine+':'+offer.gpus;
     if(seen.has(key))return false;
     seen.add(key);return true;
-  }).map(({gpus,verification,country,reliability,usd,disk,upload,download})=>({
-    gpus,verification,country,reliability,
+  }).map(({machine,gpus,verification,country,reliability,usd,disk,upload,download})=>({
+    id:Number(machine),gpus,verification,country,reliability,
     gpu:usd/typicalRenterMultiplier,disk:disk===null?null:disk/typicalRenterMultiplier,
     upload:upload===null?null:upload/typicalRenterMultiplier,download:download===null?null:download/typicalRenterMultiplier
   }));
@@ -309,9 +319,11 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
       const comparablePrices=hostPrices(preferLocal?local:matches);
       const sameModelPrices=hostPrices(offers);
       const exact=distribution(comparablePrices);
-      const available=offerPrices(hardwareMatches)??offerPrices(offers);
+      const exactSuggestion=suggestionPrices(comparablePrices);
+      const available=suggestionPrices(hostPrices(hardwareMatches.length?hardwareMatches:offers));
+      const enoughSameModel=Math.max(exactSuggestion?.samples??0,available?.samples??0)>=MIN_HOSTS;
       let occupiedPrices=[];
-      if((exact?.samples??0)<MIN_HOSTS){
+      if(!enoughSameModel){
         const key=JSON.stringify([model,profile.bundle]);
         if(!occupiedByProfile.has(key))occupiedByProfile.set(key,await read(
           ()=>api.offers({limit:SAMPLE_LIMIT,gpu_name:{eq:profile.model.replaceAll('_',' ')},num_gpus:{eq:profile.bundle},rented:{eq:true}}),
@@ -321,18 +333,23 @@ export function createMarket({api,machines,status,seed,now=Date.now}){
         occupiedPrices=hostPrices(candidates.filter(offer=>qualityMatch(offer,profile,floor)));
         if(!occupiedPrices.length)occupiedPrices=hostPrices(candidates);
       }
-      const occupied=distribution(occupiedPrices);
+      const occupied=suggestionPrices(occupiedPrices);
       let peerResult=null;
-      if(!occupied&&(exact?.samples??0)<MIN_HOSTS&&positive(ram)&&positive(dlperf)){
+      if(!occupied&&!enoughSameModel&&positive(ram)&&positive(dlperf)){
         peerResult=await read(()=>samplePeers(api,{...profile,ram,dlperf},ids,floor),value=>value);
       }
       const peerEstimate=peerResult?.estimate;
       const peerPrices=peerEstimate?.prices??null;
       const crossArch=!!peerEstimate&&(!profile.arch||peerEstimate.crossArch);
-      const suggestion=priceSuggestion({exact,available,occupied,peers:peerPrices});
+      const suggestion=priceSuggestion({exact:exactSuggestion,available,occupied,peers:peerPrices});
+      if(suggestion){
+        const selected=(exactSuggestion?.samples??0)>=MIN_HOSTS?exactSuggestion:available;
+        suggestion.sampledHosts=selected?.samples??0;
+        suggestion.excludedHosts=selected?.excluded??0;
+      }
       const fleetQuotes=distribution([...ownQuotes.values()].map(offer=>offer?.usd));
       const devices=profile.devices.map(({id,name,gpus,listed,reliability,ask,active,booked,country})=>({
-        name,gpus,listed,reliability,ask,active,booked,country,quote:ownQuotes.get(id)?.usd??null
+        id:Number(id),name,gpus,listed,reliability,ask,active,booked,country,quote:ownQuotes.get(id)?.usd??null
       }));
       cards.push({model:profile.model,bundle:profile.bundle,arch:profile.arch,verification:profile.verification,shared:profile.shared,
         ram,dlperf,floor,market:marketMetrics(verifiedRow,unverifiedRow),devices,fleetQuotes,

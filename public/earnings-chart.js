@@ -1,9 +1,9 @@
-import {element} from './ui.js?v=1.3.6';
-import {hourlyUsd} from './now.js?v=1.3.6';
-import {bindPopover} from './popover.js?v=1.3.6';
-import {duration} from './device-info.js?v=1.3.6';
-import {projectedDayEarnings} from './earnings-chart-model.js?v=1.3.6';
-import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.6';
+import {element} from './ui.js?v=1.3.7';
+import {hourlyUsd} from './now.js?v=1.3.7';
+import {bindPopover} from './popover.js?v=1.3.7';
+import {duration} from './device-info.js?v=1.3.7';
+import {projectedDayEarnings} from './earnings-chart-model.js?v=1.3.7';
+import {chartDateRange,chartDays,chartScale,earningsChartSeries,earningsDefinitions,earningsSources,gpuGroups,rangeTotal,rankedPoints,reportedDayHours} from './earnings-chart-model.js?v=1.3.7';
 
 const $=selector=>document.querySelector(selector),svgNS='http://www.w3.org/2000/svg';
 const dateLabel=day=>new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(Date.parse(day+'T00:00Z'));

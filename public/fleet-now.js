@@ -1,11 +1,11 @@
-import {demoEarnings} from './earnings-demo.js?v=1.3.6';
-import {recordedPeriod} from './earnings-model.js?v=1.3.6';
-import {element,icon} from './ui.js?v=1.3.6';
-import {fleetSnapshot,demoData} from './model.js?v=1.3.6';
-import {statusSource} from './status-data.js?v=1.3.6';
-import {hourlyUsd} from './now.js?v=1.3.6';
-import {bindPopover} from './popover.js?v=1.3.6';
-import {showingSuspended} from './api.js?v=1.3.6';
+import {demoEarnings} from './earnings-demo.js?v=1.3.7';
+import {recordedPeriod} from './earnings-model.js?v=1.3.7';
+import {element,icon} from './ui.js?v=1.3.7';
+import {fleetSnapshot,demoData} from './model.js?v=1.3.7';
+import {statusSource} from './status-data.js?v=1.3.7';
+import {hourlyUsd} from './now.js?v=1.3.7';
+import {bindPopover} from './popover.js?v=1.3.7';
+import {showingSuspended} from './api.js?v=1.3.7';
 
 export function initialiseFleetNow(){
   const header=document.querySelector('.topbar');if(!header)return;

@@ -1,7 +1,7 @@
-import {element} from './ui.js?v=1.3.6';
-import {bindPopover,closePopover} from './popover.js?v=1.3.6';
-import {percentLabel,reliabilityLabel} from './model.js?v=1.3.6';
-import {fleetURL} from './api.js?v=1.3.6';
+import {element,icon} from './ui.js?v=1.3.7';
+import {bindPopover,closePopover} from './popover.js?v=1.3.7';
+import {percentLabel,reliabilityLabel} from './model.js?v=1.3.7';
+import {fleetURL} from './api.js?v=1.3.7';
 
 const $=selector=>document.querySelector(selector);
 const decimal=new Intl.NumberFormat('en-GB',{maximumFractionDigits:1});
@@ -53,7 +53,7 @@ bindPopover(addGpu,()=>{
 });
 
 bindPopover($('#market-info'),()=>({title:'How Market compares prices',
-  copy:'Supply counts GPUs worldwide across all bundle sizes. Price tables sample distinct hosts. Prices show on-demand compute in USD per GPU-hour, excluding storage and bandwidth. Local offers take priority when at least three independent hosts match your hardware profile. When same-model offers are sparse, VastStats searches above and below the target DLPerf, then ranks matches by memory, DLPerf and laptop or desktop class. It interpolates when it finds both slower and faster matches and gives extra weight to actual same-model asks. One-sided estimates have lower confidence. Estimated host prices use comparable market offers and Vast’s typical renter markup of about 25%. The actual markup can vary.'}));
+  copy:'Supply counts GPUs worldwide across all bundle sizes. Price tables sample distinct hosts. Suggestions prioritise at least three same-model hosts, using close hardware and reliability matches first. Other GPU models are a fallback when same-model evidence is scarce. For five or more hosts, prices outside the quartiles by more than the greater of 1.5 times the interquartile range or 20% of the median are excluded from the suggestion. The lower quartile and median of the retained prices form the suggested band. Narrow price bands retain their samples. Tables and histograms show all sampled prices. Host rates are estimated using Vast’s typical renter markup of about 25%; the actual markup can vary. All compute rates are per GPU-hour, excluding storage and bandwidth.'}));
 
 function table(caption,headers,rows){
   const wrapper=element('div','market-table-wrap'),node=element('table','market-table');
@@ -219,10 +219,11 @@ function suggestionEvidence(group){
   if(value.exact)signals.push('same-model asks');
   if(value.occupied)signals.push('asks from occupied machines');
   if(value.peers)signals.push(group.peerScope==='Mixed CPU architectures'?'similar GPU asks across CPU architectures':'similar GPU asks');
-  return value.confidence+' evidence · '+signals.join(' + ')+'. Host prices are estimated using Vast’s typical renter markup of about 25%.';
+  const removed=value.excludedHosts?' '+value.excludedHosts+' outlying host prices excluded from the suggestion.':'';
+  return value.confidence+' evidence · '+signals.join(' + ')+'.'+removed+' The suggested band uses the lower quartile to the median of the retained host prices. Tables and histograms include the full sample. Host prices are estimated using Vast’s typical renter markup of about 25%.';
 }
 
-function availableOffers(offers){
+function availableOffers(offers,groupKey){
   const section=element('div','market-fleet');
   section.append(element('h3','','Available market devices'));
   if(!offers?.length){
@@ -230,15 +231,23 @@ function availableOffers(offers){
     return section;
   }
   const component=value=>Number.isFinite(value)?'$'+value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6}):'—';
-  section.append(table('Available offers with estimated host asking rates',
-    ['GPUs','Location','Verification','Reliability','GPU $/GPU-h','Disk $/GB-month','Upload $/GB','Download $/GB'],
-    offers.map(offer=>[number(offer.gpus),offer.country??'—',offer.verification??'—',reliabilityLabel(offer.reliability),
-      price(offer.gpu),component(offer.disk),component(offer.upload),component(offer.download)])));
+  const columns=[
+    ['id','Device ID','Vast machine ID.'],['gpus','GPUs','GPUs in this offer.'],
+    ['country','Location','Country reported by Vast.'],['verification','Verification','Vast verification status.'],
+    ['reliability','Reliability','Reliability percentage. Enter percentage bounds, for example 99.'],
+    ['gpu','GPU $/GPU-h','Estimated host compute rate.'],['disk','Disk $/GB-month','Estimated host storage rate.'],
+    ['upload','Upload $/GB','Estimated host upload rate.'],['download','Download $/GB','Estimated host download rate.']
+  ];
+  const wrapper=table('Available offers with estimated host asking rates',columns.map(([,label])=>label),
+    offers.map(offer=>[number(offer.id),number(offer.gpus),offer.country??'—',offer.verification??'—',reliabilityLabel(offer.reliability),
+      price(offer.gpu),component(offer.disk),component(offer.upload),component(offer.download)]));
+  section.append(controlledTable(wrapper,columns,offers,groupKey+':available'));
   section.append(element('p','market-note','Estimated host rates from sampled public offers. The actual surcharge can vary.'));
   return section;
 }
 
 const fleetColumns=[
+  ['id','Device ID','Vast machine ID.'],
   ['name','Device','The machine name. An unlisted machine is marked next to its name.'],
   ['active','Running GPUs','GPUs in active rentals out of the GPUs installed on the machine. Sorts by the number running.'],
   ['reliability','Reliability','Vast’s reliability score for the machine.'],
@@ -247,31 +256,45 @@ const fleetColumns=[
   ['booked','Booked rate','What your active contracts pay you for compute, in USD per running GPU-hour. A dash means no running rate is available.']
 ];
 const fleetSorts=new Map();
+const tableFilters=new Map();
 const deviceNames=new Intl.Collator('en-GB',{numeric:true,sensitivity:'base'});
 
 function fleetTable(group){
   const wrapper=table('Your listing, renter quote and active contract prices',fleetColumns.map(([,label])=>label),group.devices.map(device=>[
-    device.name+(device.listed===false?' · unlisted':''),number(device.active)+' / '+number(device.gpus),reliabilityLabel(device.reliability),
+    number(device.id),device.name+(device.listed===false?' · unlisted':''),number(device.active)+' / '+number(device.gpus),reliabilityLabel(device.reliability),
     device.listed===true?price(device.ask):'—',price(device.quote),price(device.booked)
   ]));
+  return controlledTable(wrapper,fleetColumns,group.devices,marketGroupKey(group)+':fleet');
+}
+
+function controlledTable(wrapper,columns,devices,groupKey){
   const body=wrapper.querySelector('tbody');
-  const rows=Array.from(body.rows,(row,index)=>({row,device:group.devices[index]}));
-  const groupKey=marketGroupKey(group);
+  const rows=Array.from(body.rows,(row,index)=>({row,device:devices[index]}));
   const headers=Array.from(wrapper.querySelectorAll('thead th'));
   const indicators=[];
   const sortValue=(device,key)=>key==='ask'&&device.listed!==true?null:device[key];
+  const defaultSort={key:columns.some(([key])=>key==='gpu')?'gpu':'ask',direction:'ascending'};
+  if(!tableFilters.has(groupKey))tableFilters.set(groupKey,new Map());
+  const filters=tableFilters.get(groupKey);
 
   function applySort({key,direction}){
     const ordered=[...rows].sort((a,b)=>{
       const left=sortValue(a.device,key),right=sortValue(b.device,key);
       if(left==null)return right==null?0:1;
       if(right==null)return -1;
-      const comparison=key==='name'?deviceNames.compare(left,right):left-right;
+      const comparison=typeof left==='string'?deviceNames.compare(left,right):left-right;
       return direction==='ascending'?comparison:-comparison;
     });
-    body.replaceChildren(...ordered.map(({row})=>row));
+    body.replaceChildren(...ordered.filter(({device})=>[...filters].every(([field,filter])=>{
+      const raw=sortValue(device,field),value=field==='reliability'&&raw!=null?raw*100:raw;
+      if(typeof filter==='string'){
+        if(field==='country'||field==='verification')return value===filter;
+        return String(value??'').toLowerCase().includes(filter);
+      }
+      return Number.isFinite(value)&&(filter.min===null||value>=filter.min)&&(filter.max===null||value<=filter.max);
+    })).map(({row})=>row));
     headers.forEach((header,index)=>{
-      const active=fleetColumns[index][0]===key;
+      const active=columns[index][0]===key;
       if(active)header.setAttribute('aria-sort',direction);
       else header.removeAttribute('aria-sort');
       indicators[index].textContent=active?(direction==='ascending'?'↑':'↓'):'↕';
@@ -279,7 +302,7 @@ function fleetTable(group){
   }
 
   headers.forEach((header,index)=>{
-    const [key,label,copy]=fleetColumns[index];
+    const [key,label,copy]=columns[index];
     const controls=element('div','market-column-controls');
     const sort=element('button','market-column-sort',label);
     const indicator=element('span','market-column-indicator','↕');
@@ -298,11 +321,53 @@ function fleetTable(group){
     });
     help.setAttribute('aria-label','About '+label);
     bindPopover(help,()=>({title:label,copy}));
-    controls.append(sort,help);
+    const filter=element('button','inventory-filter');
+    filter.type='button';filter.append(icon('filter'));
+    filter.setAttribute('aria-label','Filter '+label);
+    filter.classList.toggle('filtered',filters.has(key));
+    bindPopover(filter,()=>{
+      const content=element('div','inventory-filter-form');
+      const apply=value=>{
+        if(value===null||value==='')filters.delete(key);else filters.set(key,value);
+        filter.classList.toggle('filtered',filters.has(key));
+        applySort(fleetSorts.get(groupKey)??defaultSort);
+      };
+      if(key==='country'||key==='verification'){
+        const select=element('select');
+        select.setAttribute('aria-label',label+' filter');
+        select.append(new Option('Any',''));
+        const values=[...new Set(devices.map(device=>device[key]).filter(Boolean))].sort();
+        for(const value of values)select.append(new Option(value,value));
+        select.value=filters.get(key)??'';
+        select.onchange=()=>apply(select.value);
+        content.append(select);
+      }else if(key==='name'){
+        const input=element('input');input.type='search';input.value=filters.get(key)??'';
+        input.setAttribute('aria-label',label+' contains');
+        input.oninput=()=>apply(input.value.trim().toLowerCase());content.append(input);
+      }else{
+        const inputs={};
+        for(const [bound,title] of [['min','Minimum'],['max','Maximum']]){
+          const field=element('label','',title),input=element('input');
+          input.type='number';input.step='any';input.value=filters.get(key)?.[bound]??'';
+          input.setAttribute('aria-label',title+' '+label);inputs[bound]=input;
+          input.oninput=()=>{
+            const min=Number.isFinite(inputs.min.valueAsNumber)?inputs.min.valueAsNumber:null;
+            const max=Number.isFinite(inputs.max.valueAsNumber)?inputs.max.valueAsNumber:null;
+            apply(min===null&&max===null?null:{min,max});
+          };
+          field.append(input);content.append(field);
+        }
+      }
+      const clear=element('button','text-button','Clear this filter');clear.type='button';
+      clear.onclick=()=>{apply(null);closePopover(true);};content.append(clear);
+      return {title:'Filter '+label,copy,content};
+    });
+    controls.append(sort,filter,help);
     header.replaceChildren(controls);
   });
   const initial=fleetSorts.get(groupKey);
-  if(initial)applySort(initial);
+  applySort(initial??defaultSort);
   return wrapper;
 }
 
@@ -321,12 +386,12 @@ function groupCard(group,stale,index){
     toggle.setAttribute('aria-expanded',String(open));
     if(open&&!details.childElementCount){
       if(group.isWatched){
-        details.append(watchPriceDetails(group),availableOffers(group.prices?.availableOffers));
+        details.append(watchPriceDetails(group),availableOffers(group.prices?.availableOffers,key));
         return;
       }
       const own=element('div','market-fleet');
       own.append(element('h3','','Your fleet'),fleetTable(group));
-      details.append(pricing(group),own,availableOffers(group.availableOffers));
+      details.append(pricing(group),own,availableOffers(group.availableOffers,key));
       if(!stale&&group.suggestion?.host)details.append(element('p','market-note',suggestionEvidence(group)));
     }
   }

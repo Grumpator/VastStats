@@ -1,13 +1,34 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createMarket,priceSuggestion} from '../server/market.mjs';
+import {createMarket,priceSuggestion,suggestionPrices} from '../server/market.mjs';
 import {discoverMachines} from '../scripts/history-discovery.mjs';
 import {readConfig} from '../server/config.mjs';
 
 const seed='market-test-identity-secret';
 const time=Date.parse('2026-11-07T14:00:00Z');
 
-test('market shares a snapshot, excludes own offers and falls back to comparable GPUs when same-model offers are scarce',async()=>{
+test('suggestion outlier filtering preserves narrow bands and excludes isolated extremes',()=>{
+  const tight=[.5,.5,.51,.52,.53,.54,.55];
+  const narrow=suggestionPrices(tight);
+  assert.equal(narrow.samples,7);
+  assert.equal(narrow.min,.5);
+  assert.equal(narrow.max,.55);
+  assert.equal(narrow.excluded,0);
+  const clustered=suggestionPrices([.01,.50,.50,.51,.52,.53,.54,.55,1.06]);
+  assert.equal(clustered.samples,7);
+  assert.equal(clustered.excluded,2);
+  assert.equal(clustered.median,.52);
+  assert.equal(clustered.max,.55);
+  assert.equal(suggestionPrices([.5,.5,.5,.5,1.06]).excluded,1);
+  assert.equal(suggestionPrices([.19,1.06]).excluded,0);
+  const direct=suggestionPrices(tight);
+  const suggestion=priceSuggestion({available:direct,occupied:{samples:100,p25:1,median:2},peers:{samples:100,p25:3,median:4}});
+  assert.equal(suggestion.occupied,false);
+  assert.equal(suggestion.peers,false);
+  assert.equal(suggestion.host.high,direct.median/1.25);
+});
+
+test('market shares a snapshot, excludes own offers and prefers enough same-model hosts over peer GPUs',async()=>{
   const raw={machines:[101,102].map(id=>({
     id,hostname:'Fleet '+id,num_gpus:1,gpu_name:'GB10',gpu_ram:0,cpu_ram:124608,cpu_arch:'arm64',verification:'verified',
     listed:true,listed_min_gpu_count:1,listed_gpu_cost:.45,timeout:2,reliability2:.99,geolocation:'London, GB',private:'secret'
@@ -48,18 +69,18 @@ test('market shares a snapshot, excludes own offers and falls back to comparable
   assert.equal(market.read().refreshing,true);
   await market.close();
   const result=market.read(),group=result.snapshot.groups[0];
-  assert.deepEqual(metricsCalls,['yes','no']);assert.equal(queries,5);assert.equal(result.refreshing,false);
+  assert.deepEqual(metricsCalls,['yes','no']);assert.equal(queries,2);assert.equal(result.refreshing,false);
   assert.equal(group.market.total,100);assert.equal(group.market.rented,94);
   assert.deepEqual(group.market.verified,{rented:80,available:3,unavailable:0,usage30:.82});
   assert.deepEqual(group.market.unverified,{rented:14,available:2,unavailable:1,usage30:.565});
   assert.equal(group.exact.samples,1);assert.equal(group.exact.median,.5);
   assert.deepEqual(group.priceHistograms,{low:.14,high:.5,sameModel:[2,0,0,0,0,0,0,0,0,1],comparable:[0,0,0,0,0,0,0,0,0,1],occupied:Array(10).fill(0)});
-  assert.equal(group.peers.samples,3);assert.equal(group.peerModels[0].name,'Similar GPU');
-  assert.equal(group.suggestion.peers,true);
-  assert.ok(Math.abs(group.suggestion.host.high-(.45+.5)/2/1.25)<1e-9);
+  assert.equal(group.peers,null);
+  assert.equal(group.suggestion.peers,false);
+  assert.equal(group.suggestion.host.high,.15/1.25);
   assert.equal(group.devices[0].booked,.33);
   assert.deepEqual(group.availableOffers.find(offer=>offer.disk!==null),{
-    gpus:1,verification:'verified',country:'GB',reliability:.99,gpu:.32,disk:.2,upload:0,download:null
+    id:201,gpus:1,verification:'verified',country:'GB',reliability:.99,gpu:.32,disk:.2,upload:0,download:null
   });
   const publicData=JSON.stringify(result);
   for(const field of ['machine_id','host_id','private','secret'])assert.equal(publicData.includes(field),false);

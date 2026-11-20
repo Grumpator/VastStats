@@ -1,7 +1,7 @@
-import {chartDateRange,earningsDefinitions} from './earnings-chart-model.js?v=1.3.6';
-import {percentLabel,reliabilityLabel} from './model.js?v=1.3.6';
-import {element} from './ui.js?v=1.3.6';
-import {bindPopover} from './popover.js?v=1.3.6';
+import {chartDateRange,earningsDefinitions} from './earnings-chart-model.js?v=1.3.7';
+import {percentLabel,reliabilityLabel} from './model.js?v=1.3.7';
+import {element} from './ui.js?v=1.3.7';
+import {bindPopover} from './popover.js?v=1.3.7';
 
 export function createReliabilityChart(get){
   const $=id=>document.getElementById('reliability-'+id);
